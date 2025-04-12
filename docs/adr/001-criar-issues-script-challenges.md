@@ -1,5 +1,8 @@
 ## Lições Aprendidas / Registro de Desenvolvimento - `criar_issues_script.sh`
 
+**Versão:** 0.1.0<br>
+**Data:** 2025-04-12
+
 **Projeto:** `criar_issues_script.sh` (Automação de Criação/Edição de Issues GitHub)<br>
 **Data:** 12 de Abril de 2025 (última atualização)<br>
 **Versão Final do Script (nesta conversa):** v17

@@ -1,13 +1,13 @@
 # Guia de Estratégia de Desenvolvimento - Laravel 12 USP Starter Kit
 
 **Versão:** 0.1.0<br>
-**Data:** 11 de Abril de 2025
+**Data:** 2025-04-12
 
 ## 1. Introdução
 
 ### 1.1. Propósito deste Guia
 
-Bem-vindo ao Guia de Estratégia de Desenvolvimento para o **Laravel 12 USP Starter Kit**. Este documento serve como o manual operacional padrão para todos os desenvolvedores que utilizam ou contribuem para este Starter Kit dentro do ambiente da Universidade de São Paulo (USP).
+Bem-vindo ao Guia de Estratégia de Desenvolvimento para o **Laravel 12 USP Starter Kit**. Este documento, assim como os demais arquivos de documentação `.md` neste repositório, segue um controle de versão próprio (detalhado na Seção 6.1) e serve como o manual operacional padrão para todos os desenvolvedores que utilizam ou contribuem para este Starter Kit dentro do ambiente da Universidade de São Paulo (USP).
 
 O objetivo principal é detalhar um processo de desenvolvimento organizado, consistente, eficiente e rastreável, cobrindo o ciclo de vida completo de uma tarefa, desde a concepção da ideia até a sua implementação e integração final no código-fonte.
 
@@ -67,8 +67,8 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
     *   **Instalação e Autenticação:** Siga as [instruções oficiais](https://cli.github.com/manual/installation) para instalar o `gh` no seu sistema. Após a instalação, autentique-se executando `gh auth login` e seguindo as instruções.
 *   **GitHub Projects (v2):** A ferramenta integrada ao GitHub para gerenciamento visual de projetos (quadro Kanban). Será usada para visualizar e gerenciar o fluxo de Issues. (Ver Seção 4.3 para configuração).
 *   **Ferramentas de Qualidade (Pré-configuradas no Starter Kit):**
-    *   **Laravel Pint:** Ferramenta para formatação automática do estilo de código PHP (PSR-12). Execute `composer lint` ou configure seu editor para usar o Pint.
-    *   **Larastan:** Extensão do PHPStan para análise estática focada em Laravel. Ajuda a encontrar erros sem executar o código. Execute via `composer analyse`.
+    *   **Laravel Pint:** Ferramenta para formatação automática do estilo de código PHP (PSR-12). Execute `vendor/bin/pint` ou configure seu editor para usar o Pint.
+    *   **Larastan:** Extensão do PHPStan para análise estática focada em Laravel. Ajuda a encontrar erros sem executar o código. Execute via `vendor/bin/phpstan analyse`.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
@@ -90,10 +90,10 @@ Este ciclo descreve o fluxo recomendado para transformar uma ideia ou necessidad
 *   **Como Criar Issues Eficazes:**
     *   **Título:** Claro, conciso e acionável. Deve resumir o problema ou a tarefa. (Ex: "[BUG] Botão de login não funciona no Firefox", "[FEAT] Implementar exportação de usuários para CSV").
     *   **Descrição:** Detalhada e contextualizada. Explique o *quê* e o *porquê*. Para bugs, inclua passos para reproduzir, comportamento esperado vs. atual, ambiente. Para features, descreva o objetivo, a motivação e a solução proposta.
-    *   **Templates:** **SEMPRE** utilize os templates fornecidos (`.github/ISSUE_TEMPLATE/`) ao criar novas Issues. Eles guiam o preenchimento das informações essenciais:
-        *   `bug_report.md`: Para relatar bugs.
-        *   `feature_request.md`: Para novas funcionalidades ou melhorias.
-        *   `chore_refactor.md`: Para tarefas internas, refatorações, atualizações de dependências, etc.
+    *   **Templates:** **SEMPRE** utilize os templates fornecidos (veja seção 5.3 para o local correto) ao criar novas Issues. Eles guiam o preenchimento das informações essenciais:
+        *   `bug_body.md`: Para relatar bugs.
+        *   `feature_body.md`: Para novas funcionalidades ou melhorias.
+        *   `chore_body.md`: Para tarefas internas, refatorações, atualizações de dependências, etc.
     *   **Critérios de Aceite:** **OBRIGATÓRIO.** Defina claramente como você saberá que a Issue está "Pronta" (Done). Use checklists Markdown (`- [ ] Critério 1`). Uma Issue só pode ser considerada concluída quando todos os seus critérios de aceite forem atendidos. Isto deve ser *verificável* (princípio IEEE 830).
 *   **Organização da Issue:**
     *   **Labels:** Use labels consistentemente para categorizar (ex: `bug`, `feature`, `chore`), priorizar (`priority:high`, `priority:medium`), indicar status (`status:blocked`) ou módulo (`module:auth`).
@@ -173,343 +173,53 @@ Para acelerar a criação de Issues a partir de um plano de ação ou lista de t
 
 ### 5.2. Formatos de Arquivo de Input (`plano_*.txt`)
 
-Podemos usar dois formatos para nosso arquivo de plano:
-
-*   **`plano_simples.txt`:** Cada linha contém apenas o título da Issue.
-    ```
-    Corrigir bug de login na API
-    Implementar paginação na lista de usuários
-    ```
-*   **`plano_estruturado.txt`:** Usa `|` para separar Título, tipo (para template/label) e labels adicionais (separadas por vírgula).
-    ```
-    Corrigir bug de login na API|bug|prioridade:alta
-    Implementar paginação na lista de usuários|feature
-    Refatorar módulo de autenticação|refactor|tech-debt
-    Configurar CI/CD|chore|ci-cd
-    ```
+Podemos usar um formato estruturado para nosso arquivo de plano (ex: `planos/plano_exemplo.txt`), onde cada bloco define uma issue e seus metadados usando pares `CHAVE: VALOR`. Veja o arquivo `planos/plano_exemplo.txt` e o script `criar_issues_script.sh` para detalhes do formato exato.
 
 ### 5.3. Templates de Corpo de Issue
 
-Utilize os templates Markdown localizados em `.github/ISSUE_TEMPLATES/script_templates/`:
+Utilize os templates Markdown localizados em `project_templates/issue_bodies/`:
 
-*   `bug_template.md`
-*   `feature_template.md`
-*   `chore_refactor_template.md`
-*   `default_template.md`
+*   `bug_body.md`
+*   `chore_body.md`
+*   `feature_body.md`
+*   `default_body.md` (Usado como fallback)
 
-### 5.4. Scripts de Automação
+### 5.4. Script de Automação
 
-Os scripts a seguir leem os arquivos de plano e criam as Issues no GitHub.
+O script `criar_issues_script.sh` incluído no repositório lê um arquivo de plano estruturado (como `planos/plano_exemplo.txt`) e cria ou **edita** Issues no GitHub.
 
-**Script Básico (`criar_issues_simples.sh`):**
+*   **Funcionalidades do Script:**
+    *   Lê blocos de definição de Issue de um arquivo texto.
+    *   Usa templates Markdown do diretório `project_templates/issue_bodies/` com base no `TYPE` definido no bloco.
+    *   Aplica labels, assignee e milestone (se fornecido via argumento de linha de comando).
+    *   Associa a Issue a um GitHub Project (se especificado no bloco e o projeto existir).
+    *   **Verifica se uma Issue aberta com o mesmo título já existe.** Se sim, edita a issue existente (atualizando corpo, assignee, milestone e adicionando labels). Se não, cria uma nova Issue.
+    *   Verifica e cria labels e milestones que não existem (se possível).
+*   **Como Usar:**
+    1.  Certifique-se de ter `gh`, `jq` e outras ferramentas Unix padrão instaladas e o `gh` autenticado.
+    2.  (Opcional) Crie ou modifique os templates em `project_templates/issue_bodies/`.
+    3.  Crie seu arquivo de plano (ex: `planos/ciclo_atual.txt`) seguindo o formato do `planos/plano_exemplo.txt`.
+    4.  Execute o script, passando o nome do arquivo de plano e, opcionalmente, um milestone:
+        ```bash
+        # Criar/Editar issues do plano, sem milestone específico
+        ./criar_issues_script.sh planos/ciclo_atual.txt
 
-```bash
-#!/bin/bash
-
-# Uso: ./criar_issues_simples.sh <arquivo_de_plano.txt>
-
-PLAN_FILE="${1:-plano_simples.txt}" # Usa argumento ou padrão
-DEFAULT_LABELS=("todo" "backlog")
-ASSIGNEE="@me"
-PROJECT_NAME="" # Preencha se usar GitHub Project
-# REPO_TARGET="seu-usuario/seu-repo" # Descomente e ajuste se não estiver no diretório
-
-# ... (restante do script 'Exemplo 1' de github_cli_referencia.md) ...
-# (Adapte a leitura do arquivo para usar $PLAN_FILE)
-# ... (loop while lendo $PLAN_FILE) ...
-# ... (comando gh issue create usando -t "$issue_title" e -b "Tarefa...") ...
-
-# ---- Conteúdo completo do script básico ----
-# Arquivo contendo os títulos das issues, um por linha
-PLAN_FILE="${1:-plano_simples.txt}"
-# Labels padrão a serem adicionadas a todas as issues
-DEFAULT_LABELS=("todo" "backlog")
-# Atribuir a si mesmo? ("@me" ou deixe vazio "")
-ASSIGNEE="@me"
-# Adicionar a um projeto? (Nome ou número do projeto, ex: "Meu Kanban Pessoal")
-# Encontre via `gh project list` ou na URL do projeto. Deixe vazio "" se não usar.
-PROJECT_NAME=""
-# Repositório (se necessário, senão usa o atual) ex: "meu-usuario/meu-repo"
-# REPO_TARGET="meu-usuario/meu-repo"
-
-# Verifica se o arquivo de plano existe
-if [ ! -f "$PLAN_FILE" ]; then
-  echo "Erro: Arquivo de plano '$PLAN_FILE' não encontrado."
-  echo "Uso: $0 [<arquivo_de_plano.txt>]"
-  exit 1
-fi
-
-echo "Iniciando criação de Issues a partir de '$PLAN_FILE'..."
-
-# Constrói os flags de label
-label_flags=""
-for label in "${DEFAULT_LABELS[@]}"; do
-  label_flags+=" -l \"$label\""
-done
-
-# Constrói o flag de assignee
-assignee_flag=""
-if [ -n "$ASSIGNEE" ]; then
-  assignee_flag=" -a \"$ASSIGNEE\""
-fi
-
-# Constrói o flag de projeto
-project_flag=""
-if [ -n "$PROJECT_NAME" ]; then
-  # Tentativa de encontrar o ID do projeto pelo nome (requer gh >= 2.5.0 para --format json)
-  PROJECT_ID=$(gh project list --owner '@me' --format json --jq '.projects[] | select(.title == "'"$PROJECT_NAME"'") | .id' 2>/dev/null)
-  if [ -z "$PROJECT_ID" ]; then
-      # Se falhar ou não for JSON, tenta usar o nome diretamente (pode funcionar em versões futuras ou se for número)
-      echo "Aviso: Não foi possível encontrar o ID do projeto '$PROJECT_NAME'. Tentando usar o nome/número diretamente."
-      PROJECT_ID="$PROJECT_NAME"
-  fi
-    project_flag=" -p \"$PROJECT_ID\"" # Usa o ID encontrado ou o nome/número original
-fi
-
-# Constrói o flag de repositório
-repo_flag=""
-if [ -n "$REPO_TARGET" ]; then
-  repo_flag=" -R \"$REPO_TARGET\""
-fi
-
-# Lê o arquivo linha por linha
-while IFS= read -r issue_title || [[ -n "$issue_title" ]]; do
-  # Ignora linhas vazias ou comentadas com #
-  if [[ -z "$issue_title" || "$issue_title" =~ ^# ]]; then
-    continue
-  fi
-
-  echo "Criando Issue: '$issue_title'"
-
-  # Monta e executa o comando gh
-  # shellcheck disable=SC2086 # Expansão intencional dos flags
-  gh issue create -t "$issue_title" \
-                  -b "Tarefa definida no plano de ação." \
-                  $label_flags \
-                  $assignee_flag \
-                  $project_flag \
-                  $repo_flag
-
-  # Verifica se o comando foi bem sucedido
-  if [ $? -ne 0 ]; then
-    echo "Erro ao criar Issue: '$issue_title'"
-    # Decide se quer parar ou continuar
-    # exit 1 # Para em caso de erro
-    echo "Continuando com a próxima..."
-  else
-    echo "Issue '$issue_title' criada com sucesso."
-  fi
-
-  # Pequena pausa para não sobrecarregar a API (opcional)
-  sleep 1
-
-done < "$PLAN_FILE"
-
-echo "Criação de Issues concluída."
-# ---- Fim do conteúdo completo ----
-```
-
-**Script Avançado (`criar_issues_estruturadas.sh`):**
-
-```bash
-#!/bin/bash
-
-# Uso: ./criar_issues_estruturadas.sh <arquivo_de_plano_estruturado.txt>
-
-PLAN_FILE="${1:-plano_estruturado.txt}" # Usa argumento ou padrão
-TEMPLATE_DIR=".github/ISSUE_TEMPLATES/script_templates"
-DEFAULT_TEMPLATE="default_template.md"
-DEFAULT_LABEL_IF_EMPTY="todo"
-ASSIGNEE="@me"
-PROJECT_NAME="" # Preencha se usar GitHub Project
-# REPO_TARGET="seu-usuario/seu-repo" # Descomente e ajuste se não estiver no diretório
-
-# ... (restante do script 'Exemplo 2' de github_cli_referencia.md) ...
-# (Adapte a leitura do arquivo para usar $PLAN_FILE)
-# ... (loop while lendo $PLAN_FILE) ...
-# ... (lógica para extrair título, tipo, labels) ...
-# ... (lógica para escolher template_file) ...
-# ... (construção de label_flags) ...
-# ... (comando gh issue create usando -F "$template_file" e flags) ...
-
-# ---- Conteúdo completo do script avançado ----
-# Arquivo contendo as issues estruturadas: Título|tipo|label1,label2,...
-PLAN_FILE="${1:-plano_estruturado.txt}"
-# Diretório contendo os templates .md para o corpo das issues
-TEMPLATE_DIR=".github/ISSUE_TEMPLATES/script_templates"
-# Template padrão a ser usado se um específico não for encontrado
-DEFAULT_TEMPLATE="default_template.md"
-# Label padrão a ser adicionada se nenhuma específica for fornecida
-DEFAULT_LABEL_IF_EMPTY="todo"
-# Atribuir a si mesmo?
-ASSIGNEE="@me"
-# Adicionar a um projeto?
-PROJECT_NAME=""
-# Repositório alvo?
-# REPO_TARGET="meu-usuario/meu-repo"
-
-# Verifica se o arquivo de plano existe
-if [ ! -f "$PLAN_FILE" ]; then
-  echo "Erro: Arquivo de plano '$PLAN_FILE' não encontrado."
-  echo "Uso: $0 [<arquivo_de_plano_estruturado.txt>]"
-  exit 1
-fi
-
-# Verifica se o diretório de templates existe
-if [ ! -d "$TEMPLATE_DIR" ]; then
-  echo "Erro: Diretório de templates '$TEMPLATE_DIR' não encontrado."
-  exit 1
-fi
-
-echo "Iniciando criação de Issues estruturadas a partir de '$PLAN_FILE'..."
-
-# Constrói o flag de assignee
-assignee_flag=""
-if [ -n "$ASSIGNEE" ]; then
-  assignee_flag=" -a \"$ASSIGNEE\""
-fi
-
-# Constrói o flag de projeto
-project_flag=""
-if [ -n "$PROJECT_NAME" ]; then
-  # Tentativa de encontrar o ID do projeto pelo nome (requer gh >= 2.5.0 para --format json)
-  PROJECT_ID=$(gh project list --owner '@me' --format json --jq '.projects[] | select(.title == "'"$PROJECT_NAME"'") | .id' 2>/dev/null)
-  if [ -z "$PROJECT_ID" ]; then
-      # Se falhar ou não for JSON, tenta usar o nome diretamente (pode funcionar em versões futuras ou se for número)
-      echo "Aviso: Não foi possível encontrar o ID do projeto '$PROJECT_NAME'. Tentando usar o nome/número diretamente."
-      PROJECT_ID="$PROJECT_NAME"
-  fi
-    project_flag=" -p \"$PROJECT_ID\"" # Usa o ID encontrado ou o nome/número original
-fi
-
-# Constrói o flag de repositório
-repo_flag=""
-if [ -n "$REPO_TARGET" ]; then
-  repo_flag=" -R \"$REPO_TARGET\""
-fi
-
-# Lê o arquivo linha por linha, usando '|' como delimitador
-while IFS='|' read -r issue_title issue_type_labels extra || [[ -n "$issue_title" ]]; do
-  # Ignora linhas vazias ou comentadas com #
-  if [[ -z "$issue_title" || "$issue_title" =~ ^# ]]; then
-    continue
-  fi
-
-  # Limpa espaços extras (se houver)
-  issue_title=$(echo "$issue_title" | sed 's/^[ \t]*//;s/[ \t]*$//')
-  issue_type_labels=$(echo "$issue_type_labels" | sed 's/^[ \t]*//;s/[ \t]*$//')
-
-  # Separa o tipo (primeira parte antes da vírgula) das labels específicas
-  issue_type="${issue_type_labels%%,*}" # Pega a parte antes da primeira vírgula
-  specific_labels_str="${issue_type_labels#*,}" # Pega a parte depois da primeira vírgula
-
-  # Se não houver vírgula, o tipo é toda a string e não há labels específicas
-  if [[ "$issue_type" == "$specific_labels_str" ]]; then
-      specific_labels_str=""
-  fi
-
-  # Se o tipo estiver vazio, use 'default'
-  if [ -z "$issue_type" ]; then
-    issue_type="default"
-  fi
-
-  # Padroniza tipo para minúsculo para nome do arquivo
-  issue_type_lower=$(echo "$issue_type" | tr '[:upper:]' '[:lower:]')
-
-  echo "Processando: Título='$issue_title', Tipo='$issue_type', Labels='$specific_labels_str'"
-
-  # Determina o arquivo de template a ser usado
-  template_file="$TEMPLATE_DIR/${issue_type_lower}_template.md"
-  if [ ! -f "$template_file" ]; then
-    # Tenta também com 'chore_refactor' se for 'chore' ou 'refactor'
-    if [[ "$issue_type_lower" == "chore" || "$issue_type_lower" == "refactor" ]]; then
-      template_file="$TEMPLATE_DIR/chore_refactor_template.md"
-    fi
-  fi
-  if [ ! -f "$template_file" ]; then
-     echo "Aviso: Template para tipo '$issue_type_lower' ou 'chore_refactor' não encontrado. Usando default."
-     template_file="$TEMPLATE_DIR/$DEFAULT_TEMPLATE"
-     if [ ! -f "$template_file" ]; then
-         echo "Erro: Template default '$DEFAULT_TEMPLATE' não encontrado em '$TEMPLATE_DIR'. Pulando issue."
-         continue
-     fi
-  fi
-
-  # Constrói os flags de label
-  label_flags=""
-  # Adiciona o tipo como label (se não for 'default')
-  if [[ "$issue_type" != "default" ]]; then
-    label_flags+=" -l \"$issue_type\""
-  fi
-
-  # Adiciona as labels específicas da linha
-  if [ -n "$specific_labels_str" ]; then
-    IFS=',' read -ra specific_labels <<< "$specific_labels_str"
-    for label in "${specific_labels[@]}"; do
-      clean_label=$(echo "$label" | sed 's/^[ \t]*//;s/[ \t]*$//') # Limpa espaços
-      if [ -n "$clean_label" ]; then
-        label_flags+=" -l \"$clean_label\""
-      fi
-    done
-  elif [ -n "$DEFAULT_LABEL_IF_EMPTY" ]; then
-     # Adiciona label padrão se nenhuma específica foi dada
-        label_flags+=" -l \"$DEFAULT_LABEL_IF_EMPTY\""
-  fi
-
-
-  echo "  Usando template: $template_file"
-  echo "  Labels a adicionar: $(echo $label_flags | sed 's/-l //g')" # Mostra as labels
-
-  # Monta e executa o comando gh
-  # shellcheck disable=SC2086 # Expansão intencional dos flags
-  gh issue create -t "$issue_title" \
-                  -F "$template_file" \
-                  $label_flags \
-                  $assignee_flag \
-                  $project_flag \
-                  $repo_flag
-
-  if [ $? -ne 0 ]; then
-    echo "Erro ao criar Issue: '$issue_title'"
-    # exit 1
-    echo "Continuando com a próxima..."
-  else
-    echo "Issue '$issue_title' criada com sucesso."
-  fi
-
-  sleep 1 # Pausa
-
-done < "$PLAN_FILE"
-
-echo "Criação de Issues estruturadas concluída."
-# ---- Fim do conteúdo completo ----
-```
-
-**Como Usar:**
-
-1.  Salve os scripts (`criar_issues_simples.sh`, `criar_issues_estruturadas.sh`).
-2.  Torne-os executáveis (`chmod +x *.sh`).
-3.  Crie a estrutura de pastas `.github/ISSUE_TEMPLATES/script_templates/` e coloque os arquivos de template (`bug_template.md`, etc.) dentro dela.
-4.  Crie seu arquivo de plano (ex: `ciclo_atual.txt`) no formato desejado.
-5.  (Opcional) Edite as variáveis no topo dos scripts (DEFAULT_LABELS, PROJECT_NAME, etc.) conforme sua necessidade.
-6.  Execute o script apropriado, passando o nome do arquivo de plano como argumento:
-    ```bash
-    ./criar_issues_estruturadas.sh ciclo_atual.txt
-    ```
-7.  Verifique as Issues criadas no seu repositório GitHub e no seu quadro Kanban (se configurado).
+        # Criar/Editar issues, associando-as ao milestone "Sprint 1" (cria se não existir)
+        ./criar_issues_script.sh --milestone-title "Sprint 1" --milestone-desc "Objetivos da Sprint 1" planos/ciclo_atual.txt
+        ```
+    5.  Verifique as Issues criadas/editadas no seu repositório GitHub e no seu quadro Kanban (se configurado).
 
 ### 5.5. Fluxo de Trabalho com Automação
 
-1.  **Planejamento:** Defina suas tarefas no arquivo `plano_*.txt`.
-2.  **Execução do Script:** Rode o script `criar_issues_estruturadas.sh seu_plano.txt`.
-3.  **Gerenciamento:** Suas Issues aparecerão no GitHub e, se configurado, no Backlog do seu quadro Kanban.
+1.  **Planejamento:** Defina suas tarefas no arquivo de plano estruturado (ex: `planos/ciclo_atual.txt`).
+2.  **Execução do Script:** Rode o script `criar_issues_script.sh seu_plano.txt [--milestone-title ...]`.
+3.  **Gerenciamento:** Suas Issues aparecerão atualizadas ou criadas no GitHub e, se configurado, no Backlog do seu quadro Kanban.
 4.  **Desenvolvimento:** Prossiga com o fluxo normal descrito na Fase 4 (puxar issue, criar branch, fazer commits atômicos referenciando a issue, PR, merge).
 
 ## 6. Documentação do Projeto
 
-*   **README.md:** Deve conter a visão geral do Starter Kit, instruções de instalação rápida, propósito e um link para a Wiki. Pode incluir uma *explicação* da estrutura do quadro Kanban.
-*   **Wiki do GitHub:** É o local ideal para a documentação mais detalhada:
-    *   Este **Guia de Estratégia de Desenvolvimento**.
+*   **README.md:** Deve conter a visão geral do Starter Kit, instruções de instalação rápida, propósito e um link para a Wiki. **DEVE** incluir a linha `**Versão:** X.Y.Z` e `**Data:** YYYY-MM-DD` (ver Seção 6.1). Pode incluir uma *explicação* da estrutura do quadro Kanban.
+*   **Wiki do GitHub:** É o local ideal para a documentação mais detalhada e que pode ter um ciclo de atualização diferente (histórico próprio da Wiki). Conteúdo ideal para a Wiki:
     *   Guias de configuração avançada.
     *   Tutoriais sobre como estender o Starter Kit.
     *   Explicação da arquitetura de código e dos serviços incluídos (ReplicadoService, etc.).
@@ -517,15 +227,35 @@ echo "Criação de Issues estruturadas concluída."
     *   Como executar e interpretar os testes.
     *   Estratégias de deploy recomendadas (se houver).
     *   Convenções de código (reforçando Pint/Larastan).
+*   **Documentos `.md` no Repositório:** Arquivos como este guia (`docs/guia_de_desenvolvimento.md`), ADRs (`docs/adr/`), o Termo de Abertura (`docs/termo_abertura_projeto.md`), e outros documentos `.md` mantidos junto ao código **DEVEM** seguir o sistema de versionamento descrito na Seção 6.1.
 *   **Documentação no Código:** Comentários claros no código, especialmente em partes mais complexas ou específicas da USP.
-*   **Manutenção:** A documentação deve ser tratada como código. Crie Issues (tipo `docs`) para rastrear necessidades de atualização ou criação de documentação e siga o mesmo fluxo de desenvolvimento para elas.
+*   **Manutenção da Documentação Versionada:** A documentação versionada (`.md` no repo) deve ser tratada como código. Crie Issues (tipo `docs`) para rastrear necessidades de atualização ou criação e siga o mesmo fluxo de desenvolvimento (commit, PR). As atualizações da versão no cabeçalho ocorrem conforme descrito na Seção 6.1.
+
+### 6.1. Versionamento da Documentação no Repositório
+
+Para garantir clareza sobre qual versão do Starter Kit um documento `.md` descreve, adotamos a seguinte estratégia:
+
+*   **Alinhamento com o Código:** A versão da documentação `.md` no repositório **DEVE** espelhar a versão [SemVer](https://semver.org/lang/pt-BR/) do release do Starter Kit (tag Git).
+*   **Identificação:** Todo arquivo `.md` versionado (exceto `LICENSE`) **DEVE** iniciar com:
+    ```markdown
+    **Versão:** X.Y.Z
+    **Data:** YYYY-MM-DD
+    ```
+    (Onde X.Y.Z é a tag do release e YYYY-MM-DD a data de criação da tag).
+*   **Atualização:** A `Versão` e `Data` no cabeçalho dos documentos **DEVEM** ser atualizadas no commit que prepara a criação de uma nova tag de release (ex: `v0.1.0`, `v0.2.0`).
+*   **Versão Inicial:** A versão inicial de toda a documentação `.md` neste repositório é `0.1.0`, datada de `2025-04-12`.
+*   **Escopo:** Aplica-se a: `README.md`, `docs/guia_de_desenvolvimento.md`, `docs/termo_abertura_projeto.md`, `docs/adr/*.md`,  `padroes_codigo_boas_praticas.md`.
+*   **Changelog:** É **RECOMENDÁVEL** usar `CHANGELOG.md` ou GitHub Releases para detalhar mudanças entre versões, incluindo as da documentação.
+
+*Para detalhes completos da estratégia, consulte o arquivo `docs/versionamento_documentacao.md`.*
 
 ## 7. Manutenção e Evolução Contínua
 
 O processo descrito aplica-se não apenas ao desenvolvimento inicial, mas também à manutenção e evolução contínua do projeto:
 
-*   **Bugs:** Bugs encontrados em produção ou desenvolvimento devem ser registrados como Issues usando o template `bug_report.md` e seguir o fluxo normal (A Fazer -> Em Progresso -> Revisão -> Concluído). Use a label `bug`.
-*   **Refatorações e Dívida Técnica:** Tarefas de melhoria de código, atualização de dependências, ou pagamento de dívida técnica devem ser criadas como Issues (template `chore_refactor.md`), priorizadas no backlog e trabalhadas como qualquer outra tarefa. Use labels `refactor` ou `tech-debt`.
+*   **Bugs:** Bugs encontrados em produção ou desenvolvimento devem ser registrados como Issues usando o template apropriado (`bug_body.md`) e seguir o fluxo normal (A Fazer -> Em Progresso -> Revisão -> Concluído). Use a label `bug`.
+*   **Refatorações e Dívida Técnica:** Tarefas de melhoria de código, atualização de dependências, ou pagamento de dívida técnica devem ser criadas como Issues (template `chore_body.md`), priorizadas no backlog e trabalhadas como qualquer outra tarefa. Use labels `refactor` ou `tech-debt`.
 *   **Novas Funcionalidades:** Ideias para novas funcionalidades entram no Backlog (como Draft ou Issue `feature`) e seguem o ciclo completo de detalhamento, priorização e implementação.
+*   **Atualizações de Documentação:** Mudanças necessárias na documentação versionada (`.md` no repo) **DEVEM** ser tratadas via Issues (tipo `docs`) e Pull Requests, seguindo o fluxo padrão. A atualização da versão no cabeçalho ocorre conforme a Seção 6.1.
 
 A chave é tratar *todo* o trabalho rastreável através de Issues, mantendo o quadro Kanban atualizado e seguindo a disciplina dos commits atômicos vinculados. Isso garante que o projeto permaneça organizado e manutenível ao longo do tempo.
