@@ -1,6 +1,6 @@
 # Guia de Estratégia de Desenvolvimento - Laravel 12 USP Starter Kit
 
-**Versão:** 0.1.0
+**Versão:** 0.1.0<br>
 **Data:** 11 de Abril de 2025
 
 ## 1. Introdução
