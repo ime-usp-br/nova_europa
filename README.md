@@ -1,8 +1,9 @@
 # Laravel 12 USP Starter Kit
 
-[![Status da Build](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/ci.yml) <!-- Placeholder: Ajustar URL quando o repositório existir -->
-[![Latest Stable Version](https://img.shields.io/packagist/v/uspdev/laravel-usp-starter-kit)](https://packagist.org/packages/uspdev/laravel-usp-starter-kit) <!-- Placeholder: Ajustar URL quando o pacote existir -->
-[![Total Downloads](https://img.shields.io/packagist/dt/uspdev/laravel-usp-starter-kit)](https://packagist.org/packages/uspdev/laravel-usp-starter-kit) <!-- Placeholder: Ajustar URL quando o pacote existir -->
+**Versão:** 0.1.0<br>
+**Data:** 2025-04-12
+
+[![Status da Build](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 1. Introdução
@@ -48,10 +49,10 @@ Este Starter Kit vem pré-configurado com:
 *   **Testes Automatizados:**
     *   Estrutura inicial com testes unitários e de feature (PHPUnit).
     *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais.
-*   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/uspdev/laravel-usp-starter-kit/wiki) <!-- Placeholder: Ajustar URL quando o repositório existir --> para guias aprofundados.
+*   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico.
 
-*Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](link-para-termo-abertura-na-wiki).* <!-- Placeholder: Link para Wiki -->
+*Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki).*
 
 ## 4. Stack Tecnológica
 
@@ -82,10 +83,9 @@ Siga os passos abaixo para iniciar um novo projeto usando este Starter Kit:
 
 2.  **Clonar o Repositório:**
     ```bash
-    git clone https://github.com/uspdev/laravel-usp-starter-kit.git seu-novo-projeto
+    git clone https://github.com/ime-usp-br/laravel_12_starter_kit.git seu-novo-projeto
     cd seu-novo-projeto
     ```
-    <!-- Placeholder: Ajustar URL quando o repositório existir -->
 
 3.  **Instalar Dependências:**
     ```bash
@@ -153,7 +153,7 @@ Para que as funcionalidades de integração com a USP funcionem corretamente, vo
 *   **Senha Única:** Adicione e preencha as variáveis `SENHAUNICA_CALLBACK`, `SENHAUNICA_KEY`, `SENHAUNICA_SECRET`. Consulte a [documentação do `uspdev/senhaunica-socialite`](https://github.com/uspdev/senhaunica-socialite) para detalhes sobre como obter essas credenciais.
 *   **Replicado:** Adicione e preencha as variáveis `REPLICADO_HOST`, `REPLICADO_PORT`, `REPLICADO_DATABASE`, `REPLICADO_USERNAME`, `REPLICADO_PASSWORD`, `REPLICADO_CODUND`, `REPLICADO_CODBAS`. Consulte a [documentação do `uspdev/replicado`](https://github.com/uspdev/replicado) para detalhes.
 
-*Instruções detalhadas sobre a configuração e uso dessas integrações podem ser encontradas na [Wiki do Projeto](https://github.com/uspdev/laravel-usp-starter-kit/wiki).* <!-- Placeholder: Ajustar URL -->
+*Instruções detalhadas sobre a configuração e uso dessas integrações podem ser encontradas na [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki).*
 
 ## 8. Ferramentas e Qualidade de Código
 
@@ -161,9 +161,11 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 
 *   **Laravel Pint:** Formatador de código automático (PSR-12).
     *   Para formatar: `vendor/bin/pint`
+    *   Para verificar (CI): `vendor/bin/pint --test`
 *   **Larastan (PHPStan):** Ferramenta de análise estática para encontrar erros sem executar o código.
     *   Para analisar: `vendor/bin/phpstan analyse`
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
+*   **Script de Criação de Issues (`criar_issues_script.sh`):** Uma ferramenta de automação (requer `gh` CLI, `jq`) que lê um arquivo de plano estruturado (veja `planos/plano_exemplo.txt`) e cria ou edita Issues no GitHub, utilizando templates (de `project_templates/issue_bodies/`) e associando metadados como labels, assignee, projeto e milestone. Facilita a transformação de planos em tarefas rastreáveis no GitHub.
 
 ## 9. Testes
 
@@ -171,16 +173,20 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
     ```bash
     php artisan test
     ```
-*   **Fakes para Dependências USP:** O kit inclui classes `Fake` (ex: `FakeReplicadoService`, `FakeSenhaUnicaSocialiteProvider`) para facilitar a escrita de testes que interagem com as funcionalidades da Senha Única ou Replicado sem depender dos serviços externos reais. Consulte a [Wiki](link-para-wiki) para exemplos. <!-- Placeholder: Ajustar URL -->
+*   **Fakes para Dependências USP:** O kit inclui classes `Fake` (ex: `FakeReplicadoService`, `FakeSenhaUnicaSocialiteProvider`) para facilitar a escrita de testes que interagem com as funcionalidades da Senha Única ou Replicado sem depender dos serviços externos reais. Consulte a [Wiki](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para exemplos.
 
 ## 10. Documentação
 
-A documentação principal e mais detalhada deste Starter Kit reside na **[Wiki do GitHub](https://github.com/uspdev/laravel-usp-starter-kit/wiki)**. <!-- Placeholder: Ajustar URL -->
+A documentação principal e mais detalhada deste Starter Kit reside na **[Wiki do GitHub](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki)**.
 
 Lá você encontrará:
 
 *   Este README.md.
-*   O [Guia de Estratégia de Desenvolvimento](./guia_de_desenvolvimento.md) completo. <!-- Ou link para a Wiki -->
+*   O [Guia de Estratégia de Desenvolvimento](./docs/guia_de_desenvolvimento.md) completo (v0.1.0).
+*   Os [Padrões de Código e Boas Práticas](./docs/padroes_codigo_boas_praticas.md) (v0.1.0).
+*   A [Estratégia de Versionamento da Documentação](./docs/versionamento_documentacao.md) (v0.1.0).
+*   O [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md) (v0.1.0).
+*   Registros de Decisão de Arquitetura (ADRs) em `docs/adr/`.
 *   Detalhes sobre a arquitetura do código (Services, Repositories).
 *   Explicações sobre o sistema de permissões e autenticação.
 *   Tutoriais sobre como estender o kit.
@@ -189,7 +195,7 @@ Lá você encontrará:
 
 ## 11. Como Contribuir
 
-Contribuições são bem-vindas! Para garantir um desenvolvimento organizado e rastreável, siga o fluxo descrito no **[Guia de Estratégia de Desenvolvimento](link-para-guia-na-wiki)**. <!-- Placeholder: Ajustar URL -->
+Contribuições são bem-vindas! Para garantir um desenvolvimento organizado e rastreável, siga o fluxo descrito no **[Guia de Estratégia de Desenvolvimento](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki)**.
 
 Em resumo:
 
@@ -199,6 +205,8 @@ Em resumo:
 4.  Abra um **Pull Request (PR)** claro, vinculando-o à Issue (`Closes #<ID>`).
 5.  Aguarde a revisão (mesmo que seja auto-revisão) e a passagem da CI.
 6.  Faça o **Merge** do PR.
+
+*(Considere usar o script `criar_issues_script.sh` para agilizar a criação de issues a partir de um plano)*.
 
 ## 12. Licença
 
