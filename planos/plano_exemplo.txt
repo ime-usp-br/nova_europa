@@ -1,0 +1,31 @@
+TITLE: [CONFIG] Configurar Base Laravel 12 e Dependências Essenciais2
+TYPE: chore
+LABELS: configuracao,core,todo
+ASSIGNEE: @me
+PROJECT: laravel_12_starter_kit # Substitua pelo nome/número real do seu projeto
+CHORE_MOTIVATION: Estabelecer a estrutura inicial do projeto Laravel 12 e instalar dependências chave (Replicado, Senha Única, Spatie).
+CHORE_DESCRIPTION: Clonar o starter kit base, rodar composer install, npm install, configurar .env básico (sem credenciais USP ainda), gerar chave, rodar migrações iniciais (users, cache, jobs, failed_jobs). Instalar dependências uspdev e spatie/permission via composer. Publicar assets e configurações necessárias dos pacotes.
+TECHNICAL_DETAILS: Verificar versões PHP, Composer, Node. Garantir que as migrations padrão do Laravel e dos pacotes rodem sem erros.
+ACCEPTANCE_CRITERIA:
+- [ ] Repositório clonado e dependências Composer/NPM instaladas
+- [ ] Arquivo .env criado a partir do .env.example
+- [ ] Chave da aplicação gerada (`php artisan key:generate`)
+- [ ] Migrations base (users, cache, jobs, failed_jobs) executadas com sucesso
+- [ ] Pacotes `uspdev/replicado`, `uspdev/senhaunica-socialite`, `spatie/laravel-permission` instalados via Composer
+- [ ] Configurações/Migrations dos pacotes publicados (se necessário)
+------
+TITLE: [AUTH] Implementar Controller e Callback Senha Única2
+TYPE: feature
+LABELS: autenticacao,senha-unica,feature,todo
+ASSIGNEE: @me
+PROJECT: laravel_12_starter_kit # Substitua pelo nome/número real do seu projeto
+FEATURE_MOTIVATION: Processar a autenticação do usuário via Senha Única e logá-lo no sistema.
+FEATURE_DESCRIPTION: Criar um `SocialiteController` (ou similar). Implementar o método de redirecionamento (`redirectToProvider`) que chama `Socialite::driver('senhaunica')->redirect()`. Implementar o método de callback (`handleProviderCallback`) que obtém os dados do usuário via `Socialite::driver('senhaunica')->user()`, encontra ou cria o usuário local correspondente (usando `codpes` como chave principal), e loga o usuário no sistema (`Auth::login`). Tratar possíveis erros do Socialite.
+PROPOSED_SOLUTION: Usar o Trait `HasSenhaunica` no model User para facilitar a busca/criação. Redirecionar para o dashboard após login bem-sucedido e para a tela de login com erro em caso de falha.
+ACCEPTANCE_CRITERIA:
+- [ ] Método `redirectToProvider` redireciona corretamente para a Senha Única
+- [ ] Método `handleProviderCallback` obtém dados do usuário da Senha Única
+- [ ] Usuário USP é encontrado ou criado no banco de dados local baseado no `codpes`
+- [ ] Usuário é logado com sucesso via `Auth::login()` após callback
+- [ ] Erros do Socialite são capturados e tratados (ex: redirecionamento com mensagem de erro)
+- [ ] Teste de feature cobre o fluxo de login Senha Única (usando `FakeSenhaUnicaSocialiteProvider`)
