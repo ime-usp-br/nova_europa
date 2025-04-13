@@ -27,30 +27,35 @@ Este Starter Kit vem pré-configurado com:
 
 *   **Base Laravel 12:** Estrutura inicial pronta para uso.
 *   **Autenticação Dupla:**
-    *   **Senha Única USP:** Integração completa e funcional via `uspdev/senhaunica-socialite`.
-    *   **Autenticação Local:** Sistema de Login/Registro/Reset de Senha baseado no Laravel Breeze (TALL Stack), com verificação de e-mail.
-    *   **Registro Unificado:** Formulário que diferencia usuários USP (com validação de Nº USP e e-mail via Replicado) e externos.
+    *   **Senha Única USP:** Integração completa e funcional via `uspdev/senhaunica-socialite` (a ser totalmente implementada no backend e UI).
+    *   **Autenticação Local (Scaffolding via Breeze):** Sistema de Login/Registro/Reset de Senha/Verificação de Email baseado no **Laravel Breeze (Stack Livewire Class API)**, pronto para customização visual e integração com a lógica de validação USP.
+    *   **Registro Unificado (Planejado):** Formulário de registro único que diferenciará usuários USP (com validação de Nº USP e e-mail via Replicado) e externos, utilizando a base do Breeze.
 *   **Integração com Replicado:**
     *   Biblioteca `uspdev/replicado` configurada.
-    *   `ReplicadoService`: Uma classe de serviço com métodos comuns para consulta de dados pessoais e vínculos.
+    *   `ReplicadoService` (Planejado): Uma classe de serviço com métodos comuns para consulta de dados pessoais e vínculos, usada na validação do registro.
 *   **Gerenciamento de Permissões:**
     *   Integração com `spatie/laravel-permission`.
-    *   Roles padrão pré-definidos (`Admin`, `User`, `usp_user`, `external_user`).
-    *   Atribuição automática de roles no registro.
-    *   Interface básica (TALL Stack) para gerenciamento de Usuários, Roles e Permissões (guard `web`).
+    *   Roles padrão pré-definidos (Planejado: `Admin`, `User`, `usp_user`, `external_user`).
+    *   Atribuição automática de roles no registro (Planejado).
+    *   Interface básica TALL Stack para gerenciamento de Usuários, Roles e Permissões (Planejado).
     *   Aplicação de permissões hierárquicas e de vínculo vindas da Senha Única (guard `senhaunica`).
-*   **Stack Frontend TALL:**
-    *   Preset Breeze com **Livewire**, **Alpine.js** e **Tailwind CSS**.
-    *   Componentes Blade básicos e reutilizáveis, adaptados visualmente às diretrizes da USP.
+*   **Stack Frontend TALL (via Breeze):**
+    *   **Livewire 3 (Class API):** Para componentes PHP interativos.
+    *   **Alpine.js 3:** Para interatividade leve no frontend.
+    *   **Tailwind CSS 4:** Para estilização moderna e utilitária.
+    *   **Vite:** Para compilação de assets.
+    *   **Suporte a Dark Mode:** Pré-configurado pelo Breeze.
+    *   Componentes Blade básicos e reutilizáveis, adaptados visualmente às diretrizes da USP (Planejado).
 *   **Ferramentas de Qualidade:**
     *   **Laravel Pint:** Para formatação automática de código (PSR-12).
     *   **Larastan (PHPStan):** Para análise estática de código focada em Laravel.
     *   **EditorConfig:** Para manter a consistência de estilo entre editores.
 *   **Testes Automatizados:**
-    *   Estrutura inicial com testes unitários e de feature (PHPUnit).
-    *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais.
+    *   Estrutura inicial com testes unitários e de feature (**PHPUnit** como framework padrão, configurado pelo Breeze).
+    *   Testes básicos de autenticação adicionados pelo Breeze.
+    *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais (Planejado).
 *   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
-*   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico.
+*   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
 *Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki).*
 
@@ -58,22 +63,23 @@ Este Starter Kit vem pré-configurado com:
 
 *   **Framework:** Laravel 12
 *   **Linguagem:** PHP >= 8.2
-*   **Frontend:**
-    *   Vite
-    *   Tailwind CSS 4
-    *   Livewire 3
-    *   Alpine.js 3
+*   **Frontend (Stack TALL via Laravel Breeze):**
+    *   **Livewire 3 (Class API)**
+    *   **Alpine.js 3**
+    *   **Tailwind CSS 4** (com suporte a Dark Mode)
+    *   **Vite**
 *   **Banco de Dados:** Suporte padrão do Laravel (MySQL, MariaDB, PostgreSQL, SQLite)
 *   **Integrações USP:**
     *   `uspdev/senhaunica-socialite`
     *   `uspdev/replicado`
+*   **Autenticação Scaffolding:** `laravel/breeze`
 *   **Permissões:** `spatie/laravel-permission`
-*   **Testes:** PHPUnit
+*   **Testes:** **PHPUnit**
 *   **Qualidade:** Laravel Pint, Larastan
 
 ## 5. Instalação
 
-Siga os passos abaixo para iniciar um novo projeto usando este Starter Kit:
+Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) pré-instalado e configurado. Siga os passos abaixo para iniciar seu projeto:
 
 1.  **Pré-requisitos:**
     *   PHP >= 8.2 (com extensões comuns do Laravel: ctype, fileinfo, json, mbstring, openssl, PDO, tokenizer, xml, etc.)
@@ -87,13 +93,19 @@ Siga os passos abaixo para iniciar um novo projeto usando este Starter Kit:
     cd seu-novo-projeto
     ```
 
-3.  **Instalar Dependências:**
+3.  **Instalar Dependências PHP:**
+    *   Isso instalará o Laravel, Breeze, pacotes USP, Spatie e outras dependências listadas no `composer.json`.
     ```bash
     composer install
+    ```
+
+4.  **Instalar Dependências Frontend:**
+    *   Isso instalará Tailwind, Alpine.js e outras dependências listadas no `package.json`.
+    ```bash
     npm install
     ```
 
-4.  **Configurar Ambiente:**
+5.  **Configurar Ambiente:**
     *   Copie o arquivo de exemplo `.env`:
         ```bash
         cp .env.example .env
@@ -106,24 +118,37 @@ Siga os passos abaixo para iniciar um novo projeto usando este Starter Kit:
         *   `APP_NAME`: Nome da sua aplicação.
         *   `APP_URL`: URL base da sua aplicação (ex: `http://localhost:8000`).
         *   `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: Credenciais do seu banco de dados.
-        *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail no registro local).
-        *   **Credenciais USP:** Adicione e configure as variáveis necessárias para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
+        *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail).
+        *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
 
-5.  **Banco de Dados e Dados Iniciais:**
-    *   Execute as migrações para criar as tabelas no banco de dados:
+6.  **Banco de Dados e Dados Iniciais:**
+    *   Execute as migrações para criar todas as tabelas necessárias (usuários, cache, jobs, sessões, Breeze, Spatie, Senha Única):
         ```bash
         php artisan migrate
         ```
-    *   (Opcional, mas recomendado) Execute os seeders para popular o banco com dados iniciais (ex: roles/permissions padrão, usuário de teste):
+    *   (Opcional, mas recomendado) Execute os seeders para popular o banco com dados iniciais (ex: usuário de teste local `test@example.com`):
         ```bash
-        php artisan migrate --seed
+        php artisan db:seed
         ```
-        *Nota: Por padrão, isso cria um usuário local `test@example.com` com senha `password`.*
+        *(Use `php artisan migrate --seed` se preferir combinar os comandos).*
 
-6.  **Compilar Assets Frontend:**
+7.  **Compilar Assets Frontend:**
     ```bash
     npm run build
     ```
+    *(Ou use `npm run dev` durante o desenvolvimento para compilação automática).*
+
+8.  **Iniciar Servidores (Desenvolvimento):**
+    *   Servidor web PHP:
+        ```bash
+        php artisan serve
+        ```
+    *   Compilador Vite (necessário se for fazer alterações no CSS/JS):
+        ```bash
+        npm run dev
+        ```
+
+Seu ambiente de desenvolvimento com o Starter Kit (incluindo a base do Breeze TALL) deve estar pronto para uso.
 
 ## 6. Uso Básico
 
@@ -142,7 +167,7 @@ Siga os passos abaixo para iniciar um novo projeto usando este Starter Kit:
     *   Páginas de autenticação: `/login`, `/register`.
 
 3.  **Credenciais Padrão:**
-    *   Se você rodou `php artisan migrate --seed`, pode usar o usuário local:
+    *   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
         *   **Email:** `test@example.com`
         *   **Senha:** `password`
 
