@@ -10,13 +10,20 @@ new #[Layout('layouts.guest')] class extends Component
     public LoginForm $form;
 
     /**
-     * Handle an incoming authentication request.
+     * Processa uma tentativa de autenticação recebida.
+     *
+     * Valida os dados do formulário, tenta autenticar o usuário,
+     * regenera a sessão em caso de sucesso e redireciona
+     * para o painel (dashboard) ou para o destino pretendido.
+     *
+     * @return void
+     * @throws \Illuminate\Validation\ValidationException Se a validação do formulário falhar ou a autenticação falhar.
      */
     public function login(): void
     {
-        $this->validate();
+        $this->validate(); // Valida o LoginForm
 
-        $this->form->authenticate();
+        $this->form->authenticate(); // Tenta autenticar (pode lançar ValidationException em caso de falha)
 
         Session::regenerate();
 
@@ -38,7 +45,7 @@ new #[Layout('layouts.guest')] class extends Component
 
         <!-- Password -->
         <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+            <x-input-label for="password" :value="__('Password')" /> {{-- Chave em Inglês --}}
 
             <x-text-input wire:model="form.password" id="password" class="block mt-1 w-full"
                             type="password"
@@ -52,7 +59,7 @@ new #[Layout('layouts.guest')] class extends Component
         <div class="block mt-4">
             <label for="remember" class="inline-flex items-center">
                 <input wire:model="form.remember" id="remember" type="checkbox" class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800" name="remember">
-                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Remember me') }}</span>
+                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Remember me') }}</span> {{-- Chave em Inglês --}}
             </label>
         </div>
 
@@ -67,5 +74,6 @@ new #[Layout('layouts.guest')] class extends Component
                 {{ __('Log in') }}
             </x-primary-button>
         </div>
+
     </form>
 </div>
