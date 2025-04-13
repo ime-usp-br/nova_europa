@@ -76,4 +76,12 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
 
     </form>
+
+    {{-- Add Senha Unica login option below the form --}}
+    <div class="flex items-center justify-center mt-4">
+        <a href="{{ route('login') }}" class="w-full inline-flex items-center justify-center px-4 py-2 bg-yellow-500 dark:bg-yellow-600 border border-transparent rounded-md font-semibold text-xs text-white dark:text-gray-900 uppercase tracking-widest hover:bg-yellow-400 dark:hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+            {{ __('Login with Senha Única USP') }}
+        </a>
+    </div>
+
 </div>
