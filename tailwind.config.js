@@ -14,6 +14,11 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            colors: {
+                'usp-blue-pri': '#1094AB',
+                'usp-blue-sec': '#64C4D2',
+                'usp-yellow': '#FCB421', 
+            },
         },
     },
 

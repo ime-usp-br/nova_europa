@@ -16,6 +16,10 @@
     </head>
     <body class="font-sans antialiased">
         <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+            
+            {{-- Inclui o cabeçalho USP --}}
+            <x-usp.header />
+
             <livewire:layout.navigation />
 
             <!-- Page Heading -->
