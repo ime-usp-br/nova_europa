@@ -1,0 +1,28 @@
+# --- INÍCIO VARIÁVEIS ---
+# __NUMERO_DA_ISSUE__=""
+# __NUMERO_DO_AC__=""
+# --- FIM VARIÁVEIS ---
+
+# O texto abaixo é o meta-prompt que você deve usar.
+
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA a analisar um AC e gerar uma mensagem para o GitHub. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para o Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+1.  **Incorporar Variáveis:** O prompt final **DEVE** usar os valores `__NUMERO_DA_ISSUE__` e `__NUMERO_DO_AC__` (definidos acima) para instruir a IA final a focar a análise no AC `__NUMERO_DO_AC__` e direcionar a mensagem para a issue `__NUMERO_DA_ISSUE__`.
+2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
+    *   **Análise Técnica e Objetiva:** Avaliar **TODOS** os requisitos do AC `__NUMERO_DO_AC__` contra a implementação, considerando **SEMPRE** os padrões de qualidade de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
+    *   **Conformidade do Código:** Verificar aderência aos padrões do projeto e Laravel 12 (consultar docs se necessário).
+    *   **Mensagem para GitHub:**
+        *   Deve ser clara, direta, profissional, em **português do Brasil**.
+        *   Deve concluir **EXPLÍCITAMENTE** sobre o atendimento do AC `__NUMERO_DO_AC__` (Sim/Não/Parcialmente).
+        *   Deve justificar **BREVEMENTE** com base na análise técnica.
+        *   **PROIBIDO REFERENCIAR NOMES DE ARQUIVOS DE CONTEXTO:** **NUNCA** mencionar nomes como `.txt` ou `.md`. Referir-se ao código/funcionalidade ("Classe X", "Rota Y").
+    *   **Baseado no Contexto:** Basear-se **UNICAMENTE** nas informações dos arquivos anexos e regras documentadas.
+    *   **Pesquisa:** Pesquisar se houver dúvidas.
+    *   **Contexto da Geração:** Mencionar `gerar_contexto_llm.sh`.
+    *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto completo da mensagem a ser publicada no GitHub. **NENHUMA PALAVRA A MAIS.** Nenhuma saudação, nenhuma explicação da análise, nenhuma desculpa, nenhum comentário, **NADA** além da mensagem final para o GitHub. A resposta deve ser **PURAMENTE** a string da mensagem.
+3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto.
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**

@@ -1,0 +1,29 @@
+# --- INÍCIO VARIÁVEIS ---
+# __NUMERO_DA_ISSUE__=""
+# __NUMERO_DO_AC__=""
+# __COLOQUE_AQUI_SUA_SUGESTAO__=""
+# --- FIM VARIÁVEIS ---
+
+# O texto abaixo é o meta-prompt que você deve usar.
+
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA a gerar código para resolver um AC. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para o Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+1.  **Incorporar Variáveis:** O prompt final **DEVE** usar os valores `__NUMERO_DA_ISSUE__`, `__NUMERO_DO_AC__`, e `__COLOQUE_AQUI_SUA_SUGESTAO__` (definidos acima) para instruir a IA final a focar no AC `__NUMERO_DO_AC__` da issue `__NUMERO_DA_ISSUE__` e apresentar `__COLOQUE_AQUI_SUA_SUGESTAO__` como uma sugestão clara e opcional.
+2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
+    *   **Conformidade TOTAL com Documentação:** Seguir **CEGAMENTE** **todas** as regras de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
+    *   **Laravel 12 OBRIGATÓRIO:** Usar **SEMPRE** Laravel 12. Consultar **OBRIGATORIAMENTE** documentação oficial e `filtered_laravel_docs_plano_…`. Pesquisar **ATIVAMENTE**.
+    *   **Idioma e Nomenclatura:** Comentários em português (se permitido), mas **NOMES SEMPRE EM INGLÊS** (classes, métodos, vars, chaves, rotas, arquivos).
+    *   **FORMATO DE SAÍDA EXATO E RÍGIDO:** Apresentar **TODOS** os arquivos criados/alterados usando **EXATAMENTE** o formato de `source_code_string.txt` (`--- START/END OF FILE ---`). Reforçar que `source_code_string.txt`/`update_project.py` são só para *formato/processo*.
+    *   **Commit Atômico e Valor:** Focar **SÓ** no AC `__NUMERO_DO_AC__`, mas entregar **TUDO** (código, testes, tradução, migração).
+    *   **Views e Traduções:** Se usar views, usar `__()`/`@lang()`. Criar/atualizar chaves (inglês) em **TODOS** os idiomas.
+    *   **Evitar Scope Creep:** **NÃO FAZER NADA** além do AC `__NUMERO_DO_AC__`.
+    *   **Autonomia e Qualidade:** Encontrar a **melhor solução técnica** (considerar `__COLOQUE_AQUI_SUA_SUGESTAO__` como opcional).
+    *   **Contexto da Geração:** Mencionar `gerar_contexto_llm.sh`.
+    *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto dos arquivos de código formatados conforme a regra de formato. **NENHUMA PALAVRA FORA DOS DELIMITADORES DE ARQUIVO** (exceto os próprios delimitadores). Nenhuma saudação, nenhuma explicação, nenhuma desculpa, nenhum comentário geral, **NADA** além do código formatado.
+    *   **CASO NENHUMA ALTERAÇÃO SEJA NECESSÁRIA (INSTRUÇÃO CRÍTICA NO PROMPT FINAL):** O prompt final **DEVE INSTRUIR CLARAMENTE** a IA final: "Se, após sua análise completa, você concluir que **NENHUMA alteração de código** (nenhuma modificação, nenhuma adição de arquivo) é necessária para satisfazer o AC `__NUMERO_DO_AC__` (porque já está implementado ou não requer código), então sua resposta deve ser **ABSOLUTAMENTE VAZIA**. Não retorne NADA. Uma string vazia."
+3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto.
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**

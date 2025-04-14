@@ -1,0 +1,20 @@
+# O texto abaixo é o meta-prompt que você deve usar.
+
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA a gerar uma mensagem de commit Git. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para o Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+1.  **Incorporar Variáveis:** O prompt final **DEVE** usar os valores `__NUMERO_DA_ISSUE__` e `__NUMERO_DO_AC__` (definidos acima, caso nao tenham sido definidos voce deve analisar os anexos e descobrir o contexto) para instruir a IA final a referenciá-los na mensagem de commit, conforme as regras do projeto.
+2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
+    *   **Conformidade TOTAL com Documentação:** Seguir **CEGAMENTE** o formato e conteúdo de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`, incluindo referências exatas à Issue (`__NUMERO_DA_ISSUE__`) e AC (`__NUMERO_DO_AC__`).
+    *   **Clareza e Concisão:** Explicar *o quê* e *por quê* de forma direta.
+    *   **Idioma:** Usar **português do Brasil**, salvo exceções nas regras (e.g., título). Nomenclatura técnica em inglês.
+    *   **Baseado no Contexto:** Basear-se **UNICAMENTE** nas alterações fornecidas e nas regras.
+    *   **Laravel 12:** Considerar Laravel 12 (consultar `filtered_laravel_docs_plano_…`).
+    *   **Contexto da Geração:** Mencionar `gerar_contexto_llm.sh`.
+    *   **Pesquisa:** Pesquisar se houver dúvidas.
+    *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto completo da mensagem de commit, formatada corretamente. **NENHUMA PALAVRA A MAIS.** Nenhuma saudação, nenhuma explicação, nenhuma desculpa, nenhum comentário, **NADA** além da mensagem de commit. A resposta deve ser **PURAMENTE** a string da mensagem de commit.
+3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto.
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**
