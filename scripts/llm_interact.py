@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 import re
 import glob # Importado para listagem de diretórios
+import google.genai as genai
+from dotenv import load_dotenv
 
 # --- Configuration ---
 # Presume que o script está em /scripts e os templates em /project_templates/meta-prompts
@@ -113,41 +115,84 @@ def load_and_fill_template(template_path: Path, variables: dict) -> str:
 
 def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     """
-    Analisa os argumentos da linha de comando.
+    Analisa os argumentos da linha de comando, incluindo exemplos no epílogo.
 
     Args:
-        available_tasks: Uma lista dos nomes das tarefas disponíveis para usar
-                         como opções de escolha.
+        available_tasks: Uma lista dos nomes das tarefas disponíveis.
 
     Returns:
         Um objeto Namespace contendo os argumentos analisados.
     """
+    script_name = Path(sys.argv[0]).name # Obtém o nome do script para usar nos exemplos
+
+    # --- Constrói a string de exemplos (epilog) ---
+    epilog_lines = ["\nExamples:"]
+    sorted_tasks = sorted(available_tasks)
+
+    for task_name in sorted_tasks:
+        if task_name == "commit-mesage":
+            example = f"  {script_name} {task_name} --issue 28"
+            epilog_lines.append(example)
+        elif task_name == "resolve-ac":
+            example = f"  {script_name} {task_name} --issue 28 --ac 5 --suggestion \"Verificar se a API key está sendo lida do .env\""
+            epilog_lines.append(example)
+        elif task_name == "analise-ac":
+            example = f"  {script_name} {task_name} --issue 28 --ac 4"
+            epilog_lines.append(example)
+        else:
+            # Exemplo genérico para outras tarefas
+            example = f"  {script_name} {task_name} [--issue ISSUE] [--ac AC] [--suggestion SUGGESTION]"
+            epilog_lines.append(example)
+
+    epilog_text = "\n".join(epilog_lines)
+
+    # --- Cria o parser ---
     parser = argparse.ArgumentParser(
         description="Interact with Google Gemini using project context and meta-prompts.",
-        formatter_class=argparse.RawDescriptionHelpFormatter # Preserva formatação no help
+        epilog=epilog_text, # Adiciona os exemplos ao final da ajuda
+        formatter_class=argparse.RawDescriptionHelpFormatter # Preserva formatação
     )
+
+    task_choices_str = ", ".join(sorted_tasks)
     parser.add_argument(
         "task",
-        choices=sorted(available_tasks), # Apresenta as opções em ordem alfabética
-        help=f"The task to perform, based on available meta-prompts in {META_PROMPT_DIR}.",
+        choices=sorted_tasks,
+        help=(f"The task to perform, based on available meta-prompts in "
+              f"'{META_PROMPT_DIR.relative_to(BASE_DIR)}'.\nAvailable tasks: {task_choices_str}"),
         metavar="TASK"
     )
-    # --- Argumentos para variáveis dos meta-prompts (AC3) ---
-    parser.add_argument("--issue", help="Issue number (e.g., 28). Used to fill __NUMERO_DA_ISSUE__.")
-    parser.add_argument("--ac", help="Acceptance Criteria number (e.g., 3). Used to fill __NUMERO_DO_AC__.")
-    parser.add_argument("--suggestion", help="Suggestion text for the task. Used to fill __COLOQUE_AQUI_SUA_SUGESTAO__.", default="")
-    # Adicionar outros argumentos conforme necessário para diferentes meta-prompts
-
-    # TODO: Adicionar argumento opcional para especificar diretório de contexto,
-    # se não, usar o mais recente. (Parte do AC4) - [FEITO em AC4, mas argumento não adicionado ainda]
-
-    # TODO: Adicionar argumento opcional para especificar o diretório de saída.
-    # (Parte do AC8)
+    # --- Argumentos para variáveis dos meta-prompts ---
+    parser.add_argument("--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
+    parser.add_argument("--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
+    parser.add_argument("--suggestion", help="Suggestion text for the task. Fills __COLOQUE_AQUI_SUA_SUGESTAO__.", default="")
 
     return parser.parse_args()
 
 # --- Main Execution ---
 if __name__ == "__main__":
+    # --- Carregar variáveis do .env ---
+    dotenv_path = BASE_DIR / '.env'
+    if dotenv_path.is_file():
+        print(f"Loading environment variables from: {dotenv_path.relative_to(BASE_DIR)}")
+        load_dotenv(dotenv_path=dotenv_path, verbose=True)
+    else:
+        print(f"Warning: .env file not found at {dotenv_path}. Relying on system environment variables.", file=sys.stderr)
+    # --- Fim Carregar .env ---
+
+    # --- AC5: Configurar Cliente GenAI com API Key ---
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if not api_key:
+        print("Error: GEMINI_API_KEY environment variable not set (checked both system env and .env file).", file=sys.stderr)
+        print("Please set the GEMINI_API_KEY in your .env file or as a system environment variable.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        genai_client = genai.Client(api_key=api_key)
+        print("Google GenAI Client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
+        sys.exit(1)
+    # --- Fim AC5 ---
+
     available_tasks_dict = find_available_tasks(META_PROMPT_DIR)
     available_task_names = list(available_tasks_dict.keys())
 
@@ -156,11 +201,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
+        # Agora parse_arguments usa a lista de tarefas para melhorar a ajuda
         args = parse_arguments(available_task_names)
         selected_task = args.task
         selected_meta_prompt_path = available_tasks_dict[selected_task]
 
-        print(f"Script de Interação LLM")
+        print(f"\nScript de Interação LLM") # Adiciona newline para separar da saída do dotenv
         print(f"========================")
         print(f"Tarefa Selecionada: {selected_task}")
         print(f"Usando Meta-Prompt: {selected_meta_prompt_path.relative_to(BASE_DIR)}")
@@ -168,7 +214,6 @@ if __name__ == "__main__":
         # --- AC4: Encontrar diretório de contexto mais recente ---
         context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
         if context_dir is None:
-            # A função find_latest_context_dir já imprime o erro específico.
             print("Erro: Não foi possível encontrar um diretório de contexto válido. Saindo.", file=sys.stderr)
             sys.exit(1)
         print(f"Diretório de Contexto: {context_dir.relative_to(BASE_DIR)}")
@@ -179,7 +224,6 @@ if __name__ == "__main__":
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
             "COLOQUE_AQUI_SUA_SUGESTAO": args.suggestion
-            # Adicionar mapeamento para outras variáveis/argumentos aqui se necessário
         }
         print(f"Variáveis para o template: {task_variables}")
 
@@ -195,32 +239,18 @@ if __name__ == "__main__":
         print(f"------------------------")
         # --- Fim AC3 ---
 
-        # Placeholder para a lógica principal que será desenvolvida
-        # para atender aos outros Critérios de Aceite (ACs) da Issue #28.
-
-        # 1. (AC4) Encontrar diretório de contexto mais recente - [FEITO ACIMA]
-
-        # 2. (AC4, AC5) Carregar arquivos de contexto
-        # context_files = load_context_files(context_dir)
-
-        # 3. (AC5, AC6, AC7, AC10, AC11) Chamar API Gemini (Etapa 1: Meta-prompt -> Prompt Final)
-        # gemini_client = initialize_gemini_client() # (AC5 - usar GEMINI_API_KEY)
-        # final_prompt_text = execute_gemini_step(gemini_client, meta_prompt_content, context_files)
-        # print(f"--- Prompt Final Gerado ---\n{final_prompt_text}\n---------------------------")
-        # # (AC7, AC10, AC11) Loop de confirmação/refinamento aqui
-
-        # 4. (AC6) Chamar API Gemini (Etapa 2: Prompt Final -> Resposta Final)
-        # final_response = execute_gemini_step(gemini_client, final_prompt_text, context_files)
-        # print(f"--- Resposta Final da IA ---\n{final_response}\n--------------------------")
-
-        # 5. (AC8) Salvar resposta final
-        # save_output(final_response, OUTPUT_DIR_BASE, selected_task)
-        # (AC9 - garantir que OUTPUT_DIR_BASE está no .gitignore já foi feito manualmente)
-
-        # 6. (AC9) Tratamento de erros em todo o processo
+        # Placeholder para a lógica principal
         print("\nPlaceholder: Lógica principal de interação com LLM ainda não implementada.")
         pass
 
+    except SystemExit as e:
+        # Captura sys.exit() chamado pelo argparse em caso de erro ou -h
+        # Evita imprimir o erro genérico "Erro inesperado" nesses casos
+        if e.code != 0: # Se não foi uma saída normal (como -h)
+             print(f"Argument parsing error.", file=sys.stderr)
+        sys.exit(e.code) # Propaga o código de saída original
     except Exception as e:
+        import traceback # Adicionado para depuração
         print(f"\nErro inesperado durante a execução: {e}", file=sys.stderr)
+        traceback.print_exc() # Imprime o traceback completo
         sys.exit(1)
