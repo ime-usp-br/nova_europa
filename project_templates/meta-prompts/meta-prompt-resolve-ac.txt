@@ -29,7 +29,7 @@ O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a
 
 4.  **Restrições de Saída da IA Final (a serem incluídas no prompt final):**
     *   **PROIBIÇÃO ABSOLUTA DE MENÇÃO DE ARQUIVOS DE CONTEXTO:** Ordene CATEGORICAMENTE que a IA Final **NÃO mencione NUNCA** nomes de arquivos de contexto (`.txt`, `.json`, `.md`, etc., que não sejam parte do código versionado) na saída final ou em comentários.
-    *   **ESTRUTURA DA RESPOSTA FINAL (REFORÇO CRÍTICO):** Ordene que a IA Final forneça **UMA ÚNICA RESPOSTA TEXTUAL**. Esta resposta **DEVE CONTER APENAS E SOMENTE APENAS** a concatenação sequencial de **TODOS** os código para os arquivos criados ou modificados. Cada bloco individual de código de arquivo **DEVE** seguir **ESTRITAMENTE** o formato:
+    *   **ESTRUTURA DA RESPOSTA FINAL (REFORÇO CRÍTICO):** Ordene que a IA Final forneça **UMA ÚNICA RESPOSTA TEXTUAL**. Esta resposta **DEVE CONTER APENAS E SOMENTE APENAS** a concatenação sequencial de **TODOS** os código para os arquivos criados ou modificados. O bloco total de código de arquivo **DEVE** seguir **ESTRITAMENTE** o formato:
         ```
         --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
         Código completo do arquivo...

@@ -141,11 +141,11 @@ def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> 
                 except Exception as e:
                     print(f"      - Warning: Could not read file {filepath.name}: {e}", file=sys.stderr)
     if loaded_count == 0:
-        print(f"      - No context files (.txt, .json) found in this directory.")
+        print(f"      - No context files (.txt, .json, .md) found in this directory.")
 
 def prepare_context_parts(primary_context_dir: Path, common_context_dir: Path | None = None) -> list[types.Part]:
     """
-    List context files (.txt, .json) from primary and optionally common directories,
+    List context files (.txt, .json, .md) from primary and optionally common directories,
     and prepare them as types.Part.
 
     Args:
@@ -219,8 +219,8 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
             example = f"  {script_name} {task_name} --issue 28"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
-            # <<< MODIFICADO AQUI: Usa --observation >>>
-            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Certifique-se de que a API key é lida *apenas* do .env e não das variáveis de sistema.\""
+            # Uses --observation
+            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Ensure the API key is read *only* from .env and not system variables.\""
             epilog_lines.append(example)
         elif task_name == "analise-ac":
             example = f"  {script_name} {task_name} --issue 28 --ac 4"
@@ -255,6 +255,27 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
 
     return parser.parse_args()
 
+def confirm_step(prompt: str) -> str:
+    """
+    Asks the user for confirmation to proceed, redo, or quit.
+
+    Args:
+        prompt: The message to display to the user.
+
+    Returns:
+        The user's choice ('y', 'n', 'q'). Converts input to lowercase.
+    """
+    while True:
+        response = input(f"{prompt} (Y/n/q - Yes/No/Quit) [Y]: ").lower().strip()
+        if response in ['y', 'yes', '']:
+            return 'y'
+        elif response in ['n', 'no']:
+            return 'n' # Eventually will trigger retry logic (AC10/11)
+        elif response in ['q', 'quit']:
+            return 'q'
+        else:
+            print("Invalid input. Please enter Y, n, or q.")
+
 # --- Main Execution ---
 if __name__ == "__main__":
     # --- Load .env variables ---
@@ -273,7 +294,11 @@ if __name__ == "__main__":
         print("Please set the GEMINI_API_KEY in your .env file or as a system environment variable.", file=sys.stderr)
         sys.exit(1)
     try:
-        # Note: Not specifying 'vertexai=True', uses Gemini Developer API by default.
+        # Explicitly set transport to 'rest' for better compatibility/logging if needed
+        # transport = 'rest'
+        # print(f"Initializing Google GenAI Client (Transport: {transport})...")
+        # genai_client = genai.Client(api_key=api_key, transport=transport)
+        print(f"Initializing Google GenAI Client...")
         genai_client = genai.Client(api_key=api_key)
         print("Google GenAI Client initialized successfully.")
     except Exception as e:
@@ -322,17 +347,16 @@ if __name__ == "__main__":
              print(f"Error loading or filling the meta-prompt. Exiting.", file=sys.stderr)
              sys.exit(1)
 
-        print(f"------------------------")
-        print(f"Filled Meta-Prompt:")
-        print(meta_prompt_content) # Print the full filled meta-prompt for clarity
-        print(f"------------------------")
+        # print(f"------------------------")
+        # print(f"Filled Meta-Prompt:")
+        # print(meta_prompt_content) # Print the full filled meta-prompt for clarity - Removed for less noise
+        # print(f"------------------------")
         # --- End Collect variables ---
 
         # --- Two-Step Interaction with Gemini API ---
         print("\nStarting interaction with Gemini API...")
 
-        # Prepare context parts (reading .txt and .json files from latest and common dirs)
-        # AC7: Pass both latest and common context directory paths
+        # Prepare context parts (reading .txt, .json, .md files from latest and common dirs)
         context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR)
         if not context_parts:
              print("Warning: No context files loaded. The AI might lack sufficient information.", file=sys.stderr)
@@ -351,10 +375,12 @@ if __name__ == "__main__":
             )
             # Extract the final prompt from the response
             prompt_final_content = response_etapa1.text
-            print("  Final Prompt received:")
+            print("\n------------------------")
+            print("  >>> Final Prompt Received (Step 1):")
             print("  ```")
             print(prompt_final_content.strip())
             print("  ```")
+            print("------------------------")
         except errors.APIError as e:
             print(f"  Gemini API Error (Step 1): Code {e.code} - {e.message}", file=sys.stderr)
             print(f"  Error details: {e}") # Print more details if available
@@ -364,50 +390,75 @@ if __name__ == "__main__":
             traceback.print_exc()
             sys.exit(1)
 
+        # --- AC9: User Confirmation after Step 1 ---
+        if prompt_final_content:
+            user_choice_step1 = confirm_step("Proceed to Step 2 with this prompt?")
+            if user_choice_step1 == 'q':
+                print("Exiting after Step 1 as requested.")
+                sys.exit(0)
+            elif user_choice_step1 == 'n':
+                print("Exiting after Step 1. You can modify the meta-prompt or context and run again.")
+                # Future: Implement retry logic based on AC10/11 here.
+                sys.exit(0)
+            # If 'y', continue to Step 2
+        else:
+             print("Error: Could not get the final prompt from Step 1. Aborting.", file=sys.stderr)
+             sys.exit(1)
+        # --- End AC9 Step 1 Confirmation ---
+
         # --- Step 2: Final Prompt + Context -> Final Response ---
         resposta_final_content = None
-        if prompt_final_content:
-            print(f"\nStep 2: Sending Final Prompt and Context to get the Final Response (Model: {GEMINI_MODEL})...")
-            # Pass final prompt using keyword argument 'text='
-            contents_etapa2 = [types.Part.from_text(text=prompt_final_content)] + context_parts
-            try:
-                 response_etapa2 = genai_client.models.generate_content(
-                     model=GEMINI_MODEL,
-                     contents=contents_etapa2 # Pass the list of parts directly
-                 )
-                 # Extract the final response
-                 resposta_final_content = response_etapa2.text
-                 print("  Final Response received:")
-                 print("  ```")
-                 print(resposta_final_content.strip())
-                 print("  ```")
-            except errors.APIError as e:
-                print(f"  Gemini API Error (Step 2): Code {e.code} - {e.message}", file=sys.stderr)
-                print(f"  Error details: {e}") # Print more details if available
-                sys.exit(1)
-            except Exception as e:
-                print(f"  Unexpected Error in Step 2: {e}", file=sys.stderr)
-                traceback.print_exc()
-                sys.exit(1)
-        else:
-            print("Error: Could not get the final prompt from Step 1. Aborting Step 2.", file=sys.stderr)
+        print(f"\nStep 2: Sending Final Prompt and Context to get the Final Response (Model: {GEMINI_MODEL})...")
+        # Pass final prompt using keyword argument 'text='
+        contents_etapa2 = [types.Part.from_text(text=prompt_final_content)] + context_parts
+        try:
+             response_etapa2 = genai_client.models.generate_content(
+                 model=GEMINI_MODEL,
+                 contents=contents_etapa2 # Pass the list of parts directly
+             )
+             # Extract the final response
+             resposta_final_content = response_etapa2.text
+             print("\n------------------------")
+             print("  >>> Final Response Received (Step 2):")
+             print("  ```")
+             print(resposta_final_content.strip())
+             print("  ```")
+             print("------------------------")
+        except errors.APIError as e:
+            print(f"  Gemini API Error (Step 2): Code {e.code} - {e.message}", file=sys.stderr)
+            print(f"  Error details: {e}") # Print more details if available
+            sys.exit(1)
+        except Exception as e:
+            print(f"  Unexpected Error in Step 2: {e}", file=sys.stderr)
+            traceback.print_exc()
             sys.exit(1)
         # --- End Two-Step Interaction ---
 
-        # --- Save Final Response (AC8) ---
+
+        # --- AC9: User Confirmation after Step 2 ---
         if resposta_final_content:
-            print("\nSaving Final Response...")
-            save_llm_response(selected_task, resposta_final_content.strip())
+            user_choice_step2 = confirm_step("Save this response?")
+            if user_choice_step2 == 'q' or user_choice_step2 == 'n':
+                 print("Exiting without saving the response as requested.")
+                 sys.exit(0)
+            # If 'y', proceed to save
         else:
              print("\nNo final response was generated to save.", file=sys.stderr)
+             sys.exit(1) # Exit if no response to save
+        # --- End AC9 Step 2 Confirmation ---
+
+
+        # --- Save Final Response (AC8) ---
+        if resposta_final_content: # Double check just in case
+            print("\nSaving Final Response...")
+            save_llm_response(selected_task, resposta_final_content.strip())
         # --- End Save Final Response ---
 
 
     except SystemExit as e:
-        # Capture sys.exit() called by argparse on error or -h
-        # Avoids the generic "Unexpected error" message in these cases
-        if e.code != 0: # If not a normal exit (like -h)
-             print(f"Argument parsing error.", file=sys.stderr)
+        # Capture sys.exit() called by argparse on error or -h or user quit
+        if e.code != 0: # If not a normal exit (like -h or user quit)
+             print(f"\nScript exited with code {e.code}.", file=sys.stderr)
         sys.exit(e.code) # Propagate the original exit code
     except Exception as e:
         print(f"\nUnexpected error during execution: {e}", file=sys.stderr)
