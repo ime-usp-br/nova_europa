@@ -9,7 +9,7 @@ Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instru
 2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
     *   **Conformidade TOTAL com Documentação:** Seguir **CEGAMENTE** o formato e conteúdo de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`, incluindo referências exatas à Issue (`__NUMERO_DA_ISSUE__`) e AC (`__NUMERO_DO_AC__`).
     *   **Clareza e Concisão:** Explicar *o quê* e *por quê* de forma direta.
-    *   **Idioma:** Usar **português do Brasil**, salvo exceções nas regras (e.g., título). Nomenclatura técnica em inglês.
+    *   **Idioma:** Usar **português do Brasil**. Nomenclatura técnica em inglês.
     *   **Baseado no Contexto:** Basear-se **UNICAMENTE** nas alterações fornecidas e nas regras.
     *   **Laravel 12:** Considerar Laravel 12 (consultar `filtered_laravel_docs_plano_…`).
     *   **Contexto da Geração:** Mencionar `gerar_contexto_llm.sh`.
