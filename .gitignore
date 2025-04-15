@@ -23,4 +23,4 @@ yarn-error.log
 /.zed
 source_code_string.txt
 update_project.py
-/code_context_llm/
+/context_llm/

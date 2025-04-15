@@ -1,28 +1,21 @@
-# --- INÍCIO VARIÁVEIS ---
-# __NUMERO_DA_ISSUE__=""
-# __NUMERO_DO_AC__=""
-# --- FIM VARIÁVEIS ---
-
-# O texto abaixo é o meta-prompt que você deve usar.
-
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
 Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA a analisar um AC e gerar uma mensagem para o GitHub. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
 
 **Instruções para o Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
 
 1.  **Incorporar Variáveis:** O prompt final **DEVE** usar os valores `__NUMERO_DA_ISSUE__` e `__NUMERO_DO_AC__` (definidos acima) para instruir a IA final a focar a análise no AC `__NUMERO_DO_AC__` e direcionar a mensagem para a issue `__NUMERO_DA_ISSUE__`.
-2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
-    *   **Análise Técnica e Objetiva:** Avaliar **TODOS** os requisitos do AC `__NUMERO_DO_AC__` contra a implementação, considerando **SEMPRE** os padrões de qualidade de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
-    *   **Conformidade do Código:** Verificar aderência aos padrões do projeto e Laravel 12 (consultar docs se necessário).
+2.  **Reforçar Diretrizes Mandatórias (NO PROMPT FINAL):** O prompt final que você gerar **DEVE** comandar **explicitamente** a IA final a seguir **OBRIGATORIAMENTE, SEM EXCEÇÕES E COM MÁXIMA FIDELIDADE** as seguintes diretrizes:
+    *   **Análise Técnica e Objetiva:** Avaliar **TODOS** os requisitos do AC `__NUMERO_DO_AC__` contra a implementação fornecida nos arquivos de contexto, considerando **SEMPRE** os padrões de qualidade definidos em `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
+    *   **Conformidade do Código:** Verificar aderência rigorosa aos padrões do projeto e às melhores práticas do Laravel 12 (consultar a documentação oficial se necessário).
     *   **Mensagem para GitHub:**
-        *   Deve ser clara, direta, profissional, em **português do Brasil**.
-        *   Deve concluir **EXPLÍCITAMENTE** sobre o atendimento do AC `__NUMERO_DO_AC__` (Sim/Não/Parcialmente).
-        *   Deve justificar **BREVEMENTE** com base na análise técnica.
-        *   **PROIBIDO REFERENCIAR NOMES DE ARQUIVOS DE CONTEXTO:** **NUNCA** mencionar nomes como `.txt` ou `.md`. Referir-se ao código/funcionalidade ("Classe X", "Rota Y"). Regra **MANDATORIA E ABSOLUTA** o resultado da tarefa final **NUNCA** deve mencionar qualquer arquivo que esteja nos .gitignores, o prompt final **DEVE** reforçar isso.
-    *   **Baseado no Contexto:** Basear-se **UNICAMENTE** nas informações dos arquivos anexos e regras documentadas.
-    *   **Pesquisa:** Pesquisar se houver dúvidas.
-    *   **Referencias Mencionadas na Tarefa Final:** O prompt final **DEVE** reforçar que a tarefa final **NÃO DEVE** mencionar **DE MANEIRA ALGUMA** os arquivos de contexto na Tarefa Final, **TODAS** as referencias **DEVEM** ser feitas sobre o que foi versionado ou que sera. Seu prompt final **DEVE** reforçar isso.    *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto dos arquivos de código formatados conforme a regra de formato. **NENHUMA PALAVRA FORA DOS DELIMITADORES DE ARQUIVO** (exceto os próprios delimitadores). Nenhuma saudação, nenhuma explicação, nenhuma desculpa, nenhum comentário geral, **NADA** além do código formatado.
-    *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto completo da mensagem a ser publicada no GitHub. **NENHUMA PALAVRA A MAIS.** Nenhuma saudação, nenhuma explicação da análise, nenhuma desculpa, nenhum comentário, **NADA** além da mensagem final para o GitHub. A resposta deve ser **PURAMENTE** a string da mensagem.
-3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto.
+        *   Deve ser clara, direta, objetiva e estritamente profissional, redigida em **português do Brasil formal**.
+        *   Deve concluir **INEQUIVOCAMENTE** sobre o atendimento do AC `__NUMERO_DO_AC__` usando **EXATAMENTE** uma das opções: `Sim`, `Não` ou `Parcialmente`.
+        *   Deve justificar a conclusão de forma **CONCISA E TÉCNICA**, baseada **EXCLUSIVAMENTE** nos pontos da análise dos requisitos do AC versus o código e os padrões.
+        *   **CONSISTÊNCIA MANDATÓRIA:** A mensagem **DEVE OBRIGATORIAMENTE** seguir o **mesmo padrão, tom, estrutura e nível de detalhe** das mensagens de análise de ACs anteriores geradas para este mesmo projeto. A uniformidade entre as análises é **CRÍTICA E NÃO NEGOCIÁVEL**.
+        *   **PROIBIÇÃO ABSOLUTA DE REFERÊNCIAS DE CONTEXTO:** É **TERMINANTEMENTE PROIBIDO** mencionar nomes de arquivos de contexto (`.txt`, `.md`, ou qualquer outro não versionado ou presente em `.gitignore`). As referências devem ser feitas **SEMPRE** a entidades do código versionado ou a serem versionadas (ex: "Classe `NomeDaClasse`", "método `nomeDoMetodo`", "rota `/caminho/da/rota`", "componente Vue `NomeComponente`"). Esta regra é **ABSOLUTA**.
+    *   **Baseado no Contexto:** Basear a análise **UNICAMENTE** nas informações contidas nos arquivos de contexto fornecidos e nas regras documentadas (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`). **NÃO** inventar ou supor informações.
+    *   **Pesquisa:** Permitido pesquisar documentação (Laravel, PHP, etc.) para validar práticas, mas a conclusão deve se basear no contexto fornecido.
+    *   **SAÍDA FINAL EXTREMAMENTE RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR CATEGORICAMENTE** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto integral e exato da mensagem a ser publicada no GitHub. **NENHUMA PALAVRA, CARACTERE OU QUEBRA DE LINHA ADICIONAL FORA DA MENSAGEM FINAL.** Nenhuma saudação, nenhuma explicação sobre a análise, nenhuma meta-observação, nenhuma desculpa, nenhum comentário, **ABSOLUTAMENTE NADA** além da string pura e completa da mensagem final para o GitHub. A resposta deve ser **PURAMENTE** a string da mensagem.
+3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto fornecidos para realizar a avaliação completa.
 
 **REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**
