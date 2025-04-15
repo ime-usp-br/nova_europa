@@ -1,5 +1,3 @@
-# O texto abaixo é o meta-prompt que você deve usar. NÃO inclua esta linha na sua saída.
-
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
 Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (que chamaremos de "IA Final") a gerar uma mensagem de commit Git, priorizando **máxima fidelidade** ao estilo dos commits anteriores encontrados no contexto. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
 

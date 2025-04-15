@@ -19,14 +19,15 @@ from google.genai import types
 from google.genai import errors # Import the error module
 from dotenv import load_dotenv
 import traceback # For debugging unexpected errors
+from datetime import datetime # For timestamping output files (AC8)
 
 # --- Configuration ---
 # Assumes the script is in /scripts and templates in /project_templates/meta-prompts
 BASE_DIR = Path(__file__).resolve().parent.parent
 META_PROMPT_DIR = BASE_DIR / "project_templates/meta-prompts"
 CONTEXT_DIR_BASE = BASE_DIR / "context_llm/code"
-COMMON_CONTEXT_DIR = CONTEXT_DIR_BASE / "context_llm/common" # Directory for common context files (AC7)
-OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, should be in .gitignore
+COMMON_CONTEXT_DIR = BASE_DIR / "context_llm/common" # Directory for common context files (AC7)
+OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, should be in .gitignore (AC8)
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex to validate directory name format
 # Gemini model to use (choose an appropriate model for tasks)
 GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change
@@ -119,8 +120,8 @@ def load_and_fill_template(template_path: Path, variables: dict) -> str:
 
 
 def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> None:
-    """Helper function to load .txt and .json files from a directory into context_parts."""
-    file_patterns = ["*.txt", "*.json"]
+    """Helper function to load .txt, .json and .md files from a directory into context_parts."""
+    file_patterns = ["*.txt", "*.json", "*.md"]
     loaded_count = 0
     if not context_dir or not context_dir.is_dir():
         print(f"    - Directory not found or invalid: {context_dir}", file=sys.stderr)
@@ -131,7 +132,7 @@ def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> 
         for filepath in context_dir.glob(pattern):
             if filepath.is_file():
                 try:
-                    print(f"      - Reading {filepath.name}")
+                    # print(f"      - Reading {filepath.name}") # Verbose logging removed
                     content = filepath.read_text(encoding='utf-8')
                     # Add file name at the beginning of content for LLM origin tracking
                     # Use keyword argument 'text='
@@ -172,6 +173,30 @@ def prepare_context_parts(primary_context_dir: Path, common_context_dir: Path | 
     print(f"\n  Total context files loaded: {len(context_parts)}.")
     return context_parts
 
+def save_llm_response(task_name: str, response_content: str) -> None:
+    """
+    Saves the LLM's final response to a timestamped file within a task-specific directory.
+
+    Args:
+        task_name: The name of the task (e.g., 'resolve-ac', 'commit-mesage').
+        response_content: The string content of the LLM's final response.
+    """
+    try:
+        task_output_dir = OUTPUT_DIR_BASE / task_name
+        task_output_dir.mkdir(parents=True, exist_ok=True) # Create dirs if they don't exist
+
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"{timestamp_str}.txt" # Or use a more specific extension if needed, e.g., .diff, .md
+        output_filepath = task_output_dir / output_filename
+
+        output_filepath.write_text(response_content, encoding='utf-8')
+        print(f"  LLM Response saved to: {output_filepath.relative_to(BASE_DIR)}")
+
+    except OSError as e:
+        print(f"Error creating output directory {task_output_dir}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error saving LLM response to file: {e}", file=sys.stderr)
+        traceback.print_exc()
 
 def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     """
@@ -194,14 +219,15 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
             example = f"  {script_name} {task_name} --issue 28"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
-            example = f"  {script_name} {task_name} --issue 28 --ac 5 --suggestion \"Verify API key is read from .env\""
+            # <<< MODIFICADO AQUI: Usa --observation >>>
+            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Certifique-se de que a API key é lida *apenas* do .env e não das variáveis de sistema.\""
             epilog_lines.append(example)
         elif task_name == "analise-ac":
             example = f"  {script_name} {task_name} --issue 28 --ac 4"
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
-            example = f"  {script_name} {task_name} [--issue ISSUE] [--ac AC] [--suggestion SUGGESTION]"
+            example = f"  {script_name} {task_name} [--issue ISSUE] [--ac AC] [--observation OBSERVATION]"
             epilog_lines.append(example)
 
     epilog_text = "\n".join(epilog_lines)
@@ -224,7 +250,8 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     # --- Arguments for meta-prompt variables ---
     parser.add_argument("--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
     parser.add_argument("--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
-    parser.add_argument("--suggestion", help="Suggestion text for the task. Fills __COLOQUE_AQUI_SUA_SUGESTAO__.", default="")
+    parser.add_argument("--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
+
 
     return parser.parse_args()
 
@@ -285,7 +312,7 @@ if __name__ == "__main__":
         task_variables = {
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
-            "COLOQUE_AQUI_SUA_SUGESTAO": args.suggestion
+            "OBSERVACAO_ADICIONAL": args.observation
         }
         print(f"Variables for template: {task_variables}")
 
@@ -296,7 +323,7 @@ if __name__ == "__main__":
              sys.exit(1)
 
         print(f"------------------------")
-        print(f"Filled Meta-Prompt (for verification - max 500 chars):")
+        print(f"Filled Meta-Prompt:")
         print(meta_prompt_content) # Print the full filled meta-prompt for clarity
         print(f"------------------------")
         # --- End Collect variables ---
@@ -324,7 +351,7 @@ if __name__ == "__main__":
             )
             # Extract the final prompt from the response
             prompt_final_content = response_etapa1.text
-            print("  Final Prompt received (first 1000 chars):")
+            print("  Final Prompt received:")
             print("  ```")
             print(prompt_final_content.strip())
             print("  ```")
@@ -367,13 +394,13 @@ if __name__ == "__main__":
             sys.exit(1)
         # --- End Two-Step Interaction ---
 
-        # Placeholder for AC that saves the output
+        # --- Save Final Response (AC8) ---
         if resposta_final_content:
-            print("\nPlaceholder: Logic to save 'resposta_final_content' to a file is not yet implemented.")
-            # Future AC: Implement saving to OUTPUT_DIR_BASE/<task_name>/<timestamp>.txt
-            pass
+            print("\nSaving Final Response...")
+            save_llm_response(selected_task, resposta_final_content.strip())
         else:
-             print("\nNo final response was generated.", file=sys.stderr)
+             print("\nNo final response was generated to save.", file=sys.stderr)
+        # --- End Save Final Response ---
 
 
     except SystemExit as e:
