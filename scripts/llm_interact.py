@@ -16,7 +16,10 @@ from pathlib import Path
 import re
 import glob # Importado para listagem de diretórios
 import google.genai as genai
+from google.genai import types
+from google.genai import errors # Importar o módulo de erros
 from dotenv import load_dotenv
+import traceback # Para depuração de erros inesperados
 
 # --- Configuration ---
 # Presume que o script está em /scripts e os templates em /project_templates/meta-prompts
@@ -25,6 +28,8 @@ META_PROMPT_DIR = BASE_DIR / "project_templates/meta-prompts"
 CONTEXT_DIR_BASE = BASE_DIR / "code_context_llm"
 OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Diretório para salvar saídas, deve estar no .gitignore
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex para validar o formato do nome do diretório
+# Modelo Gemini a ser usado (escolha um modelo apropriado para as tarefas)
+GEMINI_MODEL = 'gemini-2.5-pro-exp-03-25'
 
 
 def find_available_tasks(prompt_dir: Path) -> dict[str, Path]:
@@ -79,7 +84,6 @@ def find_latest_context_dir(context_base_dir: Path) -> Path | None:
     latest_context_dir = sorted(valid_context_dirs, reverse=True)[0]
     return latest_context_dir
 
-
 def load_and_fill_template(template_path: Path, variables: dict) -> str:
     """
     Carrega um template de meta-prompt e substitui os placeholders pelas variáveis fornecidas.
@@ -111,6 +115,45 @@ def load_and_fill_template(template_path: Path, variables: dict) -> str:
     except Exception as e:
         print(f"Error reading or processing template {template_path}: {e}", file=sys.stderr)
         return ""
+
+def prepare_context_parts(context_dir: Path) -> list[types.Part]:
+    """
+    Lista arquivos de contexto (.txt, .json) e os prepara como types.Part.
+
+    Args:
+        context_dir: O Path para o diretório de contexto.
+
+    Returns:
+        Uma lista de objetos types.Part representando o conteúdo dos arquivos.
+    """
+    context_parts = []
+    if not context_dir or not context_dir.is_dir():
+        print(f"Warning: Invalid context directory provided: {context_dir}", file=sys.stderr)
+        return context_parts
+
+    print("  Loading context files...")
+    for filepath in context_dir.glob("*.txt"):
+        if filepath.is_file():
+            try:
+                print(f"    - Reading {filepath.name}")
+                content = filepath.read_text(encoding='utf-8')
+                # Adiciona o nome do arquivo no início do conteúdo para o LLM saber a origem
+                # CORREÇÃO: Use o argumento keyword 'text='
+                context_parts.append(types.Part.from_text(text=f"--- START OF FILE {filepath.name} ---\n{content}\n--- END OF FILE {filepath.name} ---"))
+            except Exception as e:
+                print(f"    - Warning: Could not read text file {filepath.name}: {e}", file=sys.stderr)
+    for filepath in context_dir.glob("*.json"):
+         if filepath.is_file():
+            try:
+                print(f"    - Reading {filepath.name}")
+                content = filepath.read_text(encoding='utf-8')
+                # Adiciona o nome do arquivo no início do conteúdo para o LLM saber a origem
+                # CORREÇÃO: Use o argumento keyword 'text='
+                context_parts.append(types.Part.from_text(text=f"--- START OF FILE {filepath.name} ---\n{content}\n--- END OF FILE {filepath.name} ---"))
+            except Exception as e:
+                print(f"    - Warning: Could not read json file {filepath.name}: {e}", file=sys.stderr)
+    print(f"  Loaded {len(context_parts)} context files.")
+    return context_parts
 
 
 def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
@@ -186,6 +229,7 @@ if __name__ == "__main__":
         print("Please set the GEMINI_API_KEY in your .env file or as a system environment variable.", file=sys.stderr)
         sys.exit(1)
     try:
+        # Nota: Não especificamos 'vertexai=True', então usará a Gemini Developer API por padrão.
         genai_client = genai.Client(api_key=api_key)
         print("Google GenAI Client initialized successfully.")
     except Exception as e:
@@ -214,7 +258,7 @@ if __name__ == "__main__":
         # --- AC4: Encontrar diretório de contexto mais recente ---
         context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
         if context_dir is None:
-            print("Erro: Não foi possível encontrar um diretório de contexto válido. Saindo.", file=sys.stderr)
+            print("Erro fatal: Não foi possível encontrar um diretório de contexto válido. Saindo.", file=sys.stderr)
             sys.exit(1)
         print(f"Diretório de Contexto: {context_dir.relative_to(BASE_DIR)}")
         # --- Fim AC4 ---
@@ -239,9 +283,78 @@ if __name__ == "__main__":
         print(f"------------------------")
         # --- Fim AC3 ---
 
-        # Placeholder para a lógica principal
-        print("\nPlaceholder: Lógica principal de interação com LLM ainda não implementada.")
-        pass
+        # --- AC6: Interação em Duas Etapas com Gemini API ---
+        print("\nIniciando interação com Gemini API...")
+
+        # Preparar partes de contexto (lendo arquivos .txt e .json)
+        context_parts = prepare_context_parts(context_dir)
+        if not context_parts:
+             print("Warning: Nenhum arquivo de contexto carregado. A IA pode não ter informações suficientes.", file=sys.stderr)
+
+        # --- Etapa 1: Meta-Prompt + Contexto -> Prompt Final ---
+        print(f"Etapa 1: Enviando Meta-Prompt e Contexto para obter o Prompt Final (Modelo: {GEMINI_MODEL})...")
+        prompt_final_content = None
+        # CORREÇÃO: Passa o prompt como keyword argument 'text='
+        contents_etapa1 = [types.Part.from_text(text=meta_prompt_content)] + context_parts
+        try:
+            # Converte a lista de Parts para o formato esperado por generate_content
+            # A documentação (google-genai.md) sugere que uma lista de Parts
+            # é convertida para um único UserContent.
+            response_etapa1 = genai_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents_etapa1 # Passa a lista de parts diretamente
+            )
+            # Extrai o prompt final da resposta
+            prompt_final_content = response_etapa1.text
+            print("  Prompt Final recebido (primeiros 10000 caracteres):")
+            print("  ```")
+            print(prompt_final_content[:10000].strip() + ("..." if len(prompt_final_content) > 10000 else ""))
+            print("  ```")
+        except errors.APIError as e:
+            print(f"  Erro na API Gemini (Etapa 1): Código {e.code} - {e.message}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"  Erro inesperado na Etapa 1: {e}", file=sys.stderr)
+            traceback.print_exc()
+            sys.exit(1)
+
+        # --- Etapa 2: Prompt Final + Contexto -> Resposta Final ---
+        resposta_final_content = None
+        if prompt_final_content:
+            print(f"\nEtapa 2: Enviando Prompt Final e Contexto para obter a Resposta Final (Modelo: {GEMINI_MODEL})...")
+            # CORREÇÃO: Passa o prompt final como keyword argument 'text='
+            contents_etapa2 = [types.Part.from_text(text=prompt_final_content)] + context_parts
+            try:
+                 response_etapa2 = genai_client.models.generate_content(
+                     model=GEMINI_MODEL,
+                     contents=contents_etapa2 # Passa a lista de parts diretamente
+                 )
+                 # Extrai a resposta final
+                 resposta_final_content = response_etapa2.text
+                 print("  Resposta Final recebida (primeiros 10000 caracteres):")
+                 print("  ```")
+                 print(resposta_final_content[:10000].strip() + ("..." if len(resposta_final_content) > 10000 else ""))
+                 print("  ```")
+            except errors.APIError as e:
+                print(f"  Erro na API Gemini (Etapa 2): Código {e.code} - {e.message}", file=sys.stderr)
+                sys.exit(1)
+            except Exception as e:
+                print(f"  Erro inesperado na Etapa 2: {e}", file=sys.stderr)
+                traceback.print_exc()
+                sys.exit(1)
+        else:
+            print("Erro: Não foi possível obter o prompt final da Etapa 1. Abortando Etapa 2.", file=sys.stderr)
+            sys.exit(1)
+        # --- Fim AC6 ---
+
+        # Placeholder para AC que salva a saída
+        if resposta_final_content:
+            print("\nPlaceholder: Lógica para salvar 'resposta_final_content' em um arquivo ainda não implementada.")
+            # AC futuro: Implementar salvamento em OUTPUT_DIR_BASE/<task_name>/<timestamp>.txt
+            pass
+        else:
+             print("\nNenhuma resposta final foi gerada.", file=sys.stderr)
+
 
     except SystemExit as e:
         # Captura sys.exit() chamado pelo argparse em caso de erro ou -h
@@ -250,7 +363,6 @@ if __name__ == "__main__":
              print(f"Argument parsing error.", file=sys.stderr)
         sys.exit(e.code) # Propaga o código de saída original
     except Exception as e:
-        import traceback # Adicionado para depuração
         print(f"\nErro inesperado durante a execução: {e}", file=sys.stderr)
         traceback.print_exc() # Imprime o traceback completo
         sys.exit(1)
