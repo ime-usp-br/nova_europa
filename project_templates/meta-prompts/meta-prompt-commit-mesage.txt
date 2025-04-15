@@ -12,8 +12,8 @@ Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instru
     *   **Idioma:** Usar **português do Brasil**. Nomenclatura técnica em inglês.
     *   **Baseado no Contexto:** Basear-se **UNICAMENTE** nas alterações fornecidas e nas regras.
     *   **Laravel 12:** Considerar Laravel 12 (consultar `filtered_laravel_docs_plano_…`).
-    *   **Contexto da Geração:** Mencionar `gerar_contexto_llm.sh`.
     *   **Pesquisa:** Pesquisar se houver dúvidas.
+    *   **Referencias Mencionadas na Tarefa Final:** O prompt final **DEVE** reforçar que a tarefa final **NÃO DEVE** mencionar **DE MANEIRA ALGUMA** os arquivos de contexto na Tarefa Final, **TODAS** as referencias **DEVEM** ser feitas sobre o que foi versionado ou que sera. Seu prompt final **DEVE** reforçar isso.
     *   **SAÍDA EXCLUSIVA E RESTRITA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR** à IA final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto completo da mensagem de commit, formatada corretamente. **NENHUMA PALAVRA A MAIS.** Nenhuma saudação, nenhuma explicação, nenhuma desculpa, nenhum comentário, **NADA** além da mensagem de commit. A resposta deve ser **PURAMENTE** a string da mensagem de commit.
 3.  **Análise de Arquivos (NO PROMPT FINAL):** O prompt final deve instruir a IA a analisar **todos** os arquivos de contexto.
 
