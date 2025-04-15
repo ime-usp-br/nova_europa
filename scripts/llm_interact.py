@@ -13,7 +13,8 @@ import argparse
 import os
 import sys
 from pathlib import Path
-import re # Adicionado para substituição de variáveis
+import re
+import glob # Importado para listagem de diretórios
 
 # --- Configuration ---
 # Presume que o script está em /scripts e os templates em /project_templates/meta-prompts
@@ -21,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 META_PROMPT_DIR = BASE_DIR / "project_templates/meta-prompts"
 CONTEXT_DIR_BASE = BASE_DIR / "code_context_llm"
 OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Diretório para salvar saídas, deve estar no .gitignore
+TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex para validar o formato do nome do diretório
 
 
 def find_available_tasks(prompt_dir: Path) -> dict[str, Path]:
@@ -45,6 +47,36 @@ def find_available_tasks(prompt_dir: Path) -> dict[str, Path]:
             if task_name:
                 tasks[task_name] = filepath
     return tasks
+
+def find_latest_context_dir(context_base_dir: Path) -> Path | None:
+    """
+    Encontra o diretório de contexto mais recente dentro do diretório base.
+
+    Args:
+        context_base_dir: O Path para o diretório base onde os diretórios
+                          de contexto (com timestamp) estão localizados.
+
+    Returns:
+        Um objeto Path para o diretório mais recente encontrado, ou None se
+        nenhum diretório válido for encontrado ou o diretório base não existir.
+    """
+    if not context_base_dir.is_dir():
+        print(f"Error: Context base directory not found: {context_base_dir}", file=sys.stderr)
+        return None
+
+    valid_context_dirs = []
+    for item in context_base_dir.iterdir():
+        if item.is_dir() and re.match(TIMESTAMP_DIR_REGEX, item.name):
+            valid_context_dirs.append(item)
+
+    if not valid_context_dirs:
+        print(f"Error: No valid context directories (YYYYMMDD_HHMMSS format) found in {context_base_dir}", file=sys.stderr)
+        return None
+
+    # Ordena os diretórios pelo nome (timestamp) em ordem decrescente
+    latest_context_dir = sorted(valid_context_dirs, reverse=True)[0]
+    return latest_context_dir
+
 
 def load_and_fill_template(template_path: Path, variables: dict) -> str:
     """
@@ -107,7 +139,7 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     # Adicionar outros argumentos conforme necessário para diferentes meta-prompts
 
     # TODO: Adicionar argumento opcional para especificar diretório de contexto,
-    # se não, usar o mais recente. (Parte do AC4)
+    # se não, usar o mais recente. (Parte do AC4) - [FEITO em AC4, mas argumento não adicionado ainda]
 
     # TODO: Adicionar argumento opcional para especificar o diretório de saída.
     # (Parte do AC8)
@@ -133,12 +165,20 @@ if __name__ == "__main__":
         print(f"Tarefa Selecionada: {selected_task}")
         print(f"Usando Meta-Prompt: {selected_meta_prompt_path.relative_to(BASE_DIR)}")
 
+        # --- AC4: Encontrar diretório de contexto mais recente ---
+        context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
+        if context_dir is None:
+            # A função find_latest_context_dir já imprime o erro específico.
+            print("Erro: Não foi possível encontrar um diretório de contexto válido. Saindo.", file=sys.stderr)
+            sys.exit(1)
+        print(f"Diretório de Contexto: {context_dir.relative_to(BASE_DIR)}")
+        # --- Fim AC4 ---
+
         # --- AC3: Coletar variáveis e preencher meta-prompt ---
-        # Mapeia os argumentos da linha de comando para os nomes das variáveis no template
         task_variables = {
-            "NUMERO_DA_ISSUE": args.issue if args.issue else "", # Usa string vazia se não fornecido
-            "NUMERO_DO_AC": args.ac if args.ac else "",         # Usa string vazia se não fornecido
-            "COLOQUE_AQUI_SUA_SUGESTAO": args.suggestion       # Usa default "" de argparse se não fornecido
+            "NUMERO_DA_ISSUE": args.issue if args.issue else "",
+            "NUMERO_DO_AC": args.ac if args.ac else "",
+            "COLOQUE_AQUI_SUA_SUGESTAO": args.suggestion
             # Adicionar mapeamento para outras variáveis/argumentos aqui se necessário
         }
         print(f"Variáveis para o template: {task_variables}")
@@ -158,9 +198,7 @@ if __name__ == "__main__":
         # Placeholder para a lógica principal que será desenvolvida
         # para atender aos outros Critérios de Aceite (ACs) da Issue #28.
 
-        # 1. (AC4) Encontrar diretório de contexto mais recente
-        # context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
-        # print(f"Diretório de Contexto: {context_dir.relative_to(BASE_DIR) if context_dir else 'Não encontrado'}")
+        # 1. (AC4) Encontrar diretório de contexto mais recente - [FEITO ACIMA]
 
         # 2. (AC4, AC5) Carregar arquivos de contexto
         # context_files = load_context_files(context_dir)
