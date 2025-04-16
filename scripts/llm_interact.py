@@ -237,9 +237,14 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
         elif task_name == "analise-ac":
             example = f"  {script_name} {task_name} --issue 28 --ac 4 (ou -i 28 -a 4)"
             epilog_lines.append(example)
-        elif task_name == "update-doc": # AC21: Added example for update-doc
+        elif task_name == "update-doc":
             example = f"  {script_name} {task_name} --issue 28 --doc-file docs/README.md (ou -i 28 -d docs/README.md) [-g]" # AC22: User may omit -d
             epilog_lines.append(example)
+        # AC24: Adicionar exemplo para create-pr
+        elif task_name == "create-pr":
+             example = f"  {script_name} {task_name} --issue 28 [--target-branch main] [--draft] [-g] (ou -i 28 ...)"
+             epilog_lines.append(example)
+        # Fim AC24
         else:
             # Generic example for other tasks
             example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-g]"
@@ -483,7 +488,7 @@ if __name__ == "__main__":
             sys.exit(1)
         try:
             print(f"\nInitializing Google GenAI Client...")
-            genai_client = genai.Client(api_key=api_key) 
+            genai_client = genai.Client(api_key=api_key)
             print("Google GenAI Client initialized successfully.")
         except Exception as e:
             print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
