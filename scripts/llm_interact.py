@@ -12,6 +12,7 @@ Supports enabling Google Search as a tool (AC13).
 Supports running the context generation script via a flag (AC14).
 Includes abbreviations for flags (AC15).
 Supports specifying target doc file for update-doc task (AC21).
+Supports listing and selecting doc files if target is not specified for update-doc (AC22).
 """
 
 import argparse
@@ -147,7 +148,8 @@ def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> 
                     content = filepath.read_text(encoding='utf-8')
                     # Add file name at the beginning of content for LLM origin tracking
                     # Use keyword argument 'text='
-                    context_parts.append(types.Part.from_text(text=f"--- START OF FILE {filepath.name} ---\n{content}\n--- END OF FILE {filepath.name} ---"))
+                    relative_path = filepath.relative_to(BASE_DIR)
+                    context_parts.append(types.Part.from_text(text=f"--- START OF FILE {relative_path} ---\n{content}\n--- END OF FILE {relative_path} ---"))
                     loaded_count += 1
                 except Exception as e:
                     print(f"      - Warning: Could not read file {filepath.name}: {e}", file=sys.stderr)
@@ -236,7 +238,7 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
             example = f"  {script_name} {task_name} --issue 28 --ac 4 (ou -i 28 -a 4)"
             epilog_lines.append(example)
         elif task_name == "update-doc": # AC21: Added example for update-doc
-            example = f"  {script_name} {task_name} --issue 28 --doc-file docs/README.md (ou -i 28 -d docs/README.md) [-g]"
+            example = f"  {script_name} {task_name} --issue 28 --doc-file docs/README.md (ou -i 28 -d docs/README.md) [-g]" # AC22: User may omit -d
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
@@ -264,8 +266,8 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     parser.add_argument("-i", "--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
     parser.add_argument("-a", "--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
     parser.add_argument("-o", "--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
-    # --- AC21: Add --doc-file argument ---
-    parser.add_argument("-d", "--doc-file", help="Target documentation file path for 'update-doc' task. Fills __ARQUIVO_DOC_ALVO__.")
+    # --- AC21: Add --doc-file argument (Optional for AC22) ---
+    parser.add_argument("-d", "--doc-file", help="Target documentation file path for 'update-doc' task. If omitted, you will be prompted to choose. Fills __ARQUIVO_DOC_ALVO__.")
     # --- End AC21 ---
     parser.add_argument(
         "-w", "--web-search",
@@ -278,8 +280,70 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
         help="Run the context generation script (gerar_contexto_llm.sh) before interacting with Gemini (AC14)."
     )
 
-
     return parser.parse_args()
+
+def find_documentation_files(base_dir: Path) -> list[Path]:
+    """
+    Find potential documentation files (.md) in the project.
+
+    Args:
+        base_dir: The root directory of the project.
+
+    Returns:
+        A sorted list of relative Path objects for documentation files.
+    """
+    print("  Scanning for documentation files...")
+    found_paths = set() # Use a set to avoid duplicates
+
+    # Check specific root files
+    for filename in ["README.md", "CHANGELOG.md"]: # Add more root files if needed
+        filepath = base_dir / filename
+        if filepath.is_file():
+            found_paths.add(filepath.relative_to(base_dir))
+
+    # Check docs directory recursively
+    docs_dir = base_dir / "docs"
+    if docs_dir.is_dir():
+        for filepath in docs_dir.rglob("*.md"):
+            # Add more specific filtering here if needed (e.g., ignore subdirs)
+            if filepath.is_file():
+                 found_paths.add(filepath.relative_to(base_dir))
+
+    print(f"  Found {len(found_paths)} unique documentation files.")
+    # Return a sorted list of Path objects based on their string representation
+    return sorted(list(found_paths), key=lambda p: str(p))
+
+
+def prompt_user_to_select_doc(doc_files: list[Path]) -> Path | None:
+    """
+    Displays a numbered list of doc files and prompts the user for selection.
+
+    Args:
+        doc_files: A list of relative Path objects for the documentation files.
+
+    Returns:
+        The selected relative Path object, or None if the user quits.
+    """
+    print("\nMultiple documentation files found. Please choose one to update:")
+    for i, filepath in enumerate(doc_files):
+        print(f"  {i + 1}: {filepath}")
+    print("  q: Quit")
+
+    while True:
+        choice = input("Enter the number of the file to update (or 'q' to quit): ").strip().lower()
+        if choice == 'q':
+            return None
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(doc_files):
+                selected_path = doc_files[index]
+                print(f"  You selected: {selected_path}")
+                return selected_path # Return the relative path object
+            else:
+                print("  Invalid number. Please try again.")
+        except ValueError:
+            print("  Invalid input. Please enter a number or 'q'.")
+
 
 def confirm_step(prompt: str) -> tuple[str, str | None]:
     """
@@ -328,7 +392,7 @@ def execute_gemini_call(client, model, contents, config: types.GenerateContentCo
              for candidate in response.candidates:
                  if candidate.finish_reason != types.FinishReason.STOP and candidate.finish_reason != types.FinishReason.FINISH_REASON_UNSPECIFIED:
                      print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
-                     if candidate.finish_message:
+                     if hasattr(candidate, 'finish_message') and candidate.finish_message: # Check if finish_message exists
                          print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
         # Return text, even if warnings occurred, unless a critical APIError was raised
         return response.text
@@ -376,12 +440,6 @@ if __name__ == "__main__":
         selected_meta_prompt_path = available_tasks_dict[selected_task]
         GEMINI_MODEL = GEMINI_MODEL_RESOLVE if selected_task == "resolve-ac" else GEMINI_MODEL_GENERAL_TASKS
 
-        # --- AC21: Check if --doc-file is required and provided ---
-        if selected_task == "update-doc" and not args.doc_file:
-            print(f"Error: The task '{selected_task}' requires the --doc-file argument.", file=sys.stderr)
-            sys.exit(1)
-        # --- End AC21 ---
-
         print(f"\nLLM Interaction Script")
         print(f"========================")
         print(f"Selected Task: {selected_task}")
@@ -425,8 +483,7 @@ if __name__ == "__main__":
             sys.exit(1)
         try:
             print(f"\nInitializing Google GenAI Client...")
-            # Define client transport explicitamente se necessário, ex: transport='rest'
-            genai_client = genai.Client(api_key=api_key)
+            genai_client = genai.Client(api_key=api_key) 
             print("Google GenAI Client initialized successfully.")
         except Exception as e:
             print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
@@ -440,16 +497,46 @@ if __name__ == "__main__":
             sys.exit(1)
         print(f"Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
 
-        # --- AC21: Populate task_variables ---
+        # --- Populate task_variables ---
         task_variables = {
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
-            "OBSERVACAO_ADICIONAL": args.observation
+            "OBSERVACAO_ADICIONAL": args.observation,
+            "ARQUIVO_DOC_ALVO": "" # Default to empty
         }
+
+        # --- AC22: Handle document file selection for update-doc task ---
         if selected_task == "update-doc":
-            task_variables["ARQUIVO_DOC_ALVO"] = args.doc_file # Argument already checked for existence
-        # --- End AC21 ---
-        print(f"Variables for template: {task_variables}")
+            doc_file_path_str = args.doc_file
+            if not doc_file_path_str:
+                print("\n--doc-file not provided for 'update-doc' task.")
+                found_docs = find_documentation_files(BASE_DIR)
+                if not found_docs:
+                    print("Error: No documentation files (.md in root or docs/) found to choose from.", file=sys.stderr)
+                    sys.exit(1)
+                selected_doc_path_relative = prompt_user_to_select_doc(found_docs)
+                if not selected_doc_path_relative:
+                    print("User chose to quit. Exiting.")
+                    sys.exit(0)
+                # Convert relative Path object back to string for the variable dictionary
+                doc_file_path_str = str(selected_doc_path_relative)
+            else:
+                 # Validate if the provided relative path exists
+                provided_path = BASE_DIR / args.doc_file
+                if not provided_path.is_file():
+                     print(f"Error: Provided document file '{args.doc_file}' not found relative to project root.", file=sys.stderr)
+                     sys.exit(1)
+                 # Use the provided relative path string
+                doc_file_path_str = args.doc_file
+
+            task_variables["ARQUIVO_DOC_ALVO"] = doc_file_path_str
+            if not task_variables["ARQUIVO_DOC_ALVO"]: # Safety check
+                 print("Error: Target document file could not be determined for update-doc task.", file=sys.stderr)
+                 sys.exit(1)
+            print(f"Target document file set to: {task_variables['ARQUIVO_DOC_ALVO']}")
+        # --- End AC22 ---
+
+        print(f"\nFinal Variables for template: {task_variables}")
 
         # Load initial meta-prompt
         meta_prompt_content_original = load_and_fill_template(selected_meta_prompt_path, task_variables)
@@ -483,7 +570,9 @@ if __name__ == "__main__":
         # --- Create base GenerateContentConfig if tools are needed ---
         base_config = None
         if tools_list:
-            base_config = types.GenerateContentConfig(tools=tools_list)
+            # Use GenerationConfig instead of GenerateContentConfig for tools
+            base_config = types.GenerationConfig(tools=tools_list)
+            print("  GenerationConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
 
@@ -588,7 +677,7 @@ if __name__ == "__main__":
                 # If 'y', loop continues to retry Step 2
 
         # --- Save Final Response (AC8) ---
-        if resposta_final_content:
+        if resposta_final_content is not None: # Check if content exists
             print("\nSaving Final Response...")
             save_llm_response(selected_task, resposta_final_content.strip())
         else:
