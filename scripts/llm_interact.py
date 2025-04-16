@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 import traceback # For debugging unexpected errors
 from datetime import datetime # For timestamping output files (AC8)
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable # Added for type hinting
-import time
-from tqdm import tqdm
+import time # Added for AC36
+from tqdm import tqdm # Added for AC32 and AC36
 
 # --- Configuration ---
 # Assumes the script is in /scripts and templates in /project_templates/meta-prompts
@@ -370,23 +370,23 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
 
     for task_name in sorted_tasks:
         if task_name == "commit-mesage":
-            example = f"  {script_name} {task_name} -i 28 [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} -i 28 [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
-            example = f"  {script_name} {task_name} -i 28 -a 5 -o \"Ensure API key from .env\" [-w] [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} -i 28 -a 5 -o \"Ensure API key from .env\" [-w] [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
         elif task_name == "analyze-ac": # Corrected task name based on AC31
-            example = f"  {script_name} {task_name} -i 28 -a 4 [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} -i 28 -a 4 [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
         elif task_name == "update-doc":
-            example = f"  {script_name} {task_name} -i 28 [-d docs/README.md] [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} -i 28 [-d docs/README.md] [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
         elif task_name == "create-pr": # AC25 Example
-            example = f"  {script_name} {task_name} -i 28 [-b main] [--draft] [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} -i 28 [-b main] [--draft] [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
-            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-y] [-g] [-om]"
+            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
 
     epilog_text = "\n".join(epilog_lines)
@@ -440,6 +440,13 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
         help="Only generate and print the filled meta-prompt, then exit. Does not interact with the LLM."
     )
     # --- End AC35 ---
+    # --- AC36: Add --with-sleep flag ---
+    parser.add_argument(
+        "-ws", "--with-sleep",
+        action="store_true",
+        help="Wait for 5 minutes before the first Gemini API call (AC36)."
+    )
+    # --- End AC36 ---
 
     return parser.parse_args()
 
@@ -619,11 +626,6 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
             # Optional sleep can be added here if needed before *every* call
             # time.sleep(1)
 
-            # print("\n\n--->Waiting for the free quota<---") # Keep original if needed
-            # print("--->API Key "+api_keys_list[current_api_key_index]+"<---\n")
-            # for i in tqdm(range(180)):
-            #     time.sleep(1)
-
             response = genai_client.models.generate_content(
                 model=model,
                 contents=contents,
@@ -657,7 +659,7 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
 
         except google_api_core_exceptions.ResourceExhausted as e: # Specific exception for rate limits (AC32)
             print(f"\n---> Rate limit exceeded (ResourceExhausted) for Key Index {current_api_key_index}. Waiting and rotating API key... <---", file=sys.stderr) # Refined log
-            for i in tqdm(range(180), desc="Waiting for quota"): # Add progress bar
+            for i in tqdm(range(300), desc="Waiting for quota", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): # Add progress bar
                 time.sleep(1)
             if not rotate_api_key_and_reinitialize():
                 print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
@@ -676,7 +678,7 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
              status_code = getattr(e, 'code', None) or getattr(e, 'status_code', None) # Try common attributes
              if status_code == 429:
                   print(f"\n---> API Error indicates rate limit (status 429) for Key Index {current_api_key_index}. Waiting and rotating API key... <---", file=sys.stderr) # Refined log
-                  for i in tqdm(range(180), desc="Waiting for quota"): # Add progress bar
+                  for i in tqdm(range(300), desc="Waiting for quota", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): # Add progress bar
                       time.sleep(1)
                   if not rotate_api_key_and_reinitialize():
                        print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
@@ -737,6 +739,7 @@ if __name__ == "__main__":
         print(f"Generate Context Flag: {args.generate_context}") # Log the flag status (AC14)
         print(f"Auto-Confirm Steps 1&2: {args.yes}") # Log AC30 flag status
         print(f"Only Generate Meta-Prompt: {args.only_meta}") # AC35 Log flag status
+        print(f"Wait Before API Call: {args.with_sleep}") # AC36 Log flag status
         if selected_task == 'create-pr': # AC25 Log relevant flags
             print(f"Target Branch: {args.target_branch}")
             print(f"Draft PR: {args.draft}")
@@ -780,7 +783,7 @@ if __name__ == "__main__":
         # Moved initialization to happen *after* context generation if flag is used,
         # but *before* finding context dir if not.
         # Initialize client early if not generating context, otherwise happens later
-        if not args.generate_context:
+        if not args.generate_context and not args.only_meta: # Dont init if only meta is needed
              if not initialize_genai_client():
                  sys.exit(1)
 
@@ -853,7 +856,7 @@ if __name__ == "__main__":
             sys.exit(0)
         # --- End AC35 ---
 
-        # --- Initialize GenAI Client if not done already (AC14) ---
+        # --- Initialize GenAI Client if not done already (e.g., if -g was used) ---
         if genai_client is None:
              if not initialize_genai_client():
                  sys.exit(1)
@@ -888,6 +891,14 @@ if __name__ == "__main__":
             print("  GenerateContentConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
+        # --- AC36: Optional 5-minute sleep before first API call ---
+        if args.with_sleep:
+            sleep_duration_seconds = 300
+            print(f"\n--with-sleep flag detected. Waiting for {sleep_duration_seconds // 60} minutes before proceeding...")
+            for _ in tqdm(range(sleep_duration_seconds), desc="Waiting 5 minutes (--with-sleep)", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"):
+                time.sleep(1)
+            print("Wait complete. Proceeding with API interaction.")
+        # --- End AC36 ---
 
         print("\nStarting interaction with Gemini API...")
 
@@ -961,6 +972,16 @@ if __name__ == "__main__":
         if args.web_search:
             print("  Appending web search encouragement to final prompt...")
             prompt_final_content_current += WEB_SEARCH_ENCOURAGEMENT_PT
+        
+
+        # --- AC36: Optional 5-minute sleep before second API call ---
+        if args.with_sleep:
+            sleep_duration_seconds = 300
+            print(f"\n--with-sleep flag detected. Waiting for {sleep_duration_seconds // 60} minutes before proceeding...")
+            for _ in tqdm(range(sleep_duration_seconds), desc="Waiting 5 minutes (--with-sleep)", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"):
+                time.sleep(1)
+            print("Wait complete. Proceeding with API interaction.")
+        # --- End AC36 ---
 
         while True:
             print(f"\nStep 2: Sending Final Prompt and Context (Model: {GEMINI_MODEL})...")
