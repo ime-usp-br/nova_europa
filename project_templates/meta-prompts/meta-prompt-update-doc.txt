@@ -1,5 +1,3 @@
-# O texto abaixo é o meta-prompt que você deve usar.
-
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
 Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (a "IA Final") a analisar as mudanças realizadas para a Issue `__NUMERO_DA_ISSUE__` e gerar o conteúdo atualizado para o(s) arquivo(s) de documentação especificado(s) ou relevantes, utilizando como base este meta-prompt e os arquivos de contexto anexados. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
 

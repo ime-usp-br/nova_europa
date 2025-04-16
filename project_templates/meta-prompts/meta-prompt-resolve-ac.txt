@@ -1,5 +1,3 @@
-# O texto abaixo é o meta-prompt que você deve usar.
-
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
 Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (a "IA Final") a gerar código para resolver um Critério de Aceite (AC) específico de uma Issue GitHub, utilizando como base este meta-prompt (que já contém os detalhes específicos da tarefa) e os arquivos de contexto anexados. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
 
