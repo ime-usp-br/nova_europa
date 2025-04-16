@@ -15,6 +15,7 @@ Supports specifying target doc file for update-doc task (AC21).
 Supports listing and selecting doc files if target is not specified for update-doc (AC22).
 Supports creating GitHub Pull Requests (AC25).
 Automatically detects current git branch (AC29).
+Adds --yes/-y flag to skip intermediate confirmations (AC30).
 """
 
 import argparse
@@ -343,8 +344,8 @@ def create_github_pr(title: str, body: str, head_branch: str, base_branch: str, 
         print("\nAttempting to create Pull Request...")
         print(f"  Command: {' '.join(cmd)}") # Echo the command
 
-        # Ask for user confirmation before creating PR
-        pr_confirm_choice, _ = confirm_step("Proceed with creating the Pull Request?")
+        # Ask for user confirmation before creating PR - THIS IS NOT SKIPPED by --yes (AC30)
+        pr_confirm_choice, _ = confirm_step("Confirm creating PR with this Title/Body?")
         if pr_confirm_choice != 'y':
             print("Pull Request creation cancelled by user.")
             return False
@@ -380,23 +381,23 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
 
     for task_name in sorted_tasks:
         if task_name == "commit-mesage":
-            example = f"  {script_name} {task_name} --issue 28 (ou -i 28)"
+            example = f"  {script_name} {task_name} -i 28 [-y] [-g]"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
-            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Ensure API key from .env\" (ou -i 28 -a 5 -o \"...\") [-w] [-g]"
+            example = f"  {script_name} {task_name} -i 28 -a 5 -o \"Ensure API key from .env\" [-w] [-y] [-g]"
             epilog_lines.append(example)
         elif task_name == "analise-ac":
-            example = f"  {script_name} {task_name} --issue 28 --ac 4 (ou -i 28 -a 4)"
+            example = f"  {script_name} {task_name} -i 28 -a 4 [-y] [-g]"
             epilog_lines.append(example)
         elif task_name == "update-doc":
-            example = f"  {script_name} {task_name} --issue 28 --doc-file docs/README.md (ou -i 28 -d docs/README.md) [-g]" # AC22: User may omit -d
+            example = f"  {script_name} {task_name} -i 28 [-d docs/README.md] [-y] [-g]"
             epilog_lines.append(example)
         elif task_name == "create-pr": # AC25 Example
-            example = f"  {script_name} {task_name} --issue 28 [--target-branch main] [--draft] [-g] (ou -i 28 [-b main] [--draft] [-g])"
+            example = f"  {script_name} {task_name} -i 28 [-b main] [--draft] [-y] [-g]"
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
-            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-g]"
+            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-y] [-g]"
             epilog_lines.append(example)
 
     epilog_text = "\n".join(epilog_lines)
@@ -436,6 +437,13 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
         action="store_true",
         help="Run the context generation script (gerar_contexto_llm.sh) before interacting with Gemini (AC14)."
     )
+    # --- AC30: Add --yes flag ---
+    parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Automatically confirm Step 1 (prompt generation) and Step 2 (response generation), but still ask for final action confirmation (e.g., save file, create PR)."
+    )
+    # --- End AC30 ---
 
     return parser.parse_args()
 
@@ -515,7 +523,7 @@ def confirm_step(prompt: str) -> Tuple[str, Optional[str]]:
         Converts choice to lowercase.
     """
     while True:
-        response = input(f"{prompt} (Y/n/q - Yes/No/Quit) [Y]: ").lower().strip()
+        response = input(f"{prompt} (Y/n/q - Yes/No+Feedback/Quit) [Y]: ").lower().strip()
         if response in ['y', 'yes', '']:
             return 'y', None
         elif response in ['n', 'no']:
@@ -541,7 +549,7 @@ def execute_gemini_call(client: genai.Client, model: str, contents: List[types.P
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config=config # instruction for the llm: do not insert transport, it always end in Models.generate_content() got an unexpected keyword argument 'generation_config'. Nobody is allowed to change this comment. 
+            config=config # instruction for the llm: do not insert transport, it always end in Models.generate_content() got an unexpected keyword argument 'generation_config'. Nobody is allowed to change this comment.
         )
         # Handle potential API errors more gracefully if needed
         # Check response.prompt_feedback for safety issues, etc.
@@ -568,7 +576,7 @@ def execute_gemini_call(client: genai.Client, model: str, contents: List[types.P
              print("  Warning: Response object does not have 'text' attribute (likely due to blocking or error). Returning empty string.", file=sys.stderr)
              print(f"  Full Response: {response}", file=sys.stderr)
              return ""
-             
+
     except Exception as e:
         print(f"  Unexpected Error during Gemini API call: {e}", file=sys.stderr)
         traceback.print_exc()
@@ -613,6 +621,7 @@ if __name__ == "__main__":
         print(f"Using Model: {GEMINI_MODEL}")
         print(f"Web Search Enabled: {args.web_search}") # Log the flag status (AC13)
         print(f"Generate Context Flag: {args.generate_context}") # Log the flag status (AC14)
+        print(f"Auto-Confirm Steps 1&2: {args.yes}") # Log AC30 flag status
         if selected_task == 'create-pr': # AC25 Log relevant flags
             print(f"Target Branch: {args.target_branch}")
             print(f"Draft PR: {args.draft}")
@@ -747,7 +756,8 @@ if __name__ == "__main__":
         # --- Create base GenerateContentConfig if tools are needed ---
         base_config = None
         if tools_list:
-            base_config.tools = tools_list # Add tools if they exist
+            # Assuming config should be of type types.GenerateContentConfig
+            base_config = types.GenerateContentConfig(tools=tools_list)
             print("  GenerationConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
@@ -770,7 +780,13 @@ if __name__ == "__main__":
                 print("  ```")
                 print("------------------------")
 
-                user_choice_step1, observation_step1 = confirm_step("Proceed to Step 2 with this prompt?")
+                # AC30: Check --yes flag to skip confirmation
+                if args.yes:
+                    print("  Step 1 automatically confirmed (--yes flag).")
+                    user_choice_step1 = 'y'
+                    observation_step1 = None
+                else:
+                    user_choice_step1, observation_step1 = confirm_step("Use this generated prompt for Step 2?")
 
                 if user_choice_step1 == 'y':
                     break # Exit Step 1 loop, proceed to Step 2
@@ -825,81 +841,18 @@ if __name__ == "__main__":
                 print("  ```")
                 print("------------------------")
 
-                # --- AC25: Special handling for create-pr ---
-                if selected_task == 'create-pr':
-                    pr_title, pr_body = parse_pr_content(resposta_final_content)
-                    if pr_title and pr_body is not None: # Check title is not empty and body is not None
-                        print("  Successfully parsed PR Title and Body.")
-                        user_choice_step2, observation_step2 = confirm_step("Create PR with this Title/Body?")
-                        if user_choice_step2 == 'y':
-                            # ---- Create PR Logic ----
-                            current_branch = get_current_branch() # AC29: Get current branch
-                            if not current_branch:
-                                print("Error: Could not determine current Git branch. Cannot create PR.", file=sys.stderr)
-                                sys.exit(1)
-                            print(f"  Current Branch (Head): {current_branch}") # Log head branch
-                            target_branch = args.target_branch
-                            print(f"  Target Branch (Base): {target_branch}") # Log base branch
-
-                            # Ensure "Closes #ISSUE" is in the body
-                            issue_ref_str = f"Closes #{args.issue}"
-                            if issue_ref_str not in pr_body:
-                                print(f"  Warning: '{issue_ref_str}' not found in LLM body. Appending it.")
-                                pr_body += f"\n\n{issue_ref_str}"
-
-                            if not check_new_commits(target_branch, current_branch):
-                                print(f"Error: No new commits found on branch '{current_branch}' compared to '{target_branch}'. PR creation aborted.", file=sys.stderr)
-                                sys.exit(1) # Exit as there's nothing to PR
-
-                            if create_github_pr(pr_title, pr_body, current_branch, target_branch, args.draft):
-                                print("\nPull Request creation initiated.")
-                                sys.exit(0) # Exit successfully after PR creation attempt
-                            else:
-                                print("\nPull Request creation failed or was cancelled. Exiting.")
-                                sys.exit(1) # Exit with error if PR creation failed
-                            # ---- End Create PR Logic ----
-                        elif user_choice_step2 == 'q':
-                            print("Exiting without creating the PR as requested.")
-                            sys.exit(0)
-                        elif user_choice_step2 == 'n':
-                            print(f"Received observation for Step 2 retry: '{observation_step2}'")
-                            prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
-                            # Continue loop to retry Step 2
-                        else:
-                            print("Internal error in confirmation logic. Exiting.", file=sys.stderr)
-                            sys.exit(1)
-                    else:
-                        print("Error: Could not parse Title/Body from LLM response. Please provide feedback to retry.", file=sys.stderr)
-                        # Force user to provide feedback or quit
-                        retry_choice, observation_step2 = confirm_step("Provide feedback to retry Step 2? (q to quit)")
-                        if retry_choice == 'q':
-                            print("Exiting due to parsing error in Step 2.")
-                            sys.exit(1)
-                        elif retry_choice == 'n': # Treat 'n' as needing feedback here
-                             if not observation_step2: # Ensure observation was provided if confirm_step somehow allowed 'n' without it
-                                  observation_step2 = input("Please enter your observation/rule to improve the previous step: ").strip()
-                                  if not observation_step2:
-                                       print("Observation is required to retry. Exiting.", file=sys.stderr)
-                                       sys.exit(1)
-                             print(f"Received observation for Step 2 retry: '{observation_step2}'")
-                             prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
-                        else: # 'y' is technically invalid here, but treat as retry with feedback
-                            print("Invalid confirmation input for parsing error. Assuming retry with feedback.")
-                            observation_step2 = input("Please enter your observation/rule to improve the previous step: ").strip()
-                            if not observation_step2:
-                                 print("Observation is required to retry. Exiting.", file=sys.stderr)
-                                 sys.exit(1)
-                            print(f"Received observation for Step 2 retry: '{observation_step2}'")
-                            prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
-                # --- End AC25 Handling ---
+                # AC30: Check --yes flag to skip confirmation for this step's output
+                if args.yes:
+                    print("  Step 2 automatically confirmed (--yes flag). Proceeding to final action confirmation.")
+                    # Skip the intermediate confirmation but still need to check for final action below
+                    break # Exit the Step 2 retry loop
                 else:
-                    # Normal confirmation flow for other tasks
-                    user_choice_step2, observation_step2 = confirm_step("Save this response?")
+                    user_choice_step2, observation_step2 = confirm_step("Use this generated response for the final action?")
 
                     if user_choice_step2 == 'y':
-                        break # Exit Step 2 loop, proceed to save
+                        break # Exit Step 2 loop, proceed to final action confirmation
                     elif user_choice_step2 == 'q':
-                        print("Exiting without saving the response as requested.")
+                        print("Exiting without proceeding to final action as requested.")
                         sys.exit(0)
                     elif user_choice_step2 == 'n':
                          # AC11: Incorporate observation into final prompt for retry
@@ -921,15 +874,63 @@ if __name__ == "__main__":
                      sys.exit(1)
                 # If 'y', loop continues to retry Step 2
 
-        # --- Save Final Response (AC8) - Skip for create-pr as it creates the PR directly ---
-        if selected_task != 'create-pr':
-            if resposta_final_content is not None: # Check if content exists
-                print("\nSaving Final Response...")
-                save_llm_response(selected_task, resposta_final_content.strip())
+
+        # --- Final Action Confirmation & Execution (AC30 ensures this part is NOT skipped by --yes) ---
+        if resposta_final_content is None: # Check if response was actually generated
+            print("Error: No final response generated after Step 2. Aborting.", file=sys.stderr)
+            sys.exit(1)
+
+        if selected_task == 'create-pr':
+            # --- Create PR Logic ---
+            print("\nParsing PR content...")
+            pr_title, pr_body = parse_pr_content(resposta_final_content)
+            if pr_title and pr_body is not None:
+                print("  Successfully parsed PR Title and Body.")
+                # User confirmation happens inside create_github_pr now
+                current_branch = get_current_branch() # AC29: Get current branch
+                if not current_branch:
+                    print("Error: Could not determine current Git branch. Cannot create PR.", file=sys.stderr)
+                    sys.exit(1)
+                print(f"  Current Branch (Head): {current_branch}") # Log head branch
+                target_branch = args.target_branch
+                print(f"  Target Branch (Base): {target_branch}") # Log base branch
+
+                # Ensure "Closes #ISSUE" is in the body
+                issue_ref_str = f"Closes #{args.issue}"
+                if issue_ref_str not in pr_body:
+                    print(f"  Warning: '{issue_ref_str}' not found in LLM body. Appending it.")
+                    pr_body += f"\n\n{issue_ref_str}"
+
+                if not check_new_commits(target_branch, current_branch):
+                    print(f"Error: No new commits found on branch '{current_branch}' compared to '{target_branch}'. PR creation aborted.", file=sys.stderr)
+                    sys.exit(1) # Exit as there's nothing to PR
+
+                if create_github_pr(pr_title, pr_body, current_branch, target_branch, args.draft):
+                    print("\nPull Request creation process finished.")
+                    sys.exit(0) # Exit successfully after PR creation attempt
+                else:
+                    print("\nPull Request creation failed or was cancelled. Exiting.")
+                    sys.exit(1) # Exit with error if PR creation failed
             else:
-                print("\nNo final response was generated to save.", file=sys.stderr) # Should not happen if loop breaks on 'y'
+                # Parsing failed - this case should ideally be handled by retrying Step 2
+                print("Error: Parsing PR Title/Body failed. Cannot proceed.", file=sys.stderr)
                 sys.exit(1)
-        # --- End Save Final Response ---
+            # ---- End Create PR Logic ----
+        else:
+            # --- Save File Logic for other tasks ---
+            # AC30: This confirmation is NOT skipped by --yes
+            user_choice_save, _ = confirm_step("Confirm saving this response?")
+            if user_choice_save == 'y':
+                 print("\nSaving Final Response...")
+                 save_llm_response(selected_task, resposta_final_content.strip())
+            elif user_choice_save == 'q':
+                 print("Exiting without saving the response as requested.")
+                 sys.exit(0)
+            else: # 'n' was chosen
+                 print("Operation cancelled by user. Not saving the response.")
+                 sys.exit(0)
+            # --- End Save File Logic ---
+
 
     except SystemExit as e:
         if e.code != 0:
