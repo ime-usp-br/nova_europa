@@ -10,6 +10,7 @@ development tasks like generating commit messages, analyzing code, etc.
 Includes user confirmation steps and allows providing feedback for retries (AC10/AC11).
 Supports enabling Google Search as a tool (AC13).
 Supports running the context generation script via a flag (AC14).
+Includes abbreviations for flags (AC15).
 """
 
 import argparse
@@ -225,18 +226,18 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
 
     for task_name in sorted_tasks:
         if task_name == "commit-mesage":
-            example = f"  {script_name} {task_name} --issue 28"
+            example = f"  {script_name} {task_name} --issue 28 (ou -i 28)"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
             # Uses --observation
-            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Ensure the API key is read *only* from .env and not system variables.\" [--web-search] [--generate-context]"
+            example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Ensure API key from .env\" (ou -i 28 -a 5 -o \"...\") [-w] [-g]"
             epilog_lines.append(example)
         elif task_name == "analise-ac":
-            example = f"  {script_name} {task_name} --issue 28 --ac 4"
+            example = f"  {script_name} {task_name} --issue 28 --ac 4 (ou -i 28 -a 4)"
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
-            example = f"  {script_name} {task_name} [--issue ISSUE] [--ac AC] [--observation OBSERVATION] [--web-search] [--generate-context]"
+            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-g]"
             epilog_lines.append(example)
 
     epilog_text = "\n".join(epilog_lines)
@@ -256,17 +257,17 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
               f"'{META_PROMPT_DIR.relative_to(BASE_DIR)}'.\nAvailable tasks: {task_choices_str}"),
         metavar="TASK"
     )
-    # --- Arguments for meta-prompt variables ---
-    parser.add_argument("--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
-    parser.add_argument("--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
-    parser.add_argument("--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
+    # --- Arguments for meta-prompt variables (AC15: Added short flags) ---
+    parser.add_argument("-i", "--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
+    parser.add_argument("-a", "--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
+    parser.add_argument("-o", "--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
     parser.add_argument(
-        "--web-search",
+        "-w", "--web-search",
         action="store_true", # Makes it a boolean flag
         help="Enable Google Search as a tool for the Gemini model (AC13)."
     )
     parser.add_argument( # AC14
-        "--generate-context",
+        "-g", "--generate-context",
         action="store_true",
         help="Run the context generation script (gerar_contexto_llm.sh) before interacting with Gemini (AC14)."
     )
