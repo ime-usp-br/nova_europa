@@ -1,0 +1,47 @@
+# O texto abaixo é o meta-prompt que você deve usar.
+
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (a "IA Final") a gerar o **TÍTULO** e o **CORPO** para um Pull Request (PR) do GitHub, relacionados à Issue `__NUMERO_DA_ISSUE__`, utilizando como base este meta-prompt e os arquivos de contexto anexados. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para a Construção do Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a seguir **OBRIGATORIAMENTE, SEM EXCEÇÕES E COM MÁXIMA FIDELIDADE** as seguintes diretrizes:
+
+1.  **Objetivo Principal:** Instrua a IA Final a gerar um **TÍTULO** e um **CORPO** adequados para um Pull Request que implementa as mudanças relacionadas à Issue `__NUMERO_DA_ISSUE__`.
+
+2.  **Análise Mandatória do Contexto:** Exija que a IA Final analise **TODOS** os arquivos de contexto anexados (especialmente `git_diff_cached.txt`, `git_diff_unstaged.txt`, `git_log.txt`, `github_issue___NUMERO_DA_ISSUE___details.json`, `guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) para entender completamente:
+    *   O objetivo e os requisitos da Issue `__NUMERO_DA_ISSUE__`.
+    *   As alterações de código específicas realizadas (diffs).
+    *   O histórico de commits relacionado.
+    *   Os padrões de nomenclatura, estilo e estrutura de PRs e commits do projeto.
+
+3.  **Geração do Conteúdo do PR:**
+    *   **Título do PR:**
+        *   Deve ser conciso, claro e descritivo das mudanças gerais.
+        *   **DEVE** seguir o estilo e formato dos títulos de PRs anteriores, se houver exemplos no contexto (`gh_pr_list.txt`). Se não houver, pode seguir um padrão similar ao de commits (ex: `feat(modulo): Descrição curta (#__NUMERO_DA_ISSUE__)`).
+        *   **DEVE** incluir a referência à issue principal (`#__NUMERO_DA_ISSUE__`).
+    *   **Corpo do PR:**
+        *   Deve explicar o *propósito* das mudanças (o *porquê*).
+        *   Deve resumir as *principais alterações* realizadas (o *quê*).
+        *   **OBRIGATÓRIO:** Deve incluir uma linha explícita para fechar a issue principal: `Closes #__NUMERO_DA_ISSUE__`.
+        *   **PODE** incluir links para documentação relevante ou outras issues/PRs, se aplicável e inferido do contexto.
+        *   **DEVE** ser escrito em **português do Brasil**, de forma clara e profissional.
+        *   **DEVE** manter um tom e nível de detalhe consistentes com corpos de PRs anteriores, se disponíveis no contexto.
+        *   **NÃO DEVE** ser excessivamente longo ou repetir informações óbvias do diff.
+    *   **PROIBIÇÃO ABSOLUTA DE REFERÊNCIAS DE CONTEXTO:** É **TERMINANTEMENTE PROIBIDO** mencionar nomes de arquivos de contexto (`.txt`, `.json`, `.md`, etc., que não sejam parte do código versionado ou da documentação do projeto) no título ou corpo do PR.
+
+4.  **Conformidade com Padrões:** Instrua a IA Final a garantir que o título e corpo gerados estejam alinhados com as práticas descritas em `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`, especialmente quanto à vinculação de issues.
+
+5.  **Baseado no Contexto:** O título e corpo **DEVEM** ser baseados **UNICAMENTE** nas informações contidas nos arquivos de contexto fornecidos. **NÃO** inventar funcionalidades ou informações.
+
+6.  **SAÍDA FINAL EXTREMAMENTE RESTRITA E FORMATADA (REFORÇO MÁXIMO):** O prompt final **DEVE ORDENAR CATEGORICAMENTE** à IA Final que sua resposta contenha **APENAS E SOMENTE APENAS** o título e o corpo do PR, separados por delimitadores claros e **EXATOS**. A resposta completa da IA Final **DEVE** seguir **ESTRITAMENTE** o formato:
+    ```
+    --- PR TITLE ---
+    Título completo do Pull Request aqui...
+    --- PR BODY ---
+    Corpo completo do Pull Request aqui...
+    Incluindo a linha 'Closes #__NUMERO_DA_ISSUE__'
+    ```
+    Enfatize que a IA Final **NÃO DEVE** incluir **NENHUM prefixo, NENHUM sufixo, NENHUMA explicação, NENHUM comentário, NENHUMA saudação ou qualquer outro texto FORA** destes blocos e delimitadores. A resposta inteira deve começar com `--- PR TITLE ---` e terminar imediatamente após o final do corpo do PR.
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final que instruirá a IA Final a gerar o título e corpo do PR, seguindo as diretrizes de formatação de saída e utilizando os valores específicos que já estarão presentes neste meta-prompt quando você o processar. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**
