@@ -47,8 +47,8 @@ OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, shoul
 CONTEXT_GENERATION_SCRIPT = BASE_DIR / "gerar_contexto_llm.sh" # Path to context script (AC14)
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex to validate directory name format
 # Gemini model to use (choose an appropriate model for tasks)
-GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change
-GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-exp-03-25' # Do not change
+GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change. Do not insert in commit mesage.
+GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-exp-03-25' # Do not change. Do not insert in commit mesage.
 # Message to encourage web search (AC13 Observação Adicional)
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
 DEFAULT_BASE_BRANCH = 'main' # Default target branch for PRs (AC25)
@@ -629,7 +629,8 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
 
     while True: # Loop for retrying with rotated keys
         try:
-            print("\n\nwaiting for the free quota\nn")
+            print("\n\n--->Waiting for the free quota<---")
+            print("--->API Key "+api_keys_list[current_api_key_index]+"<---\n")
             for i in tqdm(range(180)):
                 time.sleep(1)
 

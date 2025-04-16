@@ -11,8 +11,6 @@ O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a
     ```
     __OBSERVACAO_ADICIONAL__
     ```
-    *(Lembre-se: os valores reais para `__NUMERO_DO_AC__`, `__NUMERO_DA_ISSUE__` e `__OBSERVACAO_ADICIONAL__` já estarão substituídos neste texto quando você o processar para gerar o prompt final).*
-
 2.  **Análise Mandatória do Contexto e Priorização da Fonte:** O prompt final **DEVE EXIGIR** que a IA Final analise **TODOS** os arquivos de contexto anexados para **DEDUZIR** o propósito detalhado da tarefa, a estrutura atual do projeto, o estilo de código predominante, as configurações relevantes e as melhores práticas estabelecidas, antes de gerar qualquer código. A IA Final **NÃO DEVE** operar apenas com base nas instruções textuais, mas sim **integrar o conhecimento extraído do contexto**. **É CRUCIAL:** Quando informações relevantes para a tarefa (ex: estilo de código em arquivos existentes, regras em `.md`, estrutura em `project_tree`, exemplos em `git_log.txt`, código similar já existente) estiverem presentes nos arquivos de contexto fornecidos, essas informações **DEVEM SER TRATADAS OBRIGATORIAMENTE COMO A FONTE PRIMÁRIA E AUTORITATIVA**. A IA Final **NÃO DEVE NUNCA** usar seu conhecimento prévio ou genérico se este contradisser ou ignorar o contexto específico fornecido nos arquivos anexados para a tarefa em questão. A fidelidade ao contexto fornecido é **ABSOLUTAMENTE PRIORITÁRIA**.
 
 3.  **Diretrizes de Implementação Específicas (a serem incluídas no prompt final):**
