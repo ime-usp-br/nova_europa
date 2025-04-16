@@ -227,17 +227,19 @@ def parse_pr_content(llm_output: str) -> tuple[str | None, str | None]:
     Returns:
         A tuple (title, body). Returns (None, None) if parsing fails.
     """
+    # Match Title: Starts with delimiter, captures everything until the next delimiter, allowing newlines
     title_match = re.search(rf"^{re.escape(PR_CONTENT_DELIMITER_TITLE)}\s*(.*?)\s*{re.escape(PR_CONTENT_DELIMITER_BODY)}", llm_output, re.DOTALL | re.MULTILINE)
+    # Match Body: Starts after delimiter, captures everything until the end of the string
     body_match = re.search(rf"{re.escape(PR_CONTENT_DELIMITER_BODY)}\s*(.*)", llm_output, re.DOTALL | re.MULTILINE)
 
     if title_match and body_match:
         title = title_match.group(1).strip()
         body = body_match.group(1).strip()
-        # Ensure body is not empty, as the regex might match an empty string
-        if title and body is not None: # Check body is not None (empty string is ok)
+        # Ensure title is not empty, body can be empty if the LLM intended so
+        if title and body is not None:
              return title, body
         else:
-             print("Error: Parsed title or body is empty.", file=sys.stderr)
+             print("Error: Parsed title is empty or body is unexpectedly None.", file=sys.stderr)
              return None, None
     else:
         print(f"Error: Could not parse LLM output. Delimiters '{PR_CONTENT_DELIMITER_TITLE}' or '{PR_CONTENT_DELIMITER_BODY}' not found or incorrect format.", file=sys.stderr)
@@ -514,7 +516,7 @@ def execute_gemini_call(client, model, contents, config: types.GenerateContentCo
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config=config # instruction for the llm: do not insert transport, it always end in Models.generate_content() got an unexpected keyword argument 'generation_config'
+            config=config # Use config here
         )
         # Handle potential API errors more gracefully if needed
         # Check response.prompt_feedback for safety issues, etc.
@@ -628,7 +630,8 @@ if __name__ == "__main__":
             sys.exit(1)
         try:
             print(f"\nInitializing Google GenAI Client...")
-            genai_client = genai.Client(api_key=api_key) # instruction for the llm: do not insert transport, it always end in Client.__init__() got an unexpected keyword argument 'transport'
+            # Client initialization corrected - remove transport='rest' if not needed or causing errors
+            genai_client = genai.Client(api_key=api_key)
             print("Google GenAI Client initialized successfully.")
         except Exception as e:
             print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
@@ -732,7 +735,9 @@ if __name__ == "__main__":
             contents_etapa1 = [types.Part.from_text(text=meta_prompt_content_current)] + context_parts
             try:
                 # Pass the base_config to the execution call for step 1 (AC13)
+                # Configuration correction: Use 'config' not 'generation_config' directly
                 prompt_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa1, config=base_config)
+
                 print("\n------------------------")
                 print("  >>> Final Prompt Received (Step 1):")
                 print("  ```")
@@ -786,7 +791,9 @@ if __name__ == "__main__":
             # Pass final prompt using keyword argument 'text='
             contents_etapa2 = [types.Part.from_text(text=prompt_final_content_current)] + context_parts
             try:
-                 # Pass the base_config to the execution call for step 2 (AC13)
+                # Pass the base_config to the execution call for step 2 (AC13)
+                # Configuration correction: Use 'config' not 'generation_config' directly
+                # AC27: This is the execution of the second step as required by AC27
                 resposta_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa2, config=base_config)
                 print("\n------------------------")
                 print("  >>> Final Response Received (Step 2):")
@@ -798,7 +805,7 @@ if __name__ == "__main__":
                 # --- AC25: Special handling for create-pr ---
                 if selected_task == 'create-pr':
                     pr_title, pr_body = parse_pr_content(resposta_final_content)
-                    if pr_title and pr_body:
+                    if pr_title and pr_body is not None: # Check title is not empty and body is not None
                         print("  Successfully parsed PR Title and Body.")
                         user_choice_step2, observation_step2 = confirm_step("Create PR with this Title/Body?")
                         if user_choice_step2 == 'y':
@@ -846,10 +853,19 @@ if __name__ == "__main__":
                             print("Exiting due to parsing error in Step 2.")
                             sys.exit(1)
                         elif retry_choice == 'n': # Treat 'n' as needing feedback here
-                            print(f"Received observation for Step 2 retry: '{observation_step2}'")
-                            prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
+                             if not observation_step2: # Ensure observation was provided if confirm_step somehow allowed 'n' without it
+                                  observation_step2 = input("Please enter your observation/rule to improve the previous step: ").strip()
+                                  if not observation_step2:
+                                       print("Observation is required to retry. Exiting.", file=sys.stderr)
+                                       sys.exit(1)
+                             print(f"Received observation for Step 2 retry: '{observation_step2}'")
+                             prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
                         else: # 'y' is technically invalid here, but treat as retry with feedback
                             print("Invalid confirmation input for parsing error. Assuming retry with feedback.")
+                            observation_step2 = input("Please enter your observation/rule to improve the previous step: ").strip()
+                            if not observation_step2:
+                                 print("Observation is required to retry. Exiting.", file=sys.stderr)
+                                 sys.exit(1)
                             print(f"Received observation for Step 2 retry: '{observation_step2}'")
                             prompt_final_content_current = modify_prompt_with_observation(prompt_final_content_current, observation_step2)
                 # --- End AC25 Handling ---
