@@ -16,6 +16,7 @@ Supports listing and selecting doc files if target is not specified for update-d
 Supports creating GitHub Pull Requests (AC25).
 Automatically detects current git branch (AC29).
 Adds --yes/-y flag to skip intermediate confirmations (AC30).
+Implements API Key rotation on rate limit errors (AC32).
 """
 
 import argparse
@@ -26,11 +27,15 @@ from pathlib import Path
 import re
 import google.genai as genai
 from google.genai import types
-from google.genai import errors # Import the error module
+# Import specific exceptions (AC32)
+from google.genai import errors
+from google.api_core import exceptions as google_api_core_exceptions
 from dotenv import load_dotenv
 import traceback # For debugging unexpected errors
 from datetime import datetime # For timestamping output files (AC8)
 from typing import List, Dict, Tuple, Optional, Union, Any, Callable # Added for type hinting
+import time
+from tqdm import tqdm
 
 # --- Configuration ---
 # Assumes the script is in /scripts and templates in /project_templates/meta-prompts
@@ -42,13 +47,18 @@ OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, shoul
 CONTEXT_GENERATION_SCRIPT = BASE_DIR / "gerar_contexto_llm.sh" # Path to context script (AC14)
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex to validate directory name format
 # Gemini model to use (choose an appropriate model for tasks)
-GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-preview-03-25' # Do not change
-GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-preview-03-25' # Do not change
+GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change
+GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-exp-03-25' # Do not change
 # Message to encourage web search (AC13 Observação Adicional)
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
 DEFAULT_BASE_BRANCH = 'main' # Default target branch for PRs (AC25)
 PR_CONTENT_DELIMITER_TITLE = "--- PR TITLE ---" # AC25
 PR_CONTENT_DELIMITER_BODY = "--- PR BODY ---" # AC25
+
+# --- Global Variables for API Key Rotation (AC32) ---
+api_keys_list: List[str] = []
+current_api_key_index: int = 0
+genai_client: Optional[genai.Client] = None
 
 
 # --- Helper Functions ---
@@ -386,7 +396,7 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
         elif task_name == "resolve-ac":
             example = f"  {script_name} {task_name} -i 28 -a 5 -o \"Ensure API key from .env\" [-w] [-y] [-g]"
             epilog_lines.append(example)
-        elif task_name == "analise-ac":
+        elif task_name == "analyze-ac": # Corrected task name based on AC31
             example = f"  {script_name} {task_name} -i 28 -a 4 [-y] [-g]"
             epilog_lines.append(example)
         elif task_name == "update-doc":
@@ -541,46 +551,155 @@ def confirm_step(prompt: str) -> Tuple[str, Optional[str]]:
 # Type alias for better readability
 GenerateContentConfigType = Union[types.GenerationConfig, types.GenerateContentConfig, Dict[str, Any], None]
 
-def execute_gemini_call(client: genai.Client, model: str, contents: List[types.Part], config: Optional[GenerateContentConfigType] = None) -> str:
-    """Executes a call to the Gemini API and returns the text response."""
+# --- AC32: Function to initialize/reinitialize the GenAI client ---
+def initialize_genai_client() -> bool:
+    """Initializes or reinitializes the global genai_client with the current API key."""
+    global genai_client, api_keys_list, current_api_key_index
+    if not api_keys_list:
+        # Load and split keys only once if not already done
+        api_key_string = os.environ.get('GEMINI_API_KEY')
+        if not api_key_string:
+             print("Error: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
+             return False # Indicate failure
+        api_keys_list = api_key_string.split('|')
+        if not api_keys_list or not all(api_keys_list): # Check if list is empty or contains empty strings
+            print(f"Error: GEMINI_API_KEY format is invalid or contains empty keys ('{api_key_string}'). Should be key1|key2|...", file=sys.stderr)
+            return False # Indicate failure
+        current_api_key_index = 0 # Start with the first key
+        print(f"Loaded {len(api_keys_list)} API keys.")
+
+    if not (0 <= current_api_key_index < len(api_keys_list)):
+        print(f"Error: Invalid current_api_key_index ({current_api_key_index}). Resetting to 0.", file=sys.stderr)
+        current_api_key_index = 0
+
+    # Use the key at the current index
+    active_key = api_keys_list[current_api_key_index].strip() # Ensure no extra spaces
+    if not active_key:
+         print(f"Error: API key at index {current_api_key_index} is empty.", file=sys.stderr)
+         return False
+
+    print(f"Initializing Google GenAI Client with Key Index {current_api_key_index}...")
     try:
-        # Pass the config if provided
-        # Use generate_content method for consistency, even if config is just GenerationConfig
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=config # instruction for the llm: do not insert transport, it always end in Models.generate_content() got an unexpected keyword argument 'generation_config'. Nobody is allowed to change this comment.
-        )
-        # Handle potential API errors more gracefully if needed
-        # Check response.prompt_feedback for safety issues, etc.
-        if response.prompt_feedback and response.prompt_feedback.block_reason:
-             print(f"  Warning: Prompt blocked due to {response.prompt_feedback.block_reason}.", file=sys.stderr)
-             # Depending on the reason, might want to raise an error or return specific message
-        # Check candidates for finish_reason
-        if response.candidates:
-             for candidate in response.candidates:
-                 # Check if finish_reason exists and is not STOP or UNSPECIFIED
-                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason not in (types.FinishReason.STOP, types.FinishReason.FINISH_REASON_UNSPECIFIED):
-                     print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
-                     if hasattr(candidate, 'finish_message') and candidate.finish_message: # Check if finish_message exists
-                         print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
-
-        # Attempt to get text, handle potential AttributeError if parts are missing
-        try:
-            return response.text
-        except ValueError:
-             print("  Warning: Could not extract text from response. Returning empty string.", file=sys.stderr)
-             print(f"  Full Response: {response}", file=sys.stderr)
-             return ""
-        except AttributeError:
-             print("  Warning: Response object does not have 'text' attribute (likely due to blocking or error). Returning empty string.", file=sys.stderr)
-             print(f"  Full Response: {response}", file=sys.stderr)
-             return ""
-
+        # Re-instantiate the client to use the new key
+        genai_client = genai.Client(api_key=active_key)
+        print("Google GenAI Client initialized successfully.")
+        return True # Indicate success
     except Exception as e:
-        print(f"  Unexpected Error during Gemini API call: {e}", file=sys.stderr)
-        traceback.print_exc()
-        raise # Re-raise the error
+        print(f"Error initializing Google GenAI Client with key index {current_api_key_index}: {e}", file=sys.stderr)
+        return False # Indicate failure
+
+# --- AC32: Function to rotate API key and reinitialize client ---
+def rotate_api_key_and_reinitialize() -> bool:
+    """Rotates to the next API key and reinitializes the client."""
+    global current_api_key_index, api_keys_list
+    if not api_keys_list or len(api_keys_list) <= 1: # Cannot rotate if only one key
+        print("Error: API key list empty or only contains one key. Cannot rotate.", file=sys.stderr)
+        return False # Indicate failure to rotate
+
+    start_index = current_api_key_index
+    current_api_key_index = (current_api_key_index + 1) % len(api_keys_list)
+    print(f"\n---> Rotated API Key to Index {current_api_key_index} <---\n")
+
+    if current_api_key_index == start_index:
+         # We've looped through all keys without success on the *next* attempt
+         print("Warning: Cycled through all API keys due to rate limits. Further attempts might fail.", file=sys.stderr)
+         # Consider adding a delay or different logic if all keys are exhausted rapidly
+
+    # Re-initialize the client with the new key
+    if not initialize_genai_client():
+        # If initialization fails with the new key, we might be in a bad state.
+        # For now, report the error and signal failure.
+        print(f"Error: Failed to initialize client with new key index {current_api_key_index}.", file=sys.stderr)
+        return False
+
+    return True # Indicate successful rotation and re-initialization
+
+def execute_gemini_call(model: str, contents: List[types.Part], config: Optional[GenerateContentConfigType] = None) -> str:
+    """
+    Executes a call to the Gemini API, handles rate limit errors with key rotation, and returns the text response.
+    """
+    global genai_client # Need access to the global client instance
+
+    if not genai_client:
+         print("Error: GenAI client is not initialized.", file=sys.stderr)
+         raise RuntimeError("GenAI client must be initialized before calling the API.")
+
+    initial_key_index = current_api_key_index
+    keys_tried_in_this_call = {initial_key_index} # Track keys tried in this specific call attempt
+
+    while True: # Loop for retrying with rotated keys
+        try:
+            print("\n\nwaiting for the free quota\nn")
+            for i in tqdm(range(180)):
+                time.sleep(1)
+
+            response = genai_client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config # Corrected based on SDK docs
+            )
+            # Handle potential API errors more gracefully if needed
+            # Check response.prompt_feedback for safety issues, etc.
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                 print(f"  Warning: Prompt blocked due to {response.prompt_feedback.block_reason}.", file=sys.stderr)
+                 # Depending on the reason, might want to raise an error or return specific message
+            # Check candidates for finish_reason
+            if response.candidates:
+                 for candidate in response.candidates:
+                     # Check if finish_reason exists and is not STOP or UNSPECIFIED
+                     if hasattr(candidate, 'finish_reason') and candidate.finish_reason not in (types.FinishReason.STOP, types.FinishReason.FINISH_REASON_UNSPECIFIED):
+                         print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
+                         if hasattr(candidate, 'finish_message') and candidate.finish_message: # Check if finish_message exists
+                             print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
+
+            # Attempt to get text, handle potential AttributeError if parts are missing
+            try:
+                return response.text
+            except ValueError:
+                 print("  Warning: Could not extract text from response. Returning empty string.", file=sys.stderr)
+                 print(f"  Full Response: {response}", file=sys.stderr)
+                 return ""
+            except AttributeError:
+                 print("  Warning: Response object does not have 'text' attribute (likely due to blocking or error). Returning empty string.", file=sys.stderr)
+                 print(f"  Full Response: {response}", file=sys.stderr)
+                 return ""
+
+        except google_api_core_exceptions.ResourceExhausted as e: # Specific exception for rate limits (AC32)
+            print(f"  Warning: Rate limit exceeded (ResourceExhausted) for Key Index {current_api_key_index}. Rotating API key.", file=sys.stderr)
+            if not rotate_api_key_and_reinitialize():
+                print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
+                raise e # Re-raise original error if rotation failed
+            # Check if we've tried all keys in this call attempt
+            if current_api_key_index in keys_tried_in_this_call:
+                 print("  Error: Cycled through all API keys for this request. Rate limits likely persistent across all keys.", file=sys.stderr)
+                 raise e # Raise error after trying all keys
+            keys_tried_in_this_call.add(current_api_key_index)
+            print(f"  Retrying API call with Key Index {current_api_key_index}...")
+            # Loop continues to retry with the new client
+
+        except errors.APIError as e: # Catch other potential Google API errors
+             print(f"  Google API Error: {e}", file=sys.stderr)
+             # Check if it's a 429 error specifically if ResourceExhausted didn't catch it
+             status_code = getattr(e, 'code', None) or getattr(e, 'status_code', None) # Try common attributes
+             if status_code == 429:
+                  print(f"  API Error indicates rate limit (status 429) for Key Index {current_api_key_index}. Rotating API key.", file=sys.stderr)
+                  if not rotate_api_key_and_reinitialize():
+                       print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
+                       raise e
+                  # Check if we've tried all keys in this call attempt
+                  if current_api_key_index in keys_tried_in_this_call:
+                       print("  Error: Cycled through all API keys for this request. Rate limits likely persistent across all keys.", file=sys.stderr)
+                       raise e # Raise error after trying all keys
+                  keys_tried_in_this_call.add(current_api_key_index)
+                  print(f"  Retrying API call with Key Index {current_api_key_index}...")
+                  # Loop continues to retry with the new client
+             else:
+                  # Re-raise other Google API errors
+                  raise e
+        except Exception as e:
+            print(f"  Unexpected Error during Gemini API call: {e}", file=sys.stderr)
+            traceback.print_exc()
+            raise # Re-raise other errors
 
 
 def modify_prompt_with_observation(original_prompt: str, observation: str) -> str:
@@ -661,19 +780,10 @@ if __name__ == "__main__":
                 sys.exit(1)
         # --- End AC14 ---
 
-        # --- Configure GenAI Client with API Key ---
-        api_key = os.environ.get('GEMINI_API_KEY')
-        if not api_key:
-            print("Error: GEMINI_API_KEY environment variable not set (checked both system env and .env file).", file=sys.stderr)
-            print("Please set the GEMINI_API_KEY in your .env file or as a system environment variable.", file=sys.stderr)
-            sys.exit(1)
-        try:
-            print(f"\nInitializing Google GenAI Client...")
-            genai_client = genai.Client(api_key=api_key) # Corrected initialization
-            print("Google GenAI Client initialized successfully.")
-        except Exception as e:
-            print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
-            sys.exit(1)
+        # --- Configure GenAI Client with API Key (AC32: Initial load) ---
+        if not initialize_genai_client(): # Handles loading keys and initializing client
+             # Error message already printed by the function
+             sys.exit(1)
         # --- End Configure GenAI Client ---
 
 
@@ -757,8 +867,12 @@ if __name__ == "__main__":
         base_config = None
         if tools_list:
             # Assuming config should be of type types.GenerateContentConfig
-            base_config = types.GenerateContentConfig(tools=tools_list)
-            print("  GenerationConfig created with tools.")
+            # Use **config_dict if base_config is a dict, or merge attributes if it's an object
+            config_dict = {"tools": tools_list}
+            # If other base configs are added later, merge them here
+            # e.g., config_dict.update({"safety_settings": [...]})
+            base_config = types.GenerateContentConfig(**config_dict) # Unpack dict to create the object
+            print("  GenerateContentConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
 
@@ -771,7 +885,7 @@ if __name__ == "__main__":
             # Pass prompt using keyword argument 'text='
             contents_etapa1 = [types.Part.from_text(text=meta_prompt_content_current)] + context_parts
             try:
-                prompt_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa1, config=base_config)
+                prompt_final_content = execute_gemini_call(GEMINI_MODEL, contents_etapa1, config=base_config)
 
                 print("\n------------------------")
                 print("  >>> Final Prompt Received (Step 1):")
@@ -802,16 +916,24 @@ if __name__ == "__main__":
                     print("Internal error in confirmation logic. Exiting.", file=sys.stderr)
                     sys.exit(1)
 
-            except Exception as e: # Catches API errors and others raised by execute_gemini_call
-                print(f"  An error occurred during Step 1 execution: {e}", file=sys.stderr)
-                retry_choice, _ = confirm_step("Retry Step 1?")
-                if retry_choice == 'q':
-                    print("Exiting due to error in Step 1.")
+            except (errors.APIError, google_api_core_exceptions.ResourceExhausted) as e: # Catch specific API errors (AC32)
+                print(f"  An API error occurred during Step 1: {e}", file=sys.stderr)
+                # The execute_gemini_call function already tried rotating the key if it was a rate limit error.
+                # Ask the user if they want to retry the call (potentially with the new key or the same key if rotation failed).
+                retry_choice, _ = confirm_step("API call failed in Step 1. Retry?")
+                if retry_choice == 'q' or retry_choice == 'n':
+                    print("Exiting due to API error in Step 1.")
                     sys.exit(1)
-                elif retry_choice == 'n':
-                     print("Exiting due to error in Step 1.")
-                     sys.exit(1)
                 # If 'y', loop continues to retry Step 1
+            except Exception as e: # Catches other errors
+                print(f"  An unexpected error occurred during Step 1 execution: {e}", file=sys.stderr)
+                traceback.print_exc()
+                # Ask user if they want to retry in case of unexpected errors too
+                retry_choice, _ = confirm_step("An unexpected error occurred in Step 1. Retry?")
+                if retry_choice == 'q' or retry_choice == 'n':
+                    print("Exiting due to unexpected error in Step 1.")
+                    sys.exit(1)
+                # If 'y', loop continues
 
 
         if not prompt_final_content: # Should ideally not happen if loop breaks on 'y'
@@ -833,7 +955,7 @@ if __name__ == "__main__":
             contents_etapa2 = [types.Part.from_text(text=prompt_final_content_current)] + context_parts
             try:
                 # AC27: This is the execution of the second step as required by AC27
-                resposta_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa2, config=base_config)
+                resposta_final_content = execute_gemini_call(GEMINI_MODEL, contents_etapa2, config=base_config)
                 print("\n------------------------")
                 print("  >>> Final Response Received (Step 2):")
                 print("  ```")
@@ -863,16 +985,22 @@ if __name__ == "__main__":
                         print("Internal error in confirmation logic. Exiting.", file=sys.stderr)
                         sys.exit(1)
 
-            except Exception as e: # Catches API errors and others
-                print(f"  An error occurred during Step 2 execution: {e}", file=sys.stderr)
-                retry_choice, _ = confirm_step("Retry Step 2?")
-                if retry_choice == 'q':
-                    print("Exiting due to error in Step 2.")
+            except (errors.GoogleAPIError, google_api_core_exceptions.ResourceExhausted) as e: # Catch specific API errors (AC32)
+                print(f"  An API error occurred during Step 2: {e}", file=sys.stderr)
+                # The execute_gemini_call function already tried rotating the key if it was a rate limit error.
+                retry_choice, _ = confirm_step("API call failed in Step 2. Retry?")
+                if retry_choice == 'q' or retry_choice == 'n':
+                    print("Exiting due to API error in Step 2.")
                     sys.exit(1)
-                elif retry_choice == 'n':
-                     print("Exiting due to error in Step 2.")
-                     sys.exit(1)
                 # If 'y', loop continues to retry Step 2
+            except Exception as e: # Catches other errors
+                print(f"  An unexpected error occurred during Step 2 execution: {e}", file=sys.stderr)
+                traceback.print_exc()
+                retry_choice, _ = confirm_step("An unexpected error occurred in Step 2. Retry?")
+                if retry_choice == 'q' or retry_choice == 'n':
+                    print("Exiting due to unexpected error in Step 2.")
+                    sys.exit(1)
+                # If 'y', loop continues
 
 
         # --- Final Action Confirmation & Execution (AC30 ensures this part is NOT skipped by --yes) ---
@@ -912,8 +1040,10 @@ if __name__ == "__main__":
                     print("\nPull Request creation failed or was cancelled. Exiting.")
                     sys.exit(1) # Exit with error if PR creation failed
             else:
-                # Parsing failed - this case should ideally be handled by retrying Step 2
-                print("Error: Parsing PR Title/Body failed. Cannot proceed.", file=sys.stderr)
+                # Parsing failed - ask user if they want to provide feedback to redo Step 2
+                print("Error: Parsing PR Title/Body failed. Please provide feedback to retry Step 2 generation or quit.", file=sys.stderr)
+                # This path should ideally trigger a retry of Step 2 in the main loop, but needs careful handling
+                # For simplicity now, we exit. A more robust solution would integrate this back into the Step 2 loop.
                 sys.exit(1)
             # ---- End Create PR Logic ----
         else:
@@ -926,7 +1056,8 @@ if __name__ == "__main__":
             elif user_choice_save == 'q':
                  print("Exiting without saving the response as requested.")
                  sys.exit(0)
-            else: # 'n' was chosen
+            else: # 'n' was chosen - This path might be confusing after --yes was used for step 2.
+                  # Consider clarifying or directly exiting if 'n' is chosen here after --yes was used before.
                  print("Operation cancelled by user. Not saving the response.")
                  sys.exit(0)
             # --- End Save File Logic ---
