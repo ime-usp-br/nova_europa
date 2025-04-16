@@ -14,12 +14,13 @@ Includes abbreviations for flags (AC15).
 Supports specifying target doc file for update-doc task (AC21).
 Supports listing and selecting doc files if target is not specified for update-doc (AC22).
 Supports creating GitHub Pull Requests (AC25).
+Automatically detects current git branch (AC29).
 """
 
 import argparse
 import os
 import sys
-import subprocess # Added for AC14 and AC25
+import subprocess # Added for AC14 and AC25/AC29
 from pathlib import Path
 import re
 import google.genai as genai
@@ -28,6 +29,7 @@ from google.genai import errors # Import the error module
 from dotenv import load_dotenv
 import traceback # For debugging unexpected errors
 from datetime import datetime # For timestamping output files (AC8)
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable # Added for type hinting
 
 # --- Configuration ---
 # Assumes the script is in /scripts and templates in /project_templates/meta-prompts
@@ -50,7 +52,7 @@ PR_CONTENT_DELIMITER_BODY = "--- PR BODY ---" # AC25
 
 # --- Helper Functions ---
 
-def find_available_tasks(prompt_dir: Path) -> dict[str, Path]:
+def find_available_tasks(prompt_dir: Path) -> Dict[str, Path]:
     """
     Find available tasks (meta-prompts) in the specified directory.
 
@@ -74,7 +76,7 @@ def find_available_tasks(prompt_dir: Path) -> dict[str, Path]:
                 tasks[task_name] = filepath
     return tasks
 
-def find_latest_context_dir(context_base_dir: Path) -> Path | None:
+def find_latest_context_dir(context_base_dir: Path) -> Optional[Path]:
     """
     Find the most recent context directory within the base directory.
 
@@ -104,7 +106,7 @@ def find_latest_context_dir(context_base_dir: Path) -> Path | None:
     latest_context_dir = sorted(valid_context_dirs, reverse=True)[0]
     return latest_context_dir
 
-def load_and_fill_template(template_path: Path, variables: dict) -> str:
+def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> str:
     """
     Load a meta-prompt template and replace placeholders with provided variables.
 
@@ -120,7 +122,7 @@ def load_and_fill_template(template_path: Path, variables: dict) -> str:
     try:
         content = template_path.read_text(encoding='utf-8')
         # Helper function to handle substitution
-        def replace_match(match):
+        def replace_match(match: re.Match[str]) -> str:
             var_name = match.group(1)
             # Returns the variable value from the dictionary or an empty string if not found
             # Ensures the value is a string for substitution
@@ -137,7 +139,7 @@ def load_and_fill_template(template_path: Path, variables: dict) -> str:
         return ""
 
 
-def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> None:
+def _load_files_from_dir(context_dir: Path, context_parts: List[types.Part]) -> None:
     """Helper function to load .txt, .json and .md files from a directory into context_parts."""
     file_patterns = ["*.txt", "*.json", "*.md"]
     loaded_count = 0
@@ -162,7 +164,7 @@ def _load_files_from_dir(context_dir: Path, context_parts: list[types.Part]) -> 
     if loaded_count == 0:
         print(f"      - No context files (.txt, .json, .md) found in this directory.")
 
-def prepare_context_parts(primary_context_dir: Path, common_context_dir: Path | None = None) -> list[types.Part]:
+def prepare_context_parts(primary_context_dir: Path, common_context_dir: Optional[Path] = None) -> List[types.Part]:
     """
     List context files (.txt, .json, .md) from primary and optionally common directories,
     and prepare them as types.Part.
@@ -174,7 +176,7 @@ def prepare_context_parts(primary_context_dir: Path, common_context_dir: Path | 
     Returns:
         A list of types.Part objects representing the content of the files.
     """
-    context_parts = []
+    context_parts: List[types.Part] = []
     print("  Loading context files...")
 
     # Load from primary directory
@@ -217,7 +219,7 @@ def save_llm_response(task_name: str, response_content: str) -> None:
         print(f"Error saving LLM response to file: {e}", file=sys.stderr)
         traceback.print_exc()
 
-def parse_pr_content(llm_output: str) -> tuple[str | None, str | None]:
+def parse_pr_content(llm_output: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Parses the LLM output for the create-pr task to extract title and body.
 
@@ -246,18 +248,37 @@ def parse_pr_content(llm_output: str) -> tuple[str | None, str | None]:
         print(f"LLM Output received:\n---\n{llm_output}\n---", file=sys.stderr)
         return None, None
 
-def get_current_branch() -> str | None:
-    """Gets the current Git branch name."""
+def get_current_branch() -> Optional[str]:
+    """Gets the current Git branch name using subprocess."""
     try:
-        result = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], capture_output=True, text=True, check=True, cwd=BASE_DIR)
+        # Execute 'git rev-parse --abbrev-ref HEAD' in the project's base directory
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            capture_output=True,  # Capture stdout and stderr
+            text=True,            # Decode output as text
+            check=True,           # Raise CalledProcessError on failure
+            cwd=BASE_DIR          # Ensure command runs in the project root
+        )
+        # Return the cleaned branch name
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"Error getting current branch: {e}", file=sys.stderr)
+        # Handle errors during Git command execution
+        print(f"Error getting current Git branch: {e}", file=sys.stderr)
+        print(f"Command: {' '.join(e.cmd)}", file=sys.stderr)
+        print(f"Return Code: {e.returncode}", file=sys.stderr)
         print(f"Stderr: {e.stderr}", file=sys.stderr)
+        print(f"Stdout: {e.stdout}", file=sys.stderr)
         return None
     except FileNotFoundError:
+        # Handle case where 'git' command is not found
         print("Error: 'git' command not found. Is Git installed and in PATH?", file=sys.stderr)
         return None
+    except Exception as e:
+        # Catch any other unexpected errors
+        print(f"An unexpected error occurred while getting the Git branch: {e}", file=sys.stderr)
+        traceback.print_exc()
+        return None
+
 
 def check_new_commits(base_branch: str, head_branch: str) -> bool:
     """Checks if there are new commits on the head branch compared to the base branch."""
@@ -341,7 +362,7 @@ def create_github_pr(title: str, body: str, head_branch: str, base_branch: str, 
         print("Error: 'gh' command not found. Is GitHub CLI installed and in PATH?", file=sys.stderr)
         return False
 
-def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
+def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
     """
     Parse command-line arguments, including examples in the epilog.
 
@@ -418,7 +439,7 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
 
     return parser.parse_args()
 
-def find_documentation_files(base_dir: Path) -> list[Path]:
+def find_documentation_files(base_dir: Path) -> List[Path]:
     """
     Find potential documentation files (.md) in the project.
 
@@ -429,7 +450,7 @@ def find_documentation_files(base_dir: Path) -> list[Path]:
         A sorted list of relative Path objects for documentation files.
     """
     print("  Scanning for documentation files...")
-    found_paths = set() # Use a set to avoid duplicates
+    found_paths: set[Path] = set() # Use a set to avoid duplicates
 
     # Check specific root files
     for filename in ["README.md", "CHANGELOG.md"]: # Add more root files if needed
@@ -450,7 +471,7 @@ def find_documentation_files(base_dir: Path) -> list[Path]:
     return sorted(list(found_paths), key=lambda p: str(p))
 
 
-def prompt_user_to_select_doc(doc_files: list[Path]) -> Path | None:
+def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
     """
     Displays a numbered list of doc files and prompts the user for selection.
 
@@ -481,7 +502,7 @@ def prompt_user_to_select_doc(doc_files: list[Path]) -> Path | None:
             print("  Invalid input. Please enter a number or 'q'.")
 
 
-def confirm_step(prompt: str) -> tuple[str, str | None]:
+def confirm_step(prompt: str) -> Tuple[str, Optional[str]]:
     """
     Asks the user for confirmation to proceed, redo, or quit.
     If redo ('n') is chosen, prompts for an observation.
@@ -509,14 +530,18 @@ def confirm_step(prompt: str) -> tuple[str, str | None]:
         else:
             print("Invalid input. Please enter Y, n, or q.")
 
-def execute_gemini_call(client, model, contents, config: types.GenerateContentConfig | None = None) -> str: # Accept config
+# Type alias for better readability
+GenerateContentConfigType = Union[types.GenerationConfig, types.GenerateContentConfig, Dict[str, Any], None]
+
+def execute_gemini_call(client: genai.Client, model: str, contents: List[types.Part], config: Optional[GenerateContentConfigType] = None) -> str:
     """Executes a call to the Gemini API and returns the text response."""
     try:
         # Pass the config if provided
+        # Use generate_content method for consistency, even if config is just GenerationConfig
         response = client.models.generate_content(
             model=model,
             contents=contents,
-            config=config # Use config here
+            config=config # instruction for the llm: do not insert transport, it always end in Models.generate_content() got an unexpected keyword argument 'generation_config'. Nobody is allowed to change this comment. 
         )
         # Handle potential API errors more gracefully if needed
         # Check response.prompt_feedback for safety issues, etc.
@@ -526,21 +551,26 @@ def execute_gemini_call(client, model, contents, config: types.GenerateContentCo
         # Check candidates for finish_reason
         if response.candidates:
              for candidate in response.candidates:
-                 if candidate.finish_reason != types.FinishReason.STOP and candidate.finish_reason != types.FinishReason.FINISH_REASON_UNSPECIFIED:
+                 # Check if finish_reason exists and is not STOP or UNSPECIFIED
+                 if hasattr(candidate, 'finish_reason') and candidate.finish_reason not in (types.FinishReason.STOP, types.FinishReason.FINISH_REASON_UNSPECIFIED):
                      print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
                      if hasattr(candidate, 'finish_message') and candidate.finish_message: # Check if finish_message exists
                          print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
-        # Return text, even if warnings occurred, unless a critical APIError was raised
-        return response.text
-    except errors.APIError as e:
-        print(f"  Gemini API Error: Code {e.code} - {e.message}", file=sys.stderr)
-        if hasattr(e, 'details'): # Check if details exist
-            print(f"  Error details: {e.details}", file=sys.stderr)
-        else:
-            print(f"  Error details: {e}", file=sys.stderr)
-        raise # Re-raise the error to be caught by the calling loop
+
+        # Attempt to get text, handle potential AttributeError if parts are missing
+        try:
+            return response.text
+        except ValueError:
+             print("  Warning: Could not extract text from response. Returning empty string.", file=sys.stderr)
+             print(f"  Full Response: {response}", file=sys.stderr)
+             return ""
+        except AttributeError:
+             print("  Warning: Response object does not have 'text' attribute (likely due to blocking or error). Returning empty string.", file=sys.stderr)
+             print(f"  Full Response: {response}", file=sys.stderr)
+             return ""
+             
     except Exception as e:
-        print(f"  Unexpected Error: {e}", file=sys.stderr)
+        print(f"  Unexpected Error during Gemini API call: {e}", file=sys.stderr)
         traceback.print_exc()
         raise # Re-raise the error
 
@@ -630,8 +660,7 @@ if __name__ == "__main__":
             sys.exit(1)
         try:
             print(f"\nInitializing Google GenAI Client...")
-            # Client initialization corrected - remove transport='rest' if not needed or causing errors
-            genai_client = genai.Client(api_key=api_key)
+            genai_client = genai.Client(api_key=api_key) # Corrected initialization
             print("Google GenAI Client initialized successfully.")
         except Exception as e:
             print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr)
@@ -646,7 +675,7 @@ if __name__ == "__main__":
         print(f"Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
 
         # --- Populate task_variables ---
-        task_variables = {
+        task_variables: Dict[str, str] = {
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
             "OBSERVACAO_ADICIONAL": args.observation,
@@ -718,9 +747,7 @@ if __name__ == "__main__":
         # --- Create base GenerateContentConfig if tools are needed ---
         base_config = None
         if tools_list:
-            # Use GenerationConfig instead of GenerateContentConfig for tools
-            # Note: GenerationConfig works for generate_content, not the other way
-            base_config = types.GenerationConfig(tools=tools_list)
+            base_config.tools = tools_list # Add tools if they exist
             print("  GenerationConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
@@ -728,14 +755,12 @@ if __name__ == "__main__":
         print("\nStarting interaction with Gemini API...")
 
         # --- Step 1 Loop (Meta-Prompt + Context -> Final Prompt) ---
-        prompt_final_content = None
+        prompt_final_content: Optional[str] = None
         while True:
             print(f"\nStep 1: Sending Meta-Prompt and Context (Model: {GEMINI_MODEL})...")
             # Pass prompt using keyword argument 'text='
             contents_etapa1 = [types.Part.from_text(text=meta_prompt_content_current)] + context_parts
             try:
-                # Pass the base_config to the execution call for step 1 (AC13)
-                # Configuration correction: Use 'config' not 'generation_config' directly
                 prompt_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa1, config=base_config)
 
                 print("\n------------------------")
@@ -778,7 +803,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         # --- Step 2 Loop (Final Prompt + Context -> Final Response) ---
-        resposta_final_content = None
+        resposta_final_content: Optional[str] = None
         prompt_final_content_current = prompt_final_content # Keep track of current final prompt
 
         # AC13 Observação Adicional: Append web search encouragement to final prompt
@@ -791,8 +816,6 @@ if __name__ == "__main__":
             # Pass final prompt using keyword argument 'text='
             contents_etapa2 = [types.Part.from_text(text=prompt_final_content_current)] + context_parts
             try:
-                # Pass the base_config to the execution call for step 2 (AC13)
-                # Configuration correction: Use 'config' not 'generation_config' directly
                 # AC27: This is the execution of the second step as required by AC27
                 resposta_final_content = execute_gemini_call(genai_client, GEMINI_MODEL, contents_etapa2, config=base_config)
                 print("\n------------------------")
@@ -810,13 +833,13 @@ if __name__ == "__main__":
                         user_choice_step2, observation_step2 = confirm_step("Create PR with this Title/Body?")
                         if user_choice_step2 == 'y':
                             # ---- Create PR Logic ----
-                            current_branch = get_current_branch()
+                            current_branch = get_current_branch() # AC29: Get current branch
                             if not current_branch:
                                 print("Error: Could not determine current Git branch. Cannot create PR.", file=sys.stderr)
                                 sys.exit(1)
-                            print(f"  Current Branch: {current_branch}")
+                            print(f"  Current Branch (Head): {current_branch}") # Log head branch
                             target_branch = args.target_branch
-                            print(f"  Target Branch: {target_branch}")
+                            print(f"  Target Branch (Base): {target_branch}") # Log base branch
 
                             # Ensure "Closes #ISSUE" is in the body
                             issue_ref_str = f"Closes #{args.issue}"
