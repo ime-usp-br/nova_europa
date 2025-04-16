@@ -11,6 +11,7 @@ Includes user confirmation steps and allows providing feedback for retries (AC10
 Supports enabling Google Search as a tool (AC13).
 Supports running the context generation script via a flag (AC14).
 Includes abbreviations for flags (AC15).
+Supports specifying target doc file for update-doc task (AC21).
 """
 
 import argparse
@@ -36,8 +37,8 @@ OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, shoul
 CONTEXT_GENERATION_SCRIPT = BASE_DIR / "gerar_contexto_llm.sh" # Path to context script (AC14)
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex to validate directory name format
 # Gemini model to use (choose an appropriate model for tasks)
-GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change
-GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-exp-03-25' # Do not change
+GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-preview-03-25' # Do not change
+GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-preview-03-25' # Do not change
 # Message to encourage web search (AC13 Observação Adicional)
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
 
@@ -229,11 +230,13 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
             example = f"  {script_name} {task_name} --issue 28 (ou -i 28)"
             epilog_lines.append(example)
         elif task_name == "resolve-ac":
-            # Uses --observation
             example = f"  {script_name} {task_name} --issue 28 --ac 5 --observation \"Ensure API key from .env\" (ou -i 28 -a 5 -o \"...\") [-w] [-g]"
             epilog_lines.append(example)
         elif task_name == "analise-ac":
             example = f"  {script_name} {task_name} --issue 28 --ac 4 (ou -i 28 -a 4)"
+            epilog_lines.append(example)
+        elif task_name == "update-doc": # AC21: Added example for update-doc
+            example = f"  {script_name} {task_name} --issue 28 --doc-file docs/README.md (ou -i 28 -d docs/README.md) [-g]"
             epilog_lines.append(example)
         else:
             # Generic example for other tasks
@@ -261,6 +264,9 @@ def parse_arguments(available_tasks: list[str]) -> argparse.Namespace:
     parser.add_argument("-i", "--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__.")
     parser.add_argument("-a", "--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
     parser.add_argument("-o", "--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
+    # --- AC21: Add --doc-file argument ---
+    parser.add_argument("-d", "--doc-file", help="Target documentation file path for 'update-doc' task. Fills __ARQUIVO_DOC_ALVO__.")
+    # --- End AC21 ---
     parser.add_argument(
         "-w", "--web-search",
         action="store_true", # Makes it a boolean flag
@@ -370,6 +376,12 @@ if __name__ == "__main__":
         selected_meta_prompt_path = available_tasks_dict[selected_task]
         GEMINI_MODEL = GEMINI_MODEL_RESOLVE if selected_task == "resolve-ac" else GEMINI_MODEL_GENERAL_TASKS
 
+        # --- AC21: Check if --doc-file is required and provided ---
+        if selected_task == "update-doc" and not args.doc_file:
+            print(f"Error: The task '{selected_task}' requires the --doc-file argument.", file=sys.stderr)
+            sys.exit(1)
+        # --- End AC21 ---
+
         print(f"\nLLM Interaction Script")
         print(f"========================")
         print(f"Selected Task: {selected_task}")
@@ -428,11 +440,15 @@ if __name__ == "__main__":
             sys.exit(1)
         print(f"Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
 
+        # --- AC21: Populate task_variables ---
         task_variables = {
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
             "OBSERVACAO_ADICIONAL": args.observation
         }
+        if selected_task == "update-doc":
+            task_variables["ARQUIVO_DOC_ALVO"] = args.doc_file # Argument already checked for existence
+        # --- End AC21 ---
         print(f"Variables for template: {task_variables}")
 
         # Load initial meta-prompt
