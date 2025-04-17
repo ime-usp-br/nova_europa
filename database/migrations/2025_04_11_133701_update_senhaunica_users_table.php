@@ -15,10 +15,10 @@ class UpdateSenhaunicaUsersTable extends Migration
     {
         // Caso necessário, ajuste para refletir suas necessidades
         Schema::table('users', function (Blueprint $table) {
-            $table->string('password')->nullable()->change(); # deixar opcional
-            if (!Schema::hasColumn('users', 'codpes')) {
-                    // https://stackoverflow.com/questions/20822159/laravel-migration-with-sqlite-cannot-add-a-not-null-column-with-default-value-n
-                    if ('sqlite' === Schema::connection($this->getConnection())->getConnection()->getDriverName()) {
+            $table->string('password')->nullable()->change(); // deixar opcional
+            if (! Schema::hasColumn('users', 'codpes')) {
+                // https://stackoverflow.com/questions/20822159/laravel-migration-with-sqlite-cannot-add-a-not-null-column-with-default-value-n
+                if (Schema::connection($this->getConnection())->getConnection()->getDriverName() === 'sqlite') {
                     $table->integer('codpes')->nullable();
                 } else {
                     $table->integer('codpes');
@@ -35,6 +35,6 @@ class UpdateSenhaunicaUsersTable extends Migration
     public function down()
     {
         // Não vamos remover as colunas para preservar os dados
-        //$table->dropColumn('codpes');
+        // $table->dropColumn('codpes');
     }
 }

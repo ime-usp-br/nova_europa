@@ -50,7 +50,7 @@ Esta estratégia de versionamento **SE APLICA** aos seguintes arquivos `.md` den
 *   `docs/termo_abertura_projeto.md`
 *   `docs/versionamento_documentacao.md` (este arquivo)
 *   `docs/adr/*.md` (Todos os Arquivos de Decisão de Arquitetura)
-*   `padroes_codigo_boas_praticas.md`
+*   `docs/padroes_codigo_boas_praticas.md`
 
 Esta estratégia **NÃO SE APLICA** a:
 
@@ -58,6 +58,7 @@ Esta estratégia **NÃO SE APLICA** a:
 *   Conteúdo da Wiki do GitHub.
 *   Arquivos de código (`.php`, `.js`, `.css`, etc.).
 *   Arquivos de configuração (`.env`, `.neon`, `.xml`, etc.).
+*   `CHANGELOG.md` (Segue o formato "Keep a Changelog", não cabeçalho de versão).
 
 ## 7. Rastreamento de Mudanças (Changelog)
 
