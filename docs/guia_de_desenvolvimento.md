@@ -63,13 +63,15 @@ Manter um vínculo claro entre o código escrito (Commits), a tarefa que ele res
 Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são essenciais e devem ser configuradas corretamente:
 
 *   **Git e GitHub:** O sistema de controle de versão distribuído e a plataforma de hospedagem central. Certifique-se de ter o Git instalado e uma conta no GitHub. O código do Starter Kit estará em um repositório GitHub.
-*   **GitHub CLI (`gh`):** A ferramenta de linha de comando oficial do GitHub. Permite interagir com Issues, PRs, Repositórios e mais, diretamente do terminal. É fundamental para a automação da criação de Issues.
-    *   **Instalação e Autenticação:** Siga as [instruções oficiais](https://cli.github.com/manual/installation) para instalar o `gh` no seu sistema. Após a instalação, autentique-se executando `gh auth login` e seguindo as instruções.
+*   **GitHub CLI (`gh`):** A ferramenta de linha de comando oficial do GitHub. Permite interagir com Issues, PRs, Repositórios e mais, diretamente do terminal. É fundamental para a automação da criação de Issues e Pull Requests.
+    *   **Instalação e Autenticação:** Siga as [instruções oficiais](https://cli.github.com/manual/installation) para instalar o `gh` no seu sistema. Após a instalação, autentique-se executando `gh auth login` e seguindo as instruções. **Recomendado:** Use um token PAT com os scopes necessários (`repo`, `project`, `workflow`).
 *   **GitHub Projects (v2):** A ferramenta integrada ao GitHub para gerenciamento visual de projetos (quadro Kanban). Será usada para visualizar e gerenciar o fluxo de Issues. (Ver Seção 4.3 para configuração).
 *   **Ferramentas de Qualidade (Pré-configuradas no Starter Kit):**
     *   **Laravel Pint:** Ferramenta para formatação automática do estilo de código PHP (PSR-12). Execute `vendor/bin/pint` ou configure seu editor para usar o Pint.
     *   **Larastan:** Extensão do PHPStan para análise estática focada em Laravel. Ajuda a encontrar erros sem executar o código. Execute via `vendor/bin/phpstan analyse`.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
+*   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto e ambiente. **DEVE** ser executada para gerar o contexto necessário para a ferramenta de interação com LLM.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini (via `google-genai`) usando meta-prompts e o contexto gerado pelo script anterior. **PODE** ser usada para auxiliar em tarefas como geração de código, mensagens de commit, análise de ACs, atualização de documentação e criação de PRs. Requer `python3` e a instalação das dependências (ex: `pip install google-genai python-dotenv tqdm`). Uma chave de API do Google Gemini **DEVE** ser configurada na variável de ambiente `GEMINI_API_KEY` (pode ser colocada em um arquivo `.env` na raiz do projeto).
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
 
@@ -137,6 +139,7 @@ O desenvolvimento de código deve ser sempre guiado por uma Issue específica.
     *   **Formato:** `<tipo>(<escopo_opcional>): <descrição imperativa concisa> (#<ID_da_Issue>)`
     *   **Tipos Comuns:** `feat:` (nova feature), `fix:` (correção de bug), `refactor:` (mudança que não altera comportamento externo), `chore:` (manutenção, build), `test:` (adição/ajuste de testes), `docs:` (mudanças na documentação).
     *   **Exemplo:** `feat: Adiciona rota e controller para logout (#124)`
+    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `commit-mesage` (ex: `python scripts/llm_interact.py commit-mesage -i 124 -g`) para gerar uma mensagem de commit sugerida, baseada nas alterações em stage e no histórico do projeto. **REVISE** a mensagem gerada antes de usar.
 
 ### 4.5. Fase 5: Integração e Revisão (Pull Requests)
 
@@ -149,6 +152,7 @@ Mesmo trabalhando sozinho, usar Pull Requests (PRs) é uma excelente prática.
     *   **Título:** Claro e relacionado à Issue (GitHub pode sugerir baseado no branch/commits).
     *   **Descrição:** Resuma as mudanças. **OBRIGATÓRIO** usar `Closes #<ID>` ou `Fixes #<ID>` para vincular o PR à Issue e garantir seu fechamento automático no merge.
     *   **Revisão:** Revise seu próprio código no PR. Isso ajuda a pegar erros antes do merge.
+    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `create-pr` (ex: `python scripts/llm_interact.py create-pr -i 124 -g`) para gerar automaticamente o título e corpo do PR, e opcionalmente criá-lo no GitHub. **REVISE** o conteúdo gerado.
 *   **Integração Contínua (CI):** A abertura/atualização do PR deve disparar automaticamente os workflows do GitHub Actions configurados no Starter Kit (testes, Pint, Larastan). O PR só deve ser mergeado se a CI passar.
 
 ### 4.6. Fase 6: Merge e Conclusão
