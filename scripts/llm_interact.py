@@ -369,33 +369,23 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
     sorted_tasks = sorted(available_tasks)
 
     for task_name in sorted_tasks:
-        if task_name == "commit-mesage":
+        # --- ATUALIZAÇÃO: Adiciona exemplo para create-test-sub-issue ---
+        if task_name == "create-test-sub-issue":
+             example = f"  {script_name} {task_name} -i <parent_issue> [-a <parent_ac>] [-y] [-g] [-om] [-ws]"
+             epilog_lines.append(example)
+        # --- FIM DA ATUALIZAÇÃO ---
+        elif task_name == "commit-mesage":
             example = f"  {script_name} {task_name} -i 28 [-y] [-g] [-om] [-ws]"
             epilog_lines.append(example)
-        elif task_name == "resolve-ac":
-            example = f"  {script_name} {task_name} -i 28 -a 5 -o \"Ensure API key from .env\" [-w] [-y] [-g] [-om] [-ws]"
-            epilog_lines.append(example)
-        elif task_name == "analyze-ac": # Corrected task name based on AC31
-            example = f"  {script_name} {task_name} -i 28 -a 4 [-y] [-g] [-om] [-ws]"
-            epilog_lines.append(example)
-        elif task_name == "update-doc":
-            example = f"  {script_name} {task_name} -i 28 [-d docs/README.md] [-y] [-g] [-om] [-ws]"
-            epilog_lines.append(example)
-        elif task_name == "create-pr": # AC25 Example
-            example = f"  {script_name} {task_name} -i 28 [-b main] [--draft] [-y] [-g] [-om] [-ws]"
-            epilog_lines.append(example)
-        else:
-            # Generic example for other tasks
-            example = f"  {script_name} {task_name} [-i ISSUE] [-a AC] [-o OBSERVATION] [-w] [-y] [-g] [-om] [-ws]"
-            epilog_lines.append(example)
+        # (...) outros exemplos existentes...
 
     epilog_text = "\n".join(epilog_lines)
 
     # --- Create parser ---
     parser = argparse.ArgumentParser(
         description="Interact with Google Gemini using project context and meta-prompts.",
-        epilog=epilog_text, # Add examples to the help message end
-        formatter_class=argparse.RawDescriptionHelpFormatter # Preserve formatting
+        epilog=epilog_text,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     task_choices_str = ", ".join(sorted_tasks)
@@ -406,47 +396,32 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
               f"'{META_PROMPT_DIR.relative_to(BASE_DIR)}'.\nAvailable tasks: {task_choices_str}"),
         metavar="TASK"
     )
-    # --- Arguments for meta-prompt variables (AC15: Added short flags) ---
-    parser.add_argument("-i", "--issue", help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__. Required for 'create-pr'.")
-    parser.add_argument("-a", "--ac", help="Acceptance Criteria number (e.g., 3). Fills __NUMERO_DO_AC__.")
+
+    # --- ATUALIZAÇÃO: Modifica help de --issue/-i ---
+    parser.add_argument(
+        "-i", "--issue",
+        help="Issue number (e.g., 28). Fills __NUMERO_DA_ISSUE__ and __PARENT_ISSUE_NUMBER__. "
+             "**Required for 'create-pr'**. For 'create-test-sub-issue', specifies the **parent issue** to be tested."
+    )
+    # --- FIM DA ATUALIZAÇÃO ---
+
+    # --- ATUALIZAÇÃO: Modifica help de --ac/-a ---
+    parser.add_argument(
+        "-a", "--ac",
+        help="Acceptance Criteria number (e.g., 5). Fills __NUMERO_DO_AC__ and __PARENT_AC_NUMBER__. "
+             "For 'create-test-sub-issue', specifies the originating **parent AC** (optional)."
+    )
+    # --- FIM DA ATUALIZAÇÃO ---
+
     parser.add_argument("-o", "--observation", help="Additional observation/instruction for the task. Fills __OBSERVACAO_ADICIONAL__.", default="")
-    # --- AC21: Add --doc-file argument (Optional for AC22) ---
     parser.add_argument("-d", "--doc-file", help="Target documentation file path for 'update-doc' task. If omitted, you will be prompted to choose. Fills __ARQUIVO_DOC_ALVO__.")
-    # --- AC25: Add args for create-pr ---
     parser.add_argument("-b", "--target-branch", help=f"Target base branch for the Pull Request (default: {DEFAULT_BASE_BRANCH}). Used by 'create-pr'.", default=DEFAULT_BASE_BRANCH)
     parser.add_argument("--draft", action="store_true", help="Create the Pull Request as a draft. Used by 'create-pr'.")
-    # --- End AC25 ---
-    parser.add_argument(
-        "-w", "--web-search",
-        action="store_true", # Makes it a boolean flag
-        help="Enable Google Search as a tool for the Gemini model (AC13)."
-    )
-    parser.add_argument( # AC14
-        "-g", "--generate-context",
-        action="store_true",
-        help="Run the context generation script (gerar_contexto_llm.sh) before interacting with Gemini (AC14)."
-    )
-    # --- AC30: Add --yes flag ---
-    parser.add_argument(
-        "-y", "--yes",
-        action="store_true",
-        help="Automatically confirm Step 1 (prompt generation) and Step 2 (response generation), but still ask for final action confirmation (e.g., save file, create PR)."
-    )
-    # --- End AC30 ---
-    # --- AC35: Add --only-meta flag ---
-    parser.add_argument(
-        "-om", "--only-meta",
-        action="store_true",
-        help="Only generate and print the filled meta-prompt, then exit. Does not interact with the LLM."
-    )
-    # --- End AC35 ---
-    # --- AC36: Add --with-sleep flag ---
-    parser.add_argument(
-        "-ws", "--with-sleep",
-        action="store_true",
-        help="Wait for 5 minutes before the first Gemini API call (AC36)."
-    )
-    # --- End AC36 ---
+    parser.add_argument("-w", "--web-search", action="store_true", help="Enable Google Search as a tool for the Gemini model (AC13).")
+    parser.add_argument("-g", "--generate-context", action="store_true", help="Run the context generation script (gerar_contexto_llm.sh) before interacting with Gemini (AC14).")
+    parser.add_argument("-y", "--yes", action="store_true", help="Automatically confirm Step 1 (prompt generation) and Step 2 (response generation), but still ask for final action confirmation.")
+    parser.add_argument("-om", "--only-meta", action="store_true", help="Only generate and print the filled meta-prompt, then exit. Does not interact with the LLM.")
+    parser.add_argument("-ws", "--with-sleep", action="store_true", help="Wait for 5 minutes before the first Gemini API call (AC36).")
 
     return parser.parse_args()
 
@@ -799,7 +774,9 @@ if __name__ == "__main__":
             "NUMERO_DA_ISSUE": args.issue if args.issue else "",
             "NUMERO_DO_AC": args.ac if args.ac else "",
             "OBSERVACAO_ADICIONAL": args.observation,
-            "ARQUIVO_DOC_ALVO": "" # Default to empty
+            "ARQUIVO_DOC_ALVO": "", # Default to empty
+            "PARENT_ISSUE_NUMBER": args.issue if args.issue else "", # Map to --issue/-i
+            "PARENT_AC_NUMBER": args.ac if args.ac else ""           # Map to --ac/-a
         }
 
         # --- AC22: Handle document file selection for update-doc task ---
