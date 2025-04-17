@@ -47,6 +47,7 @@ GH_PR_LIST_LIMIT=20
 GH_RELEASE_LIST_LIMIT=10
 PYTHON_CMD="python3" # Prioriza python3
 PIP_CMD="pip3"       # Prioriza pip3
+PINT_BIN="./vendor/bin/pint"
 
 # --- Configuração GitHub Project ---
 # Defina o número e o dono do projeto que você quer monitorar.
@@ -433,7 +434,7 @@ fi
 
 
 # --- Execução do PHPStan ---
-echo "[11/12] Executando análise estática com PHPStan..."
+echo "[11/13] Executando análise estática com PHPStan..."
 if [ -f "$PHPSTAN_BIN" ]; then
     $PHPSTAN_BIN analyse --no-progress > "$TIMESTAMP_DIR/phpstan_analysis.txt" 2>&1
     PHPSTAN_EXIT_CODE=$?
@@ -448,15 +449,34 @@ else
     echo "PHPStan não executado: Binário não encontrado em $PHPSTAN_BIN" > "$TIMESTAMP_DIR/phpstan_analysis.txt"
 fi
 
-# --- Geração do arquivo de manifesto (opcional, mas útil) ---
-echo "[12/12] Gerando arquivo de manifesto..."
+# --- Verificação de Estilo com Pint ---
+echo "[12/13] Verificando estilo de código com Pint..."
+PINT_OUTPUT_FILE="$TIMESTAMP_DIR/pint_test_results.txt"
+if [ -f "$PINT_BIN" ] && [ -x "$PINT_BIN" ]; then
+    echo "  Executando: $PINT_BIN --test"
+    "$PINT_BIN" --test > "$PINT_OUTPUT_FILE" 2>&1
+    PINT_EXIT_CODE=$?
+    if [ $PINT_EXIT_CODE -eq 0 ]; then
+        echo "  Verificação de estilo com Pint concluída (Sem problemas encontrados - código 0)."
+    else
+        echo "  AVISO: Verificação de estilo com Pint falhou ou encontrou problemas (Código: $PINT_EXIT_CODE). Veja $PINT_OUTPUT_FILE."
+        echo "\n\n--- Pint Exit Code: $PINT_EXIT_CODE ---" >> "$PINT_OUTPUT_FILE"
+    fi
+else
+    suggest_install "Laravel Pint" "laravel/pint --dev (via Composer)"
+    echo "  Binário do Pint não encontrado em '$PINT_BIN'. Pulando verificação de estilo."
+    echo "Pint não executado: Binário não encontrado em $PINT_BIN" > "$PINT_OUTPUT_FILE"
+fi
+
+# --- Geração do arquivo de manifesto ---
+echo "[13/13] Gerando arquivo de manifesto..." # <- Mude para 13/13
 {
-    echo "# Manifesto de Contexto - Gerado por gerar_contexto_llm.sh v2.4"
+    echo "# Manifesto de Contexto - Gerado por gerar_contexto_llm.sh v2.5 (Pint adicionado)" # <- Atualize a versão se quiser
     echo "Timestamp: $TIMESTAMP"
     echo "Diretório: $TIMESTAMP_DIR"
     echo ""
     echo "## Conteúdo Coletado:"
-    find "$TIMESTAMP_DIR" -maxdepth 1 -type f -printf " - %f\\n" | sort
+    find "$TIMESTAMP_DIR" -maxdepth 1 -type f -printf " - %f\\n" | sort # <- Isso já incluirá o novo arquivo
     echo ""
     echo "## Notas:"
     echo "- Revise os arquivos individuais para o contexto detalhado."
