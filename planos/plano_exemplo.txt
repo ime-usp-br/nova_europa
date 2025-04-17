@@ -29,3 +29,40 @@ ACCEPTANCE_CRITERIA:
 - [ ] Usuário é logado com sucesso via `Auth::login()` após callback
 - [ ] Erros do Socialite são capturados e tratados (ex: redirecionamento com mensagem de erro)
 - [ ] Teste de feature cobre o fluxo de login Senha Única (usando `FakeSenhaUnicaSocialiteProvider`)
+TITLE: [TEST][AUTH] Implementar Testes para Login UI (#20)
+TYPE: test
+LABELS: test,autenticacao,phpunit,dusk,ci,todo
+ASSIGNEE: @me
+PROJECT: laravel_12_starter_kit
+MILESTONE: v0.1.0: Autenticação Dupla (Senha Única + Local)
+PARENT_ISSUE: #20
+TEST_MOTIVATION: Garantir que a interface de login local (criada na Issue #20, AC10) e a integração com o botão da Senha Única funcionem conforme esperado, sejam responsivas e não quebrem com futuras alterações no layout ou lógica. Validar os critérios visuais e funcionais definidos no AC10 da issue pai.
+TEST_SCOPE:
+- Testes de Feature (PHPUnit) para a lógica do componente Livewire `login.blade.php` (validação, autenticação bem/malsucedida).
+- Testes de Browser (Dusk) para a renderização correta da UI em `/login/local`, interação com os campos, botões (incluindo SU) e links ('Esqueci Senha', 'Registrar').
+- Verificação da configuração da CI para rodar ambos os tipos de teste (PHPUnit e Dusk).
+TEST_APPROACH:
+- Usar factories para criar usuários de teste.
+- Mockar/Faker a resposta do Socialite para o botão Senha Única no teste PHPUnit.
+- No Dusk, focar na presença/visibilidade dos elementos e nas transições de página/estado após interações.
+- Utilizar seletores Dusk estáveis.
+ACCEPTANCE_CRITERIA:
+- [ ] AC1: Laravel Dusk instalado e configurado (`php artisan dusk:install`, `.env.dusk.local` ok).
+- [ ] AC2: Teste PHPUnit: Login local bem-sucedido autentica e redireciona.
+- [ ] AC3: Teste PHPUnit: Falha de login local (validação campos) retorna erros corretos.
+- [ ] AC4: Teste PHPUnit: Falha de login local (credenciais erradas) retorna erro 'auth.failed'.
+- [ ] AC5: Teste PHPUnit: Clique (simulado) no botão SU aciona a rota `login`.
+- [ ] AC6: Teste Dusk: Página `/login/local` renderiza logos, campos, links e botões corretamente.
+- [ ] AC7: Teste Dusk: Preencher e submeter form de login local com sucesso redireciona para `/dashboard`.
+- [ ] AC8: Teste Dusk: Preencher e submeter form de login local com falha exibe erro na página.
+- [ ] AC9: Teste Dusk: Clicar no botão "Senha Única USP" inicia redirecionamento (verifica mudança de URL ou ausência de erro JS).
+- [ ] AC10: Teste Dusk: Clicar no link "Esqueci minha senha?" vai para `/forgot-password`.
+- [ ] AC11: Teste Dusk: Clicar no link "Register" vai para `/register`.
+- [ ] AC12: Workflow `.github/workflows/laravel.yml` existe.
+- [ ] AC13: Workflow executa `php artisan test` com sucesso.
+- [ ] AC14: Workflow executa `php artisan dusk` com sucesso (incluindo setup do ChromeDriver).
+- [ ] AC15: Workflow é disparado em `push` e `pull_request` para `main`.
+- [ ] AC16: Código dos testes formatado com `./vendor/bin/pint`.
+- [ ] AC17: Código dos testes passa na análise `./vendor/bin/phpstan analyse`.
+- [ ] AC18: README atualizado com instruções para rodar testes Dusk (se necessário).
+------
