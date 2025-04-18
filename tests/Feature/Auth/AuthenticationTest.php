@@ -21,7 +21,7 @@ class AuthenticationTest extends TestCase
             ->assertSeeVolt('pages.auth.login');
     }
 
-    public function users_can_authenticate_using_the_local_login_screen(): void
+    public function test_users_can_authenticate_using_the_local_login_screen(): void
     {
         // Este teste atende ao Critério de Aceite 3 da Issue #31
         $user = User::factory()->create();
@@ -43,8 +43,25 @@ class AuthenticationTest extends TestCase
         // Verifica se o usuário está autenticado
         $this->assertAuthenticated();
     }
-    
-    public function users_can_not_authenticate_with_invalid_password_on_local_login(): void
+
+    public function test_email_must_be_a_valid_email_address_for_local_login(): void
+    {
+        // Este teste atende ao Critério de Aceite 4 da Issue #31
+        Volt::test('pages.auth.login')
+            ->set('form.email', 'invalid-email') // Formato inválido de e-mail
+            ->set('form.password', 'password') // Senha qualquer, não será usada
+            ->call('login')
+            // Verifica especificamente o erro de validação da regra 'email' para o campo 'form.email'
+            ->assertHasErrors(['form.email' => 'email'])
+            // Garante que não há erros para o campo de senha neste cenário
+            ->assertHasNoErrors(['form.password'])
+            ->assertNoRedirect(); // Garante que não houve redirecionamento
+
+        // Garante que o usuário não foi autenticado
+        $this->assertGuest();
+    }
+
+    public function test_users_can_not_authenticate_with_invalid_password_on_local_login(): void
     {
         $user = User::factory()->create();
 
