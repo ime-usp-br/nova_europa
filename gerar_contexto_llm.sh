@@ -1,17 +1,16 @@
 #!/bin/bash
 
 # ==============================================================================
-# gerar_contexto_llm.sh (v2.4)
+# gerar_contexto_llm.sh (v2.6 - Corrige travamento na nota Dusk)
 #
 # Coleta informações de contexto abrangentes de um projeto de desenvolvimento
 # (com foco em Laravel/PHP e Python) e seu ambiente para auxiliar LLMs.
 #
 # Inclui dados do Git, GitHub (repo, issues, actions, security, project status),
-# Laravel Artisan, PHPStan, ambiente do SO (Linux/PHP/Node/Python),
+# Laravel Artisan, PHPStan, Pint, ambiente do SO (Linux/PHP/Node/Python),
 # dependências (Composer/NPM/Pip), estrutura do projeto, arquivos de config,
-# planos e meta-prompts.
-# Tenta detectar o gerenciador de pacotes para sugerir comandos de instalação
-# caso ferramentas externas como 'tree' ou 'cloc' não sejam encontradas.
+# planos, meta-prompts, e resultados de testes PHPUnit. Inclui nota sobre
+# execução manual de testes Dusk.
 #
 # Coloca TODOS os arquivos de saída no diretório raiz do timestamp.
 #
@@ -48,17 +47,18 @@ GH_RELEASE_LIST_LIMIT=10
 PYTHON_CMD="python3" # Prioriza python3
 PIP_CMD="pip3"       # Prioriza pip3
 PINT_BIN="./vendor/bin/pint"
+PHPUNIT_OUTPUT_FILE_NAME="phpunit_test_results.txt"
+DUSK_INFO_FILE_NAME="dusk_test_info.txt"
 
 # --- Configuração GitHub Project ---
-# Defina o número e o dono do projeto que você quer monitorar.
-# Use '@me' para seus projetos pessoais ou o nome da organização/usuário.
 GH_PROJECT_NUMBER="1"
 GH_PROJECT_OWNER="@me"
-# Nome EXATO do campo de status no seu quadro Kanban (Case Sensitive).
 GH_PROJECT_STATUS_FIELD_NAME="Status"
 
+# Atualizado para refletir 15 etapas
+TOTAL_STEPS=15
+
 # Habilita saída em caso de erro e falha em pipelines
-# set -e # Removido para permitir que comandos individuais falhem graciosamente
 set -o pipefail
 
 # --- Funções Auxiliares ---
@@ -108,7 +108,7 @@ fi
 
 # --- Início do Script ---
 echo "Iniciando a coleta de contexto para o LLM..."
-echo "Versão do Script: 2.4 (Data: $(date +'%Y-%m-%d'))"
+echo "Versão do Script: v2.6 (Corrige travamento na nota Dusk)"
 
 # Verifica dependências essenciais
 essential_cmds=("bash" "git" "php" "sed" "awk" "tr" "rev" "grep" "cut" "date" "head" "find" "wc" "cat")
@@ -134,7 +134,7 @@ echo "Criando diretório de saída: $TIMESTAMP_DIR"
 mkdir -p "$TIMESTAMP_DIR" || { echo >&2 "ERRO FATAL: Não foi possível criar o diretório de saída '$TIMESTAMP_DIR'. Verifique as permissões."; exit 1; }
 
 # --- Coleta de Informações do Ambiente ---
-echo "[1/12] Coletando informações do Ambiente (SO, PHP, Node)..."
+echo "[1/$TOTAL_STEPS] Coletando informações do Ambiente (SO, PHP, Node)..."
 echo "  Coletando informações do sistema (uname)..."
 uname -a > "$TIMESTAMP_DIR/env_uname.txt" 2>/dev/null || echo "Falha ao executar uname" > "$TIMESTAMP_DIR/env_uname.txt"
 
@@ -170,7 +170,7 @@ if command_exists node; then node -v > "$TIMESTAMP_DIR/env_node_version.txt" 2>&
 if command_exists npm; then npm -v > "$TIMESTAMP_DIR/env_npm_version.txt" 2>&1; else suggest_install "npm"; echo "NPM não encontrado." > "$TIMESTAMP_DIR/env_npm_version.txt"; fi
 
 # --- Coleta de Informações do Ambiente Python ---
-echo "[2/12] Coletando informações do Ambiente Python..."
+echo "[2/$TOTAL_STEPS] Coletando informações do Ambiente Python..."
 if [[ -n "$PYTHON_CMD" ]]; then
     echo "  Coletando versão do Python ($PYTHON_CMD)..."
     "$PYTHON_CMD" --version > "$TIMESTAMP_DIR/env_python_version.txt" 2>&1 || echo "Falha ao obter versão do Python ($PYTHON_CMD)." > "$TIMESTAMP_DIR/env_python_version.txt"
@@ -207,9 +207,16 @@ for pkg_file in requirements.txt requirements-dev.txt Pipfile pyproject.toml; do
     fi
 done
 
+echo "  Listando pacotes Pip instalados (ambiente ativo)..."
+if [[ -n "$PIP_CMD" ]]; then
+    "$PIP_CMD" freeze > "$TIMESTAMP_DIR/env_pip_freeze.txt" 2>&1 || echo "Falha ao executar '$PIP_CMD freeze'. Verifique o ambiente Python." > "$TIMESTAMP_DIR/env_pip_freeze.txt"
+else
+    echo "Pip não encontrado." > "$TIMESTAMP_DIR/env_pip_freeze.txt"
+fi
+
 
 # --- Coleta de Informações do Git ---
-echo "[3/12] Coletando informações do Git..."
+echo "[3/$TOTAL_STEPS] Coletando informações do Git..."
 # Git já verificado como essencial
 echo "  Gerando git log..."
 git log --pretty=format:"commit %H%nAuthor: %an <%ae>%nDate:   %ad%n%n%w(0,4)%s%n%n%w(0,4,4)%b%n" > "$TIMESTAMP_DIR/git_log.txt" 2>/dev/null || echo "Falha ao gerar git log" > "$TIMESTAMP_DIR/git_log.txt"
@@ -227,7 +234,7 @@ echo "  Listando tags Git recentes..."
 git tag --sort=-creatordate | head -n "$GIT_TAG_LIMIT" > "$TIMESTAMP_DIR/git_recent_tags.txt" 2>/dev/null || echo "Nenhuma tag encontrada ou falha ao listar tags." > "$TIMESTAMP_DIR/git_recent_tags.txt"
 
 # --- Coleta de Informações Adicionais do GitHub ---
-echo "[4/12] Coletando contexto adicional do GitHub (Repo, Actions, Security)..."
+echo "[4/$TOTAL_STEPS] Coletando contexto adicional do GitHub (Repo, Actions, Security)..."
 if ! command_exists gh; then
     suggest_install "gh" "gh"
     echo "  AVISO: Comando 'gh' não encontrado. Pulando esta seção."
@@ -259,7 +266,7 @@ else
 fi
 
 # --- Coleta de Status do GitHub Project ---
-echo "[5/12] Coletando Status do GitHub Project..."
+echo "[5/$TOTAL_STEPS] Coletando Status do GitHub Project..."
 if ! command_exists gh; then
     echo "  AVISO: Comando 'gh' não encontrado. Pulando esta seção."
     echo "gh não encontrado." > "$TIMESTAMP_DIR/gh_project_items_status.log"
@@ -300,7 +307,7 @@ fi
 
 
 # --- Coleta de Informações do Laravel Artisan ---
-echo "[6/12] Coletando informações do Laravel Artisan..."
+echo "[6/$TOTAL_STEPS] Coletando informações do Laravel Artisan..."
 if ! command_exists php || [ ! -f artisan ]; then
     echo "  AVISO: Comando 'php' ou arquivo 'artisan' não encontrado. Pulando comandos Artisan."
 else
@@ -330,7 +337,7 @@ else
 fi
 
 # --- Coleta de Informações de Dependências ---
-echo "[7/12] Coletando informações de Dependências (Composer, NPM, Pip)..."
+echo "[7/$TOTAL_STEPS] Coletando informações de Dependências (Composer, NPM, Pip)..."
 echo "  Listando pacotes Composer instalados..."
 if command_exists composer; then
     composer show > "$TIMESTAMP_DIR/composer_show.txt" 2>&1 || echo "Falha ao executar composer show" > "$TIMESTAMP_DIR/composer_show.txt"
@@ -345,15 +352,10 @@ else
     suggest_install "npm"
     echo "NPM não encontrado." > "$TIMESTAMP_DIR/npm_list_depth0.txt"
 fi
-echo "  Listando pacotes Pip instalados (ambiente ativo)..."
-if [[ -n "$PIP_CMD" ]]; then
-    "$PIP_CMD" freeze > "$TIMESTAMP_DIR/env_pip_freeze.txt" 2>&1 || echo "Falha ao executar '$PIP_CMD freeze'. Verifique o ambiente Python." > "$TIMESTAMP_DIR/env_pip_freeze.txt"
-else
-    echo "Pip não encontrado." > "$TIMESTAMP_DIR/env_pip_freeze.txt"
-fi
+# Pip freeze já coletado na seção de ambiente Python
 
 # --- Coleta de Estrutura do Projeto ---
-echo "[8/12] Coletando informações da Estrutura do Projeto..."
+echo "[8/$TOTAL_STEPS] Coletando informações da Estrutura do Projeto..."
 echo "  Gerando árvore de diretórios (nível $TREE_DEPTH)..."
 if command_exists tree; then
     tree -L "$TREE_DEPTH" -a -I "$TREE_IGNORE_PATTERN" > "$TIMESTAMP_DIR/project_tree_L${TREE_DEPTH}.txt" || echo "Erro ao gerar tree (verifique permissões ou profundidade)." > "$TIMESTAMP_DIR/project_tree_L${TREE_DEPTH}.txt"
@@ -372,7 +374,7 @@ else
 fi
 
 # --- Coleta de Planos e Meta-Prompts ---
-echo "[9/12] Coletando Planos e Meta-Prompts..."
+echo "[9/$TOTAL_STEPS] Coletando Planos e Meta-Prompts..."
 if [ -d "planos" ]; then
     echo "  Copiando arquivos de 'planos/'..."
     find planos -maxdepth 1 -type f -name '*.txt' -exec cp {} "$TIMESTAMP_DIR/" \; 2>/dev/null || echo "  Falha ao copiar planos ou diretório 'planos' vazio/não existe."
@@ -387,7 +389,7 @@ else
 fi
 
 # --- Coleta de Informações do GitHub Issues ---
-echo "[10/12] Coletando informações das Issues do GitHub..."
+echo "[10/$TOTAL_STEPS] Coletando informações das Issues do GitHub..."
 if ! command_exists gh || ! command_exists jq; then
     echo "  AVISO: Comando 'gh' ou 'jq' não encontrado. Pulando coleta de issues."
     echo "gh ou jq não encontrado." > "$TIMESTAMP_DIR/github_issues_skipped.log"
@@ -396,7 +398,7 @@ else
     echo "  Listando e filtrando issues (limite: $GH_ISSUE_LIST_LIMIT, excluindo 'Closed as not planned')..."
     # Primeiro, tenta obter a lista de números de issues abertas e fechadas (exceto 'not planned')
     issue_numbers_json=$(gh issue list --state all --limit "$GH_ISSUE_LIST_LIMIT" --json number,stateReason -q 'map(select(.stateReason != "NOT_PLANNED")) | [.[].number]')
-    if [[ $? -ne 0 || -z "$issue_numbers_json" ]]; then
+    if [[ $? -ne 0 || -z "$issue_numbers_json" || "$issue_numbers_json" == "[]" ]]; then
         echo "  AVISO: Não foi possível obter a lista de issues do GitHub (verifique login/permissões) ou nenhuma issue encontrada (após filtro)."
         echo '{ "message": "Nenhuma issue encontrada (após filtrar) ou erro ao listar." }' > "$TIMESTAMP_DIR/no_issues_found.json"
     else
@@ -434,7 +436,7 @@ fi
 
 
 # --- Execução do PHPStan ---
-echo "[11/13] Executando análise estática com PHPStan..."
+echo "[11/$TOTAL_STEPS] Executando análise estática com PHPStan..."
 if [ -f "$PHPSTAN_BIN" ]; then
     $PHPSTAN_BIN analyse --no-progress > "$TIMESTAMP_DIR/phpstan_analysis.txt" 2>&1
     PHPSTAN_EXIT_CODE=$?
@@ -450,7 +452,7 @@ else
 fi
 
 # --- Verificação de Estilo com Pint ---
-echo "[12/13] Verificando estilo de código com Pint..."
+echo "[12/$TOTAL_STEPS] Verificando estilo de código com Pint..."
 PINT_OUTPUT_FILE="$TIMESTAMP_DIR/pint_test_results.txt"
 if [ -f "$PINT_BIN" ] && [ -x "$PINT_BIN" ]; then
     echo "  Executando: $PINT_BIN --test"
@@ -468,18 +470,76 @@ else
     echo "Pint não executado: Binário não encontrado em $PINT_BIN" > "$PINT_OUTPUT_FILE"
 fi
 
+# --- Execução dos Testes PHPUnit ---
+echo "[13/$TOTAL_STEPS] Executando testes PHPUnit (php artisan test)..."
+PHPUNIT_OUTPUT_FILE="$TIMESTAMP_DIR/$PHPUNIT_OUTPUT_FILE_NAME"
+if [ -f artisan ] && command_exists php; then
+    echo "  Executando: $ARTISAN_CMD test"
+    # Executa o comando e redireciona stdout e stderr para o arquivo
+    $ARTISAN_CMD test > "$PHPUNIT_OUTPUT_FILE" 2>&1
+    PHPUNIT_EXIT_CODE=$?
+    # Adiciona o código de saída ao final do arquivo para referência
+    echo "\n\n--- PHPUnit Exit Code: $PHPUNIT_EXIT_CODE ---" >> "$PHPUNIT_OUTPUT_FILE"
+    if [ $PHPUNIT_EXIT_CODE -eq 0 ]; then
+        echo "  Testes PHPUnit executados com sucesso (Código: 0)."
+    else
+        # Imprime aviso no console do script E no arquivo
+        echo "  AVISO: Testes PHPUnit falharam ou retornaram avisos (Código: $PHPUNIT_EXIT_CODE). Veja $PHPUNIT_OUTPUT_FILE_NAME."
+        echo "  -> Revise o arquivo '$PHPUNIT_OUTPUT_FILE_NAME' para detalhes da falha." >> "$PHPUNIT_OUTPUT_FILE"
+    fi
+else
+    echo "  AVISO: Arquivo 'artisan' ou comando 'php' não encontrado. Pulando testes PHPUnit."
+    echo "Comando 'php artisan test' não executado: arquivo 'artisan' ou comando 'php' não encontrado." > "$PHPUNIT_OUTPUT_FILE"
+fi
+
+# --- Nota sobre Testes Dusk (Revisada para usar cat << EOF) ---
+echo "[14/$TOTAL_STEPS] Criando arquivo de informação sobre testes Dusk (execução manual necessária)..."
+DUSK_INFO_FILE="$TIMESTAMP_DIR/$DUSK_INFO_FILE_NAME"
+
+# Use cat com um 'here document' para redirecionamento mais seguro
+cat << EOF > "$DUSK_INFO_FILE"
+######################################################################
+# NOTA IMPORTANTE SOBRE TESTES DUSK                                #
+######################################################################
+
+Este script ('gerar_contexto_llm.sh') **NÃO EXECUTA** automaticamente os testes Laravel Dusk ('php artisan dusk').
+
+Os testes Dusk requerem que o servidor da aplicação (\`php artisan serve\`) e o ChromeDriver estejam rodando em processos separados e corretamente configurados.
+
+**AÇÃO NECESSÁRIA (se resultados Dusk forem relevantes para o contexto):**
+1. Certifique-se que o servidor Laravel está rodando (ex: 'php artisan serve --port=8000').
+2. Certifique-se que o ChromeDriver está rodando (ex: './vendor/laravel/dusk/bin/chromedriver-linux --port=9515').
+3. Execute os testes Dusk manualmente em outro terminal: 'php artisan dusk'.
+4. **Execute este script ('gerar_contexto_llm.sh') *APÓS* ter rodado os testes Dusk manualmente.**
+
+Este arquivo serve apenas como lembrete. Os resultados reais (screenshots, logs de console) estarão nos diretórios padrão do Dusk (tests/Browser/screenshots, tests/Browser/console) se ocorreram falhas na sua execução manual.
+
+######################################################################
+EOF
+
+# Verifica se o arquivo foi criado com sucesso
+if [ $? -eq 0 ]; then
+    echo "  Arquivo de informação '$DUSK_INFO_FILE_NAME' criado com instruções sobre execução manual do Dusk."
+    echo "  -> Lembre-se: Execute 'php artisan dusk' manualmente se precisar dos resultados no contexto." # Lembrete no stdout do script
+else
+    echo "  ERRO: Falha ao criar o arquivo de informação Dusk '$DUSK_INFO_FILE_NAME'."
+fi
+# --- FIM DA NOVA SEÇÃO DUSK (Revisada) ---
+
 # --- Geração do arquivo de manifesto ---
-echo "[13/13] Gerando arquivo de manifesto..." # <- Mude para 13/13
+echo "[15/$TOTAL_STEPS] Gerando arquivo de manifesto..."
 {
-    echo "# Manifesto de Contexto - Gerado por gerar_contexto_llm.sh v2.5 (Pint adicionado)" # <- Atualize a versão se quiser
+    echo "# Manifesto de Contexto - Gerado por gerar_contexto_llm.sh v2.6 (PHPUnit+DuskNote Fixed)"
     echo "Timestamp: $TIMESTAMP"
     echo "Diretório: $TIMESTAMP_DIR"
     echo ""
     echo "## Conteúdo Coletado:"
-    find "$TIMESTAMP_DIR" -maxdepth 1 -type f -printf " - %f\\n" | sort # <- Isso já incluirá o novo arquivo
+    find "$TIMESTAMP_DIR" -maxdepth 1 -type f -printf " - %f\\n" | sort
     echo ""
     echo "## Notas:"
     echo "- Revise os arquivos individuais para o contexto detalhado."
+    echo "- '$PHPUNIT_OUTPUT_FILE_NAME' contém a saída completa do comando 'php artisan test'."
+    echo "- '$DUSK_INFO_FILE_NAME' contém uma nota sobre a execução manual necessária dos testes Dusk."
     echo "- O status dos itens no GitHub Project (se configurado e acessível) está em 'gh_project_items_*.json'."
     echo "- Alguns comandos podem ter falhado (verifique arquivos com mensagens de erro)."
     echo "- A completude depende das ferramentas disponíveis (php, python, gh, jq, tree, cloc, composer, npm) e permissões."
