@@ -84,7 +84,7 @@ jobs:
         mkdir -p database/testing
         touch database/testing/dusk.sqlite
         php artisan migrate --database=sqlite --path=database/migrations --env=dusk.local --force
-        php artisan dusk:chrome-driver --detect --no-interaction
+        php artisan dusk:chrome-driver --detect --no-interaction --port=9515
         echo "Aguardando ChromeDriver iniciar..."
         sleep 8
         php artisan dusk --env=dusk.local
