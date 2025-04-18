@@ -9,7 +9,8 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\TestCase as BaseTestCase;
 
 abstract class DuskTestCase extends BaseTestCase
-{    use DatabaseMigrations;
+{
+    use DatabaseMigrations;
 
     /**
      * Prepare for Dusk test execution.
