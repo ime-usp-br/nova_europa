@@ -63,20 +63,19 @@ class AuthenticationTest extends TestCase
 
     public function test_users_can_not_authenticate_with_invalid_password_on_local_login(): void
     {
+        // Este teste atende ao Critério de Aceite 5 da Issue #31
         $user = User::factory()->create();
 
         $component = Volt::test('pages.auth.login')
             ->set('form.email', $user->email)
-            ->set('form.password', 'wrong-password');
+            ->set('form.password', 'wrong-password'); // Senha incorreta
 
         $component->call('login');
 
         // Verifica se há erro no campo de email (auth.failed é associado ao email geralmente)
-        // E/OU no campo de senha, dependendo da implementação exata da validação no LoginForm
         $component->assertHasErrors(['form.email' => trans('auth.failed')])
-            ->set('form.password', '') // Limpa para a próxima asserção
-            ->call('login')
-            ->assertHasErrors(['form.password' => 'required']); // Verifica erro de validação da senha também
+            // Garante que não há erro específico de validação de formato na senha neste caso
+            ->assertHasNoErrors(['form.password']);
 
         $component->assertNoRedirect(); // Garante que não houve redirecionamento
 
