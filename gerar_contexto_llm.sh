@@ -474,9 +474,9 @@ fi
 echo "[13/$TOTAL_STEPS] Executando testes PHPUnit (php artisan test)..."
 PHPUNIT_OUTPUT_FILE="$TIMESTAMP_DIR/$PHPUNIT_OUTPUT_FILE_NAME"
 if [ -f artisan ] && command_exists php; then
-    echo "  Executando: $ARTISAN_CMD test"
+    echo "  Executando: $ARTISAN_CMD test --env=testing"
     # Executa o comando e redireciona stdout e stderr para o arquivo
-    $ARTISAN_CMD test > "$PHPUNIT_OUTPUT_FILE" 2>&1
+    $ARTISAN_CMD test "--env=testing" > "$PHPUNIT_OUTPUT_FILE" 2>&1
     PHPUNIT_EXIT_CODE=$?
     # Adiciona o código de saída ao final do arquivo para referência
     echo "\n\n--- PHPUnit Exit Code: $PHPUNIT_EXIT_CODE ---" >> "$PHPUNIT_OUTPUT_FILE"
