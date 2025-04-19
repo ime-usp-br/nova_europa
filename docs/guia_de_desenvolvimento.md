@@ -1,7 +1,7 @@
 # Guia de Estratégia de Desenvolvimento - Laravel 12 USP Starter Kit
 
 **Versão:** 0.1.0<br>
-**Data:** 2025-04-12
+**Data:** 2025-04-17
 
 ## 1. Introdução
 
@@ -69,9 +69,15 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
 *   **Ferramentas de Qualidade (Pré-configuradas no Starter Kit):**
     *   **Laravel Pint:** Ferramenta para formatação automática do estilo de código PHP (PSR-12). Execute `vendor/bin/pint` ou configure seu editor para usar o Pint.
     *   **Larastan:** Extensão do PHPStan para análise estática focada em Laravel. Ajuda a encontrar erros sem executar o código. Execute via `vendor/bin/phpstan analyse`.
+*   **Ferramentas de Teste (Pré-configuradas no Starter Kit):**
+    *   **PHPUnit:** Framework padrão para testes unitários e de feature. Executado via `php artisan test`.
+    *   **Laravel Dusk:** Ferramenta para testes de browser End-to-End. Executado via `php artisan dusk`.
+    *   **Google Chrome ou Chromium:** Necessário para a execução dos testes Dusk.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
-*   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto e ambiente. **DEVE** ser executada para gerar o contexto necessário para a ferramenta de interação com LLM.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini (via `google-genai`) usando meta-prompts e o contexto gerado pelo script anterior. **PODE** ser usada para auxiliar em tarefas como geração de código, mensagens de commit, análise de ACs, atualização de documentação e criação de PRs. Requer `python3` e a instalação das dependências (ex: `pip install google-genai python-dotenv tqdm`). Uma chave de API do Google Gemini **DEVE** ser configurada na variável de ambiente `GEMINI_API_KEY` (pode ser colocada em um arquivo `.env` na raiz do projeto).
+*   **(Opcional) Ferramentas de Desenvolvimento Adicionais:**
+    *   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto e ambiente. **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
+    *   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini. **PODE** ser usada para auxiliar em tarefas de desenvolvimento. Requer `python3 >= 3.8`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
+    *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano. Requer `python3 >= 3.8`, `gh` CLI, `jq`.
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
 
@@ -96,6 +102,7 @@ Este ciclo descreve o fluxo recomendado para transformar uma ideia ou necessidad
         *   `bug_body.md`: Para relatar bugs.
         *   `feature_body.md`: Para novas funcionalidades ou melhorias.
         *   `chore_body.md`: Para tarefas internas, refatorações, atualizações de dependências, etc.
+        *   `test_body.md`: Para definir sub-tarefas de teste para uma issue pai.
     *   **Critérios de Aceite:** **OBRIGATÓRIO.** Defina claramente como você saberá que a Issue está "Pronta" (Done). Use checklists Markdown (`- [ ] Critério 1`). Uma Issue só pode ser considerada concluída quando todos os seus critérios de aceite forem atendidos. Isto deve ser *verificável* (princípio IEEE 830).
 *   **Organização da Issue:**
     *   **Labels:** Use labels consistentemente para categorizar (ex: `bug`, `feature`, `chore`), priorizar (`priority:high`, `priority:medium`), indicar status (`status:blocked`) ou módulo (`module:auth`).
@@ -133,6 +140,7 @@ O desenvolvimento de código deve ser sempre guiado por uma Issue específica.
     *   `fix/<ID>-descricao-curta` (ex: `fix/124-botao-logout-firefox`)
     *   `chore/<ID>-descricao-curta` (ex: `chore/55-atualizar-composer-deps`)
     *   `refactor/<ID>-descricao-curta` (ex: `refactor/60-simplificar-userservice`)
+    *   `test/<ID>-descricao-curta` (ex: `test/31-test-login-ui`)
 *   **Implementação Focada:** Trabalhe *exclusivamente* no código necessário para satisfazer os Critérios de Aceite da Issue atual. Evite introduzir mudanças não relacionadas (scope creep) neste branch. Se descobrir algo novo, crie outra Issue no Backlog.
 *   **Commits Atômicos e Frequentes:** Faça commits pequenos, lógicos e que representem um passo concluído. Não cometa código quebrado ou incompleto (`git stash` é seu amigo).
 *   **Mensagens de Commit (Obrigatório):** Siga um padrão consistente (como Conventional Commits) e **SEMPRE referencie a Issue ID** na mensagem.
@@ -165,9 +173,9 @@ Mesmo trabalhando sozinho, usar Pull Requests (PRs) é uma excelente prática.
 
 O merge no branch principal pode ser o gatilho para um processo de deploy (manual ou automatizado via GitHub Actions) para um ambiente de testes ou produção. Isso está fora do escopo estrito deste guia, mas é o próximo passo natural.
 
-## 5. Automatizando a Criação de Issues com `gh` CLI
+## 5. Automatizando a Criação de Issues com `gh` CLI e Python
 
-Para acelerar a criação de Issues a partir de um plano de ação ou lista de tarefas, especialmente após uma sessão de planejamento, podemos usar a `gh` CLI e scripts Bash.
+Para acelerar a criação de Issues a partir de um plano de ação ou lista de tarefas, especialmente após uma sessão de planejamento, podemos usar a `gh` CLI e o script Python fornecido.
 
 ### 5.1. Propósito da Automação
 
@@ -175,91 +183,123 @@ Para acelerar a criação de Issues a partir de um plano de ação ou lista de t
 *   **Consistência:** Usar templates e aplicar labels/assignees padrão.
 *   **Integração:** Gerar Issues diretamente do terminal.
 
-### 5.2. Formatos de Arquivo de Input (`plano_*.txt`)
+### 5.2. Formatos de Arquivo de Input (`planos/*.txt`)
 
-Podemos usar um formato estruturado para nosso arquivo de plano (ex: `planos/plano_exemplo.txt`), onde cada bloco define uma issue e seus metadados usando pares `CHAVE: VALOR`. Veja o arquivo `planos/plano_exemplo.txt` e o script `criar_issues_script.sh` para detalhes do formato exato.
+Utilize um formato estruturado para o arquivo de plano (ex: `planos/plano_exemplo.txt`), onde cada bloco define uma issue e seus metadados usando pares `KEY: VALUE`. Consulte o arquivo de exemplo para detalhes do formato.
 
 ### 5.3. Templates de Corpo de Issue
 
-Utilize os templates Markdown localizados em `project_templates/issue_bodies/`:
+Utilize os templates Markdown localizados em `templates/issue_bodies/`:
 
 *   `bug_body.md`
 *   `chore_body.md`
 *   `feature_body.md`
+*   `test_body.md`
 *   `default_body.md` (Usado como fallback)
 
-### 5.4. Script de Automação
+### 5.4. Script de Automação Python (`scripts/create_issue.py`)
 
-O script `criar_issues_script.sh` incluído no repositório lê um arquivo de plano estruturado (como `planos/plano_exemplo.txt`) e cria ou **edita** Issues no GitHub.
+O script `scripts/create_issue.py` incluído no repositório lê um arquivo de plano estruturado e cria ou **edita** Issues no GitHub.
 
-*   **Funcionalidades do Script:**
-    *   Lê blocos de definição de Issue de um arquivo texto.
-    *   Usa templates Markdown do diretório `project_templates/issue_bodies/` com base no `TYPE` definido no bloco.
-    *   Aplica labels, assignee e milestone (se fornecido via argumento de linha de comando).
-    *   Associa a Issue a um GitHub Project (se especificado no bloco e o projeto existir).
-    *   **Verifica se uma Issue aberta com o mesmo título já existe.** Se sim, edita a issue existente (atualizando corpo, assignee, milestone e adicionando labels). Se não, cria uma nova Issue.
-    *   Verifica e cria labels e milestones que não existem (se possível).
+*   **Funcionalidades Principais:** Consulte a docstring do script para detalhes completos sobre parsing, uso de templates, verificação de duplicatas, manipulação de labels/milestones/projetos.
 *   **Como Usar:**
-    1.  Certifique-se de ter `gh`, `jq` e outras ferramentas Unix padrão instaladas e o `gh` autenticado.
-    2.  (Opcional) Crie ou modifique os templates em `project_templates/issue_bodies/`.
-    3.  Crie seu arquivo de plano (ex: `planos/ciclo_atual.txt`) seguindo o formato do `planos/plano_exemplo.txt`.
+    1.  Certifique-se de ter `python3 >= 3.8`, `gh` CLI e `jq` instalados e o `gh` autenticado.
+    2.  (Opcional) Crie/modifique os templates em `templates/issue_bodies/`.
+    3.  Crie seu arquivo de plano (ex: `planos/ciclo_atual.txt`).
     4.  Execute o script, passando o nome do arquivo de plano e, opcionalmente, um milestone:
         ```bash
         # Criar/Editar issues do plano, sem milestone específico
-        ./criar_issues_script.sh planos/ciclo_atual.txt
+        python scripts/create_issue.py planos/ciclo_atual.txt
 
         # Criar/Editar issues, associando-as ao milestone "Sprint 1" (cria se não existir)
-        ./criar_issues_script.sh --milestone-title "Sprint 1" --milestone-desc "Objetivos da Sprint 1" planos/ciclo_atual.txt
+        python scripts/create_issue.py --milestone-title "Sprint 1" --milestone-desc "Objetivos da Sprint 1" planos/ciclo_atual.txt
         ```
-    5.  Verifique as Issues criadas/editadas no seu repositório GitHub e no seu quadro Kanban (se configurado).
+    5.  Verifique as Issues criadas/editadas no GitHub e no seu quadro Kanban.
 
 ### 5.5. Fluxo de Trabalho com Automação
 
-1.  **Planejamento:** Defina suas tarefas no arquivo de plano estruturado (ex: `planos/ciclo_atual.txt`).
-2.  **Execução do Script:** Rode o script `criar_issues_script.sh seu_plano.txt [--milestone-title ...]`.
-3.  **Gerenciamento:** Suas Issues aparecerão atualizadas ou criadas no GitHub e, se configurado, no Backlog do seu quadro Kanban.
-4.  **Desenvolvimento:** Prossiga com o fluxo normal descrito na Fase 4 (puxar issue, criar branch, fazer commits atômicos referenciando a issue, PR, merge).
+1.  **Planejamento:** Defina suas tarefas no arquivo de plano estruturado.
+2.  **Execução do Script:** Rode `python scripts/create_issue.py seu_plano.txt [--milestone-title ...]`.
+3.  **Gerenciamento:** Suas Issues aparecerão no GitHub e no quadro Kanban.
+4.  **Desenvolvimento:** Prossiga com o fluxo normal (Fase 4).
 
 ## 6. Documentação do Projeto
 
-*   **README.md:** Deve conter a visão geral do Starter Kit, instruções de instalação rápida, propósito e um link para a Wiki. **DEVE** incluir a linha `**Versão:** X.Y.Z` e `**Data:** YYYY-MM-DD` (ver Seção 6.1). Pode incluir uma *explicação* da estrutura do quadro Kanban.
-*   **Wiki do GitHub:** É o local ideal para a documentação mais detalhada e que pode ter um ciclo de atualização diferente (histórico próprio da Wiki). Conteúdo ideal para a Wiki:
-    *   Guias de configuração avançada.
-    *   Tutoriais sobre como estender o Starter Kit.
-    *   Explicação da arquitetura de código e dos serviços incluídos (ReplicadoService, etc.).
-    *   Detalhes sobre o sistema de permissões.
-    *   Como executar e interpretar os testes.
-    *   Estratégias de deploy recomendadas (se houver).
-    *   Convenções de código (reforçando Pint/Larastan).
-*   **Documentos `.md` no Repositório:** Arquivos como este guia (`docs/guia_de_desenvolvimento.md`), ADRs (`docs/adr/`), o Termo de Abertura (`docs/termo_abertura_projeto.md`), e outros documentos `.md` mantidos junto ao código **DEVEM** seguir o sistema de versionamento descrito na Seção 6.1.
-*   **Documentação no Código:** Comentários claros no código, especialmente em partes mais complexas ou específicas da USP.
-*   **Manutenção da Documentação Versionada:** A documentação versionada (`.md` no repo) deve ser tratada como código. Crie Issues (tipo `docs`) para rastrear necessidades de atualização ou criação e siga o mesmo fluxo de desenvolvimento (commit, PR). As atualizações da versão no cabeçalho ocorrem conforme descrito na Seção 6.1.
+*   **README.md:** Deve conter a visão geral, instalação rápida, propósito e link para a Wiki. **DEVE** incluir cabeçalho de versão/data.
+*   **Wiki do GitHub:** Local para documentação detalhada (configuração avançada, tutoriais, arquitetura, testes, deploy).
+*   **Documentos `.md` no Repositório:** Arquivos (`docs/`, ADRs) mantidos junto ao código **DEVEM** seguir o sistema de versionamento (Seção 6.1).
+*   **Documentação no Código:** DocBlocks claros e comentários explicativos.
+*   **Manutenção da Documentação Versionada:** Trate como código (Issues `docs`, PRs).
 
 ### 6.1. Versionamento da Documentação no Repositório
 
-Para garantir clareza sobre qual versão do Starter Kit um documento `.md` descreve, adotamos a seguinte estratégia:
-
-*   **Alinhamento com o Código:** A versão da documentação `.md` no repositório **DEVE** espelhar a versão [SemVer](https://semver.org/lang/pt-BR/) do release do Starter Kit (tag Git).
-*   **Identificação:** Todo arquivo `.md` versionado (exceto `LICENSE`) **DEVE** iniciar com:
+*   **Alinhamento com o Código:** Versão do `.md` reflete a tag SemVer do release do código.
+*   **Identificação:** Todo arquivo `.md` versionado (exceto `LICENSE` e `CHANGELOG.md`) **DEVE** iniciar com:
     ```markdown
     **Versão:** X.Y.Z
     **Data:** YYYY-MM-DD
     ```
-    (Onde X.Y.Z é a tag do release e YYYY-MM-DD a data de criação da tag).
-*   **Atualização:** A `Versão` e `Data` no cabeçalho dos documentos **DEVEM** ser atualizadas no commit que prepara a criação de uma nova tag de release (ex: `v0.1.0`, `v0.2.0`).
-*   **Versão Inicial:** A versão inicial de toda a documentação `.md` neste repositório é `0.1.0`, datada de `2025-04-12`.
-*   **Escopo:** Aplica-se a: `README.md`, `docs/guia_de_desenvolvimento.md`, `docs/termo_abertura_projeto.md`, `docs/adr/*.md`,  `padroes_codigo_boas_praticas.md`.
-*   **Changelog:** É **RECOMENDÁVEL** usar `CHANGELOG.md` ou GitHub Releases para detalhar mudanças entre versões, incluindo as da documentação.
+*   **Atualização:** A `Versão` e `Data` são atualizadas no commit que prepara a tag de release.
+*   **Escopo:** Aplica-se a: `README.md`, `docs/*.md` (exceto `CHANGELOG.md`), `docs/adr/*.md`.
 
-*Para detalhes completos da estratégia, consulte o arquivo `docs/versionamento_documentacao.md`.*
+*Para detalhes completos, consulte `docs/versionamento_documentacao.md`.*
 
 ## 7. Manutenção e Evolução Contínua
 
-O processo descrito aplica-se não apenas ao desenvolvimento inicial, mas também à manutenção e evolução contínua do projeto:
+O processo (Issues -> Branch -> Commits -> PR -> Merge) aplica-se a todo trabalho:
 
-*   **Bugs:** Bugs encontrados em produção ou desenvolvimento devem ser registrados como Issues usando o template apropriado (`bug_body.md`) e seguir o fluxo normal (A Fazer -> Em Progresso -> Revisão -> Concluído). Use a label `bug`.
-*   **Refatorações e Dívida Técnica:** Tarefas de melhoria de código, atualização de dependências, ou pagamento de dívida técnica devem ser criadas como Issues (template `chore_body.md`), priorizadas no backlog e trabalhadas como qualquer outra tarefa. Use labels `refactor` ou `tech-debt`.
-*   **Novas Funcionalidades:** Ideias para novas funcionalidades entram no Backlog (como Draft ou Issue `feature`) e seguem o ciclo completo de detalhamento, priorização e implementação.
-*   **Atualizações de Documentação:** Mudanças necessárias na documentação versionada (`.md` no repo) **DEVEM** ser tratadas via Issues (tipo `docs`) e Pull Requests, seguindo o fluxo padrão. A atualização da versão no cabeçalho ocorre conforme a Seção 6.1.
+*   **Bugs:** Issue `bug`, template `bug_body.md`.
+*   **Refatorações/Dívida Técnica:** Issue `chore`/`refactor`, template `chore_body.md`.
+*   **Novas Funcionalidades:** Issue `feature`, template `feature_body.md`.
+*   **Testes:** Issue `test`, template `test_body.md`.
+*   **Atualizações de Documentação:** Issue `docs`, trate como código.
 
-A chave é tratar *todo* o trabalho rastreável através de Issues, mantendo o quadro Kanban atualizado e seguindo a disciplina dos commits atômicos vinculados. Isso garante que o projeto permaneça organizado e manutenível ao longo do tempo.
+A chave é a rastreabilidade via Issues e commits vinculados.
+
+## 8. Ferramentas de Desenvolvimento e Automação (Detalhes)
+
+*   **Laravel Pint:** (`vendor/bin/pint`) Formatador PSR-12. Use antes de commitar.
+*   **Larastan:** (`vendor/bin/phpstan analyse`) Análise estática. Execute regularmente.
+*   **Script de Criação de Issues (`scripts/create_issue.py`):** Automatiza a criação/edição de Issues no GitHub a partir de planos `.txt`.
+*   **Script de Geração de Contexto (`gerar_contexto_llm.sh`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Usa API Gemini, contexto e meta-prompts (`templates/meta-prompts/`) para auxiliar em tarefas (gerar código para ACs, commits, análise de ACs, docs, PRs - tasks `resolve-ac`, `commit-mesage`, `analyze-ac`, `update-doc`, `create-pr`, `create-test-sub-issue`). Requer setup (`pip install`, `GEMINI_API_KEY`). Use `python scripts/llm_interact.py -h`.
+
+## 9. Testes Automatizados
+
+*   **Testes Unitários e de Feature (PHPUnit):**
+    *   Focam em classes isoladas (Unit) ou na interação de vários objetos dentro do framework (Feature).
+    *   Execução: `php artisan test`
+    *   Localização: `tests/Unit`, `tests/Feature`
+*   **Testes de Browser (Laravel Dusk):**
+    *   Simulam a interação real do usuário com a aplicação através de um navegador Chrome.
+    *   Verificam a UI, fluxos de trabalho completos e JavaScript.
+    *   Localização: `tests/Browser`
+    *   **Execução Local (Requer Atenção):**
+        1.  **Certifique-se:** Google Chrome/Chromium está instalado. ChromeDriver correspondente está instalado (via `php artisan dusk:chrome-driver --detect`). O arquivo `.env.dusk.local` está configurado corretamente (especialmente `APP_URL` e `DB_DATABASE`).
+        2.  **Terminal 1:** Inicie o servidor de desenvolvimento Laravel:
+            ```bash
+            php artisan serve --port=8000 # Ou a porta definida em APP_URL no .env.dusk.local
+            ```
+        3.  **Terminal 2:** Inicie o ChromeDriver **MANUALMENTE** na porta 9515 (padrão do Dusk):
+            ```bash
+            # Exemplo Linux (adapte o nome do executável para seu SO)
+            ./vendor/laravel/dusk/bin/chromedriver-linux --port=9515
+            ```
+            *(Você deve ver uma mensagem "ChromeDriver was started successfully...")*
+        4.  **Terminal 3:** Execute os testes Dusk:
+            ```bash
+            php artisan dusk
+            ```
+*   **Fakes para Dependências USP:** Utilize as classes `Tests\Fakes\FakeReplicadoService` e `Tests\Fakes\FakeSenhaUnicaSocialiteProvider` para mockar respostas dos serviços USP em testes de Feature, evitando chamadas reais e garantindo testes determinísticos. Consulte a Wiki para exemplos.
+
+## 10. Uso de Termos RFC 2119 na Documentação
+
+Ao escrever documentação, use os termos da [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119) para indicar níveis de obrigatoriedade:
+
+| Inglês (RFC 2119)           | Português (Adotado)         | Significado                                     |
+| :-------------------------- | :-------------------------- | :---------------------------------------------- |
+| MUST, REQUIRED, SHALL       | **DEVE, DEVEM, REQUER**     | Obrigação absoluta.                             |
+| MUST NOT, SHALL NOT         | **NÃO DEVE, NÃO DEVEM**     | Proibição absoluta.                           |
+| SHOULD, RECOMMENDED         | **PODERIA, PODERIAM, RECOMENDÁVEL** | Forte recomendação, exceções justificadas. |
+| SHOULD NOT, NOT RECOMMENDED | **NÃO PODERIA, NÃO RECOMENDÁVEL** | Forte desaconselhamento, exceções justificadas. |
+| MAY, OPTIONAL               | **PODE, PODEM, OPCIONAL**   | Verdadeiramente opcional, sem preferência.      |

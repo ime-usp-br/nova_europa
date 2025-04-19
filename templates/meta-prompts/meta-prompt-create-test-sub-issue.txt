@@ -1,0 +1,30 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (a "IA Final") a gerar o **texto completo e formatado como um bloco `KEY: VALUE`** para um arquivo de plano `.txt`. Este bloco definirá uma **ÚNICA** sub-issue do GitHub focada **exclusivamente** na implementação de testes abrangentes (Unitários, Feature PHPUnit, Browser Dusk) e automação CI para a funcionalidade descrita na Issue pai `#__PARENT_ISSUE_NUMBER__` (derivada conceitualmente do AC `__PARENT_AC_NUMBER__`, se fornecido), utilizando como base este meta-prompt e os arquivos de contexto anexados. O texto gerado pelo prompt final **DEVE** ser adequado para uso direto com o script `scripts/criar_issues_script.py`. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para a Construção do Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes ao gerar o bloco de texto do plano:
+
+1.  **Objetivo Principal:** Instrua a IA Final a gerar o texto completo para **UM ÚNICO BLOCO** de definição de issue, formatado como `KEY: VALUE` por linha, adequado para um arquivo `.txt` usado por `scripts/criar_issues_script.py`. O foco desta issue definida no bloco é a **implementação de testes Unitários (se aplicável), Feature (PHPUnit) e Browser (Dusk), além da configuração/validação da automação via GitHub Actions**, para a funcionalidade da Issue pai `#__PARENT_ISSUE_NUMBER__`.
+
+2.  **Análise Mandatória do Contexto:** Exija que a IA Final analise **TODOS** os arquivos de contexto anexados (especialmente `github_issue___PARENT_ISSUE_NUMBER___details.json`, `tests/Feature/*`, `tests/Unit/*`, `.github/workflows/laravel.yml`, `docs/guia_de_desenvolvimento.md`, `docs/padroes_codigo_boas_praticas.md` e o código relevante da issue pai inferido dos diffs/logs) para entender completamente a funcionalidade a ser testada e os padrões do projeto.
+
+3.  **Geração do Conteúdo do Bloco (Formato `KEY: VALUE`):**
+    *   A IA Final **DEVE** gerar o bloco de texto contendo as seguintes chaves, cada uma em sua própria linha, seguida por `: ` e o valor correspondente:
+        *   `TITLE:` Gere um título claro e conciso, indicando que é uma sub-issue de teste e referenciando a issue pai. **DEDUZIDO** do contexto. Ex: `[TEST][Auth] Implementar Testes para Login UI (#__PARENT_ISSUE_NUMBER__)`
+        *   `TYPE:` **DEVE** ser `test`.
+        *   `LABELS:` Sugira uma lista separada por vírgulas de labels relevantes (ex: `test,autenticacao,phpunit,dusk,ci,todo`), **DEDUZINDO** o módulo (`autenticacao`) do contexto da issue pai.
+        *   `ASSIGNEE:` Sugira `@me`.
+        *   `PROJECT:` (Opcional) Se a issue pai estiver associada a um projeto no contexto, sugira o mesmo nome de projeto aqui. Caso contrário, omita esta chave.
+        *   `MILESTONE:` (Opcional) Se a issue pai estiver associada a um milestone no contexto, sugira o mesmo título de milestone aqui. Caso contrário, omita esta chave.
+        *   `PARENT_ISSUE:` **DEVE** ser `#__PARENT_ISSUE_NUMBER__`.
+        *   `TEST_MOTIVATION:` Gere uma explicação **concisa** em texto puro (pode ter múltiplas linhas) sobre a importância dos testes para a funcionalidade da Issue `#__PARENT_ISSUE_NUMBER__`, mencionando o AC `__PARENT_AC_NUMBER__` se relevante.
+        *   `TEST_SCOPE:` Gere uma descrição **detalhada** em texto puro (pode ter múltiplas linhas) do escopo do trabalho, incluindo os tipos de teste e áreas a serem focadas, **DEDUZINDO** da análise da issue pai.
+        *   `TEST_APPROACH:` Gere sugestões de abordagem em texto puro (pode ter múltiplas linhas).
+        *   `ACCEPTANCE_CRITERIA:` Gere uma **lista detalhada e formatada em Markdown com checklist (`- [ ]`)** dos Critérios de Aceite para *esta tarefa de teste*, cobrindo as categorias padrão (Configuração, Unitários, Feature, Browser/Dusk, Automação CI, Qualidade) e adaptando-as **especificamente** à funcionalidade da Issue pai `#__PARENT_ISSUE_NUMBER__`. **IMPORTANTE:** O valor desta chave DEVE ser multi-linhas e conter a sintaxe Markdown completa do checklist.
+
+4.  **Formatação da Saída Final (EXTREMAMENTE IMPORTANTE):** O prompt final **DEVE ORDENAR CATEGORICAMENTE** à IA Final que sua resposta contenha **APENAS E SOMENTE APENAS** o texto puro do bloco de definição da issue, formatado exatamente como `KEY: VALUE` por linha, com valores multi-linha corretamente indentados ou formatados conforme o padrão do script `criar_issues_script.py`. **NENHUM caractere extra**, nenhuma explicação, nenhuma introdução, nenhum delimitador como `--- START BLOCK ---`. A resposta deve começar diretamente com `TITLE: ` e terminar imediatamente após a última linha do valor de `ACCEPTANCE_CRITERIA:`.
+
+5.  **Baseado no Contexto:** Reafirme que a IA Final **DEVE** basear os *valores* gerados para as chaves (exceto as fixas como `TYPE: test`) **UNICAMENTE** nas informações contidas nos arquivos de contexto fornecidos e nas regras documentadas.
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final que instruirá a IA Final a gerar o bloco de texto do plano para a sub-issue de teste, seguindo as diretrizes de formato de saída e utilizando os valores específicos (`__PARENT_ISSUE_NUMBER__`, `__PARENT_AC_NUMBER__`) que já estarão presentes neste meta-prompt quando você o processar. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**

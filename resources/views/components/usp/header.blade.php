@@ -5,7 +5,8 @@
         <div class="flex justify-between items-center py-3">
             {{-- Logo USP Imagem --}}
             <div class="flex-shrink-0 hidden sm:block">
-                <a href="http://www.usp.br" target="_blank" title="Portal da USP">
+                {{-- AC8: Adicionado seletor dusk --}}
+                <a href="http://www.usp.br" target="_blank" title="Portal da USP" dusk="usp-logo">
                     <img src="{{ Vite::asset('resources/images/usp/usp-logo.png') }}"
                          width="122" height="49" alt="Logotipo da Universidade de São Paulo"
                          class="h-12 w-auto">
