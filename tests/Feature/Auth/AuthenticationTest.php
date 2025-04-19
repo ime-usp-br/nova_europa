@@ -4,7 +4,11 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\RedirectResponse;
+use Laravel\Socialite\Facades\Socialite;
 use Livewire\Volt\Volt;
+use Mockery;
+use Tests\Fakes\FakeSenhaunicaSocialiteProvider;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -99,6 +103,41 @@ class AuthenticationTest extends TestCase
         $component->assertNoRedirect(); // Garante que não houve redirecionamento
 
         $this->assertGuest(); // Garante que o usuário não foi autenticado
+    }
+
+    /**
+     * Test if accessing the /login route triggers the Senhaunica Socialite redirect.
+     *
+     * @test
+     * @group auth
+     * @covers \Uspdev\SenhaunicaSocialite\Http\Controllers\SenhaunicaController::redirectToProvider
+     * @see \Tests\Feature\Auth\AuthenticationTest::test_login_route_redirects_to_senhaunica_provider
+     *
+     * Acceptance Criteria 7 (AC7) from Issue #31:
+     * - Teste verifica se o acesso à rota `/login` (botão Senha Única) invoca o método correto do `SenhaunicaController` (ex: `redirectToProvider`). (Pode exigir mock do Socialite).
+     */
+    public function test_login_route_redirects_to_senhaunica_provider(): void
+    {
+        // Arrange: Mock the Socialite facade to return our Fake Provider instance
+        // Use the Fake Provider to simulate the redirect without needing Mockery directly on the driver
+        // This ensures our SenhaunicaController calls Socialite::driver('senhaunica')->redirect()
+        $fakeProvider = new FakeSenhaunicaSocialiteProvider(); // Instancia o Fake
+        $fakeProvider->setRedirectUrl('https://expected-fake-redirect.usp.br'); // Define a URL esperada
+
+        // Configura o Facade para retornar nossa instância fake quando o driver 'senhaunica' for chamado
+        Socialite::shouldReceive('driver')
+            ->with('senhaunica')
+            ->once() // Garante que o driver foi chamado
+            ->andReturn($fakeProvider); // Retorna nossa instância fake
+
+        // Act: Make a GET request to the main login route (which now handles SenhaUnica)
+        $response = $this->get(route('login')); // Use route() helper
+
+        // Assert: Check if the response is a redirect to the URL defined in our Fake Provider
+        $response->assertStatus(302);
+        $response->assertRedirect('https://expected-fake-redirect.usp.br');
+
+        // Mockery's expectation `->once()` verifies the driver was requested.
     }
 
     public function test_navigation_menu_can_be_rendered(): void
