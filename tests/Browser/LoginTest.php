@@ -3,6 +3,7 @@
 namespace Tests\Browser;
 
 use App\Livewire\Forms\LoginForm;
+use App\Models\User; // Added import for User model
 use App\View\Components\GuestLayout;
 use App\View\Components\usp\header as UspHeader; // Alias to avoid conflict
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -54,23 +55,32 @@ class LoginTest extends DuskTestCase
         });
     }
 
-    // AC9 to AC13 will be implemented in separate test methods later.
-    // Example placeholder for AC9
-    // #[Test]
-    // #[Group('auth')]
-    // #[Group('dusk')]
-    // public function user_can_login_successfully_via_local_form(): void
-    // {
-    //     $user = \App\Models\User::factory()->create([
-    //         'email' => 'taylor@laravel.com',
-    //     ]);
-    //
-    //     $this->browse(function (Browser $browser) use ($user) {
-    //         $browser->visit('/login/local')
-    //                 ->type('@email-input', $user->email)
-    //                 ->type('@password-input', 'password')
-    //                 ->click('@login-button')
-    //                 ->assertPathIs('/dashboard'); // Or your intended redirect path
-    //     });
-    // }
+    /**
+     * Test if a user can log in successfully using the local credentials form.
+     *
+     * This test covers AC9 of Issue #31.
+     */
+    #[Test]
+    #[Group('auth')]
+    #[Group('dusk')]
+    public function user_can_login_successfully_via_local_form(): void
+    {
+        // 1. Create a user using the factory
+        $user = User::factory()->create([
+            'email' => 'dusk-user@example.com', // Use a specific email for clarity
+            // Assumes the default factory password is 'password'
+        ]);
+
+        // 2. Use Dusk browser to interact with the login form
+        $this->browse(function (Browser $browser) use ($user) {
+            $browser->visit('/login/local') // Navigate to the local login page
+                ->type('@email-input', $user->email) // Type the user's email using the Dusk selector
+                ->type('@password-input', 'password') // Type the default password using the Dusk selector
+                ->click('@login-button') // Click the local login button using the Dusk selector
+                ->pause(100) // DEBUG: Pause to observe browser state if needed
+                ->assertPathIs('/dashboard'); // Assert that the browser is redirected to the dashboard
+        });
+    }
+
+    // AC10 to AC13 will be implemented in separate test methods later.
 }
