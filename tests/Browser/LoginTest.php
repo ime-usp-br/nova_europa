@@ -44,9 +44,9 @@ class LoginTest extends DuskTestCase
                 ->assertVisible('@email-input') // Check email input field
                 ->assertVisible('@password-input') // Check password input field
                 ->assertVisible('@login-button') // Check local "Log in" button
-                ->assertSeeIn('@login-button', __('Log in')) // Verify text of local "Log in" button
+                ->assertSeeIn('@login-button', strtoupper(__('Log in'))) // Verify text of local "Log in" button
                 ->assertVisible('@senhaunica-login-button') // Check Senha Única button/link
-                ->assertSeeIn('@senhaunica-login-button', __('Login with Senha Única USP')) // Verify text of Senha Única button/link
+                ->assertSeeIn('@senhaunica-login-button', strtoupper(__('Login with Senha Única USP'))) // Verify text of Senha Única button/link
                 ->assertVisible('@forgot-password-link') // Check "Forgot your password?" link
                 ->assertSeeIn('@forgot-password-link', __('Forgot your password?')) // Verify text of "Forgot password" link
                 ->assertVisible('@register-link') // Check "Register" link

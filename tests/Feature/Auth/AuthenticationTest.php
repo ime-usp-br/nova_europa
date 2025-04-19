@@ -128,7 +128,6 @@ class AuthenticationTest extends TestCase
      */
     #[Test]
     #[Group('auth')]
-    // #[CoversClass(SenhaunicaController::class)] // Moved to class level
     public function login_route_redirects_to_senhaunica_provider(): void
     {
         // Arrange: Mock the Socialite facade to return our Fake Provider instance

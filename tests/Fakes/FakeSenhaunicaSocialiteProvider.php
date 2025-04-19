@@ -10,6 +10,7 @@
 
 namespace Tests\Fakes;
 
+use Illuminate\Http\RedirectResponse;
 use Laravel\Socialite\Contracts\Provider as SocialiteProviderContract;
 use Laravel\Socialite\Two\User as SocialiteUser; // Usado para mapeamento padrão
 
@@ -90,7 +91,7 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
      */
     public function redirect()
     {
-        return new \Illuminate\Http\RedirectResponse($this->redirectUrl);
+        return new RedirectResponse($this->redirectUrl);
     }
 
     /**
