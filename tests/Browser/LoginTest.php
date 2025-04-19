@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\Test; // Added for #[Test]
 use Tests\DuskTestCase;
 
 /**
@@ -73,14 +73,51 @@ class LoginTest extends DuskTestCase
 
         // 2. Use Dusk browser to interact with the login form
         $this->browse(function (Browser $browser) use ($user) {
+            $browser->logout(); // Ensure clean state before login attempt
             $browser->visit('/login/local') // Navigate to the local login page
+                ->waitFor('@email-input') // Wait for element
                 ->type('@email-input', $user->email) // Type the user's email using the Dusk selector
+                ->waitFor('@password-input') // Wait for element
                 ->type('@password-input', 'password') // Type the default password using the Dusk selector
+                ->waitFor('@login-button') // Wait for element
                 ->click('@login-button') // Click the local login button using the Dusk selector
-                ->pause(100) // DEBUG: Pause to observe browser state if needed
+                ->waitForLocation('/dashboard') // Wait for redirection
                 ->assertPathIs('/dashboard'); // Assert that the browser is redirected to the dashboard
         });
     }
 
-    // AC10 to AC13 will be implemented in separate test methods later.
+    /**
+     * Test if an authentication error message is shown with invalid credentials.
+     *
+     * Covers AC10 of Issue #31.
+     */
+    #[Test]
+    #[Group('auth')]
+    #[Group('dusk')]
+    public function user_cannot_login_with_invalid_credentials(): void
+    {
+        // Arrange: Create a user
+        $user = User::factory()->create([
+            'email' => 'dusk-invalid@example.com',
+        ]);
+
+        // Act & Assert
+        $this->browse(function (Browser $browser) use ($user) {
+            $browser->logout(); // Ensure clean state before login attempt
+            $browser->visit('/login/local')
+                ->waitFor('@email-input') // Wait for element
+                ->type('@email-input', $user->email)
+                ->waitFor('@password-input') // Wait for element
+                ->type('@password-input', 'wrong-password') // Use incorrect password
+                ->waitFor('@login-button') // Wait for element
+                ->click('@login-button')
+                ->pause(100)
+                ->assertPathIs('/login/local') // Should remain on the login page
+                ->waitFor('@email-error') // Wait for the error message element
+                ->assertVisible('@email-error') // Make sure the error container is visible
+                ->assertSeeIn('@email-error', trans('auth.failed')); // Check for the exact text
+        });
+    }
+
+    // AC11 to AC13 will be implemented in separate test methods later.
 }

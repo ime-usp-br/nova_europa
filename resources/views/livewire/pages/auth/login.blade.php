@@ -48,8 +48,10 @@ new #[Layout('layouts.guest')] class extends Component // Garante que usa o layo
         <div>
             <x-input-label for="email" :value="__('Email')" />
             {{-- AC8: Adicionado seletor dusk --}}
-            <x-text-input wire:model="form.email" id="email" class="block mt-1 w-full" type="email" name="email" required autofocus autocomplete="username" dusk="email-input" />
-            <x-input-error :messages="$errors->get('form.email')" class="mt-2" />
+            {{-- AC10: Added aria-describedby --}}
+            <x-text-input wire:model="form.email" id="email" class="block mt-1 w-full" type="email" name="email" required autofocus autocomplete="username" dusk="email-input" aria-describedby="email-error" />
+            {{-- AC10: Added dusk selector and id for error --}}
+            <x-input-error :messages="$errors->get('form.email')" class="mt-2" dusk="email-error" id="email-error"/>
         </div>
 
         <!-- Password -->
