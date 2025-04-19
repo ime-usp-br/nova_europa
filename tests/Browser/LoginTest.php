@@ -119,5 +119,29 @@ class LoginTest extends DuskTestCase
         });
     }
 
-    // AC11 to AC13 will be implemented in separate test methods later.
+    /**
+     * Test if clicking the Senha Única button initiates a redirect.
+     *
+     * Covers AC11 of Issue #31.
+     * Verifies that the browser is no longer on the local login page after clicking,
+     * implying a redirect was initiated (either to /login or the external provider).
+     */
+    #[Test]
+    #[Group('auth')]
+    #[Group('dusk')]
+    public function clicking_senhaunica_button_initiates_redirect(): void
+    {
+        $this->browse(function (Browser $browser) {
+            $browser->visit('/login/local')
+                ->waitFor('@senhaunica-login-button') // Wait for the button
+                ->click('@senhaunica-login-button') // Click the Senha Única button
+                ->pause(100) // Wait a bit for potential navigation/JS execution
+                ->assertPathIsNot('/login/local'); // Assert we are no longer on the local login page
+            // Note: We don't assert the exact target URL as it might be external or depend on Socialite config.
+            // Dusk might also not fully follow external redirects easily.
+            // The key is that the click action successfully triggered a navigation away from the local form.
+        });
+    }
+
+    // AC12 to AC13 will be implemented in separate test methods later.
 }
