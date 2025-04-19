@@ -19,7 +19,7 @@ from tqdm import tqdm # Added for AC32 and AC36
 # --- Configuration ---
 # Assumes the script is in /scripts and templates in /project_templates/meta-prompts
 BASE_DIR = Path(__file__).resolve().parent.parent
-META_PROMPT_DIR = BASE_DIR / "project_templates/meta-prompts"
+META_PROMPT_DIR = BASE_DIR / "templates/meta-prompts"
 CONTEXT_DIR_BASE = BASE_DIR / "context_llm/code"
 COMMON_CONTEXT_DIR = BASE_DIR / "context_llm/common" # Directory for common context files (AC7)
 OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, should be in .gitignore (AC8)

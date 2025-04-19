@@ -13,7 +13,7 @@ import traceback # Adicionado para melhor depuração
 # --- Constantes (mantidas como antes) ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT_FILE = BASE_DIR / "planos/plano_dev.txt"
-TEMPLATE_DIR = BASE_DIR / "project_templates/issue_bodies"
+TEMPLATE_DIR = BASE_DIR / "templates/issue_bodies"
 DEFAULT_TEMPLATE_NAME = "default_body.md" # Fallback template filename
 DEFAULT_LABEL = "todo"
 DEFAULT_ASSIGNEE = "@me"

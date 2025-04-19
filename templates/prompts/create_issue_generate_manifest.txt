@@ -1,0 +1,57 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Gere o texto completo e formatado **EXATAMENTE** como um bloco `KEY: VALUE` por linha, adequado para um arquivo de plano `.txt` que será processado pelo script `scripts/create_issue.py`. Este bloco definirá uma **ÚNICA** Issue do GitHub para a criação de um script Python (`generate_manifest.py`) que gera um manifesto JSON do projeto.
+
+**Instruções para a Geração do Bloco `KEY: VALUE`:**
+
+O texto que você gerar **DEVE** seguir **OBRIGATORIAMENTE, SEM EXCEÇÕES E COM MÁXIMA FIDELIDADE** as seguintes diretrizes para cada chave:
+
+1.  **`TITLE:`** Defina um título claro e conciso para a Issue, no formato `[DevTools][Feature] Criar script Python para gerar manifesto JSON do projeto`.
+2.  **`TYPE:`** Defina como `feature`.
+3.  **`LABELS:`** Sugira uma lista de labels relevantes separadas por vírgula, como `devtools,python,automation,feature,todo,manifest`.
+4.  **`ASSIGNEE:`** Defina como `@me`.
+5.  **`PROJECT:`** 1 (É o numero do projeto).
+6.  **`MILESTONE:`** Sem milestone.
+7.  **`FEATURE_MOTIVATION:`** Explique concisamente a necessidade deste script: reduzir a quantidade de contexto manual para LLMs, fornecer uma visão estruturada do projeto (incluindo código, docs, templates, configs), facilitar a análise de dependências básicas e o rastreamento de mudanças via hash.
+8.  **`FEATURE_DESCRIPTION:`** Descreva detalhadamente a funcionalidade do script `generate_manifest.py`. Ele **DEVE**:
+    *   Receber argumentos para especificar o arquivo de saída JSON e opcionalmente diretórios/arquivos a serem ignorados.
+    *   Varrer o diretório do projeto recursivamente.
+    *   Identificar arquivos relevantes: código fonte (PHP, JS, Python, Shell), views (Blade), arquivos de configuração, migrations, testes, documentação (`.md` na raiz e em `/docs`), templates (`project_templates`), arquivos de dependência (`composer.json`, `package.json`, etc.), arquivos `.env*`.
+    *   **Exceção de Inclusão:** Incluir **obrigatoriamente** todos os arquivos `.php` dentro de `vendor/uspdev/replicado/src/` e `vendor/uspdev/senhaunica-socialite/src/`.
+    *   **Inclusão de Contexto:** Incluir **obrigatoriamente** todos os arquivos de `context_llm/common/`.
+    *   **Inclusão de Contexto Dinâmico:** Incluir **obrigatoriamente** todos os arquivos dentro do diretório de contexto mais recente em `context_llm/code/` (ignorar diretórios mais antigos).
+    *   **Exclusões:** Ignorar explicitamente diretórios como `vendor/` (exceto os `uspdev` especificados), `node_modules/`, `storage/logs/`, `storage/framework/cache/`, `public/build/`, `.git/`, `.idea/`, `.vscode/`, `llm_outputs/` e o próprio `context_llm/` (exceto `common` e o último `code` dir).
+    *   Para cada arquivo incluído, gerar um objeto JSON com as seguintes chaves:
+        *   `path`: Caminho relativo à raiz do projeto.
+        *   `type`: Uma string categorizando o arquivo (ex: `code_php_controller`, `config`, `view_blade_component`, `docs_readme`, `template_meta_prompt`, `environment`, `dependency_config_composer`, `context_common_doc`, `context_code_output`, `code_php_vendor_uspdev_replicado`). Seja o mais específico possível.
+        *   `versioned`: Booleano indicando se o arquivo é rastreado pelo Git (`git ls-files --error-unmatch <path>`). Para arquivos nos diretórios `uspdev` vendor, `context_llm/common` e `context_llm/code`, este valor **DEVE** ser `false`.
+        *   `hash`: String contendo o hash (ex: SHA1) do conteúdo do arquivo. **NÃO DEVE** gerar hash para arquivos com `type` = `environment` (ex: `.env`). Para arquivos em `context_llm/code/`, o hash **PODE** ser `null` ou omitido.
+        *   `dependencies`: Array de strings (apenas para arquivos de código PHP, incluindo os de `uspdev`). Inferir basicamete a partir de `use` statements (nomes completos de classes/namespaces). Para outros tipos, usar `[]`.
+        *   `dependents`: Array de strings (inicialmente `[]` para todos os arquivos, pois a análise reversa é complexa).
+        *   `summary`: String. Para `docs_*`, `template_*`, `config`, `dependency_config_*` e `context_common_*`, gerar um resumo curto (ex: primeiras linhas ou descrição baseada no nome/tipo). Para arquivos em `context_llm/code/`, o resumo **DEVE** explicar o que o arquivo representa (ex: "Saída do comando git log", "Diff das mudanças em stage", "Detalhes da Issue #XX") e para quais tarefas LLM ele é potencialmente mais útil (ex: "Útil para gerar mensagens de commit e analisar histórico", "Essencial para gerar código relacionado à Issue #XX").
+    *   O resultado final **DEVE** ser um único array JSON contendo todos os objetos de arquivo, escrito no arquivo de saída especificado.
+9.  **`PROPOSED_SOLUTION:`** Descreva a abordagem técnica:
+    *   Usar Python 3 com bibliotecas padrão (`pathlib`, `subprocess`, `hashlib`, `json`, `re`).
+    *   Usar `git ls-files` para obter a lista inicial e verificar status versionado.
+    *   Implementar lógica de exclusão/inclusão explícita de diretórios/arquivos.
+    *   Usar `hashlib` para calcular hashes.
+    *   Usar regex simples (`re.findall`) para extrair `use` statements de arquivos PHP.
+    *   Implementar lógica condicional para gerar o campo `summary` baseado no `type` e localização do arquivo (lógica especial para `context_llm/code/*`).
+    *   Formatar a saída como JSON.
+10. **`ACCEPTANCE_CRITERIA:`** Crie uma lista detalhada de Critérios de Aceite em formato Markdown (`- [ ]`), cobrindo **TODOS** os requisitos da `FEATURE_DESCRIPTION`, incluindo:
+    *   Existência e funcionalidade básica do script `generate_manifest.py`.
+    *   Parsing correto de argumentos CLI (output, ignores).
+    *   Identificação correta de arquivos relevantes (incluindo `uspdev` vendor, `context_llm/common`, `context_llm/code/latest`).
+    *   Exclusão correta de diretórios/arquivos ignorados.
+    *   Geração precisa dos campos `path`, `type`, `versioned`, `hash` (e a ausência de hash para `.env`).
+    *   Inclusão de arquivos `uspdev` vendor com `versioned: false`.
+    *   Inclusão de arquivos `context_llm/common` e `context_llm/code/latest` com `versioned: false`.
+    *   Geração correta do `summary` para arquivos de documentação, templates, config, etc.
+    *   Geração correta e informativa do `summary` para arquivos em `context_llm/code/` (explicando o conteúdo e utilidade).
+    *   Extração básica de `dependencies` (nomes de `use` statements) para arquivos PHP (incluindo os de `uspdev`).
+    *   Campo `dependents` presente e vazio (`[]`) inicialmente.
+    *   Saída final em formato JSON válido contendo um array de objetos.
+    *   Tratamento básico de erros (ex: arquivo de entrada não encontrado).
+    *   Aderência a padrões básicos de estilo Python (PEP 8).
+
+**REGRAS DE SAÍDA (MUITO IMPORTANTE):**
+Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o texto completo do bloco de definição da issue, formatado exatamente como `KEY: VALUE` por linha, pronto para ser salvo em um arquivo `.txt`. **NÃO** inclua **NENHUMA** palavra, caractere, saudação, explicação, comentário ou qualquer outro texto antes ou depois do bloco gerado. A resposta deve começar **DIRETAMENTE** com `TITLE:` e terminar **IMEDIATAMENTE** após a última linha do valor de `ACCEPTANCE_CRITERIA:`. Use **português do Brasil**.
