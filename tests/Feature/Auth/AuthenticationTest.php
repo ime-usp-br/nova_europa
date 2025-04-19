@@ -4,28 +4,40 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\RedirectResponse;
 use Laravel\Socialite\Facades\Socialite;
 use Livewire\Volt\Volt;
-use Mockery;
+// use Mockery; // Mockery is implicitly used by Socialite::shouldReceive
+use PHPUnit\Framework\Attributes\CoversClass; // Added for #[CoversClass]
+use PHPUnit\Framework\Attributes\Group;      // Added for #[Group]
+use PHPUnit\Framework\Attributes\Test;       // Added for #[Test]
 use Tests\Fakes\FakeSenhaunicaSocialiteProvider;
 use Tests\TestCase;
+use Uspdev\SenhaunicaSocialite\Http\Controllers\SenhaunicaController; // Import the class to be covered
 
+// Apply CoversClass at the class level
+#[CoversClass(SenhaunicaController::class)]
 class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_screen_can_be_rendered(): void
+    #[Test]
+    public function login_screen_can_be_rendered(): void
     {
         // Teste original do Breeze para garantir que a rota local exista
         $response = $this->get('/login/local');
 
         $response
             ->assertOk()
+            // Note: assertSeeVolt might not be standard; replaced with assertSeeLivewire if applicable,
+            // or keep as is if using a specific Volt testing helper/assertion.
+            // Assuming Volt renders a Livewire component, assertSeeLivewire might be more standard.
+            // If Volt has its own assertion, keep it. Check Volt documentation if needed.
+            // For now, keeping assertSeeVolt based on previous context.
             ->assertSeeVolt('pages.auth.login');
     }
 
-    public function test_users_can_authenticate_using_the_local_login_screen(): void
+    #[Test]
+    public function users_can_authenticate_using_the_local_login_screen(): void
     {
         // Este teste atende ao Critério de Aceite 3 da Issue #31
         $user = User::factory()->create();
@@ -48,7 +60,8 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticated();
     }
 
-    public function test_email_must_be_a_valid_email_address_for_local_login(): void
+    #[Test]
+    public function email_must_be_a_valid_email_address_for_local_login(): void
     {
         // Este teste atende ao Critério de Aceite 4 da Issue #31
         Volt::test('pages.auth.login')
@@ -65,7 +78,8 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_users_can_not_authenticate_with_invalid_password_on_local_login(): void
+    #[Test]
+    public function users_can_not_authenticate_with_invalid_password_on_local_login(): void
     {
         // Este teste atende ao Critério de Aceite 5 da Issue #31
         $user = User::factory()->create();
@@ -86,7 +100,8 @@ class AuthenticationTest extends TestCase
         $this->assertGuest(); // Garante que o usuário não foi autenticado
     }
 
-    public function test_users_can_not_authenticate_with_non_existent_credentials_on_local_login(): void
+    #[Test]
+    public function users_can_not_authenticate_with_non_existent_credentials_on_local_login(): void
     {
         // Este teste atende ao Critério de Aceite 6 da Issue #31
         $component = Volt::test('pages.auth.login')
@@ -108,20 +123,18 @@ class AuthenticationTest extends TestCase
     /**
      * Test if accessing the /login route triggers the Senhaunica Socialite redirect.
      *
-     * @test
-     * @group auth
-     * @covers \Uspdev\SenhaunicaSocialite\Http\Controllers\SenhaunicaController::redirectToProvider
-     * @see \Tests\Feature\Auth\AuthenticationTest::test_login_route_redirects_to_senhaunica_provider
-     *
      * Acceptance Criteria 7 (AC7) from Issue #31:
      * - Teste verifica se o acesso à rota `/login` (botão Senha Única) invoca o método correto do `SenhaunicaController` (ex: `redirectToProvider`). (Pode exigir mock do Socialite).
      */
-    public function test_login_route_redirects_to_senhaunica_provider(): void
+    #[Test]
+    #[Group('auth')]
+    // #[CoversClass(SenhaunicaController::class)] // Moved to class level
+    public function login_route_redirects_to_senhaunica_provider(): void
     {
         // Arrange: Mock the Socialite facade to return our Fake Provider instance
         // Use the Fake Provider to simulate the redirect without needing Mockery directly on the driver
         // This ensures our SenhaunicaController calls Socialite::driver('senhaunica')->redirect()
-        $fakeProvider = new FakeSenhaunicaSocialiteProvider(); // Instancia o Fake
+        $fakeProvider = new FakeSenhaunicaSocialiteProvider; // Instancia o Fake
         $fakeProvider->setRedirectUrl('https://expected-fake-redirect.usp.br'); // Define a URL esperada
 
         // Configura o Facade para retornar nossa instância fake quando o driver 'senhaunica' for chamado
@@ -140,7 +153,8 @@ class AuthenticationTest extends TestCase
         // Mockery's expectation `->once()` verifies the driver was requested.
     }
 
-    public function test_navigation_menu_can_be_rendered(): void
+    #[Test]
+    public function navigation_menu_can_be_rendered(): void
     {
         $user = User::factory()->create();
 
@@ -153,7 +167,8 @@ class AuthenticationTest extends TestCase
             ->assertSeeVolt('layout.navigation');
     }
 
-    public function test_users_can_logout(): void
+    #[Test]
+    public function users_can_logout(): void
     {
         $user = User::factory()->create();
 

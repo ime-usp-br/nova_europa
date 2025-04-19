@@ -16,13 +16,14 @@ use Laravel\Socialite\Two\User as SocialiteUser; // Usado para mapeamento padrã
 class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
 {
     protected array $userData;
+
     protected string $redirectUrl = 'https://fake.sso.usp.br/oauth/authorize?fake_params';
 
     /**
      * Cria uma nova instância do provider fake.
      *
-     * @param array $userData Os dados do usuário fake a serem retornados.
-     *                        Deve incluir chaves como 'codpes', 'nompes', 'email', 'vinculo'.
+     * @param  array  $userData  Os dados do usuário fake a serem retornados.
+     *                           Deve incluir chaves como 'codpes', 'nompes', 'email', 'vinculo'.
      */
     public function __construct(array $userData = [])
     {
@@ -55,7 +56,7 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
      */
     public function user(): \Laravel\Socialite\Contracts\User
     {
-        $user = new SocialiteUser();
+        $user = new SocialiteUser;
         $user->map([
             'id' => $this->userData['codpes'] ?? null,
             'nickname' => $this->userData['nompes'] ?? null,
@@ -75,7 +76,7 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
         }
 
         // Adiciona um token fake (pode ser necessário para alguns fluxos)
-        $user->token = 'fake-token-' . bin2hex(random_bytes(10));
+        $user->token = 'fake-token-'.bin2hex(random_bytes(10));
         $user->tokenSecret = null; // OAuth1 não usa tokenSecret desta forma no callback final
         $user->refreshToken = null;
         $user->expiresIn = null;
@@ -98,6 +99,7 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
     public function setRedirectUrl(string $url): self
     {
         $this->redirectUrl = $url;
+
         return $this;
     }
 
@@ -110,11 +112,11 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
         return $this->user();
     }
 
-     public function userFromTokenAndSecret($token, $secret)
-     {
+    public function userFromTokenAndSecret($token, $secret)
+    {
         // Implementação pode ser adicionada se o teste precisar deste método
         return $this->user();
-     }
+    }
 
     public function getAccessTokenResponse($code)
     {
@@ -122,11 +124,11 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
         return ['access_token' => 'fake-token', 'expires_in' => 3600];
     }
 
-     public function getRefreshTokenResponse($refreshToken)
-     {
-         // Simular uma resposta de refresh token se necessário
-         return ['access_token' => 'refreshed-fake-token', 'expires_in' => 3600];
-     }
+    public function getRefreshTokenResponse($refreshToken)
+    {
+        // Simular uma resposta de refresh token se necessário
+        return ['access_token' => 'refreshed-fake-token', 'expires_in' => 3600];
+    }
 
     public function scopes($scopes)
     {
@@ -138,20 +140,20 @@ class FakeSenhaunicaSocialiteProvider implements SocialiteProviderContract
         return $this;
     }
 
-     public function with($parameters)
-     {
-         return $this;
-     }
+    public function with($parameters)
+    {
+        return $this;
+    }
 
-     public function buildAuthUrlFromBase($url, $state)
-     {
-         return $url.'?state='.$state.'&fake_auth';
-     }
+    public function buildAuthUrlFromBase($url, $state)
+    {
+        return $url.'?state='.$state.'&fake_auth';
+    }
 
-     public function getCodeFields($state = null)
-     {
+    public function getCodeFields($state = null)
+    {
         return ['code' => 'fake_code', 'state' => $state];
-     }
+    }
 
     public function getState()
     {
