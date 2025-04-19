@@ -1,0 +1,51 @@
+TITLE: [DevTools][Refactor] Migrar script gerar_contexto_llm.sh para Python
+TYPE: refactor
+LABELS: devtools,python,refactor,chore,todo,bash-migration
+ASSIGNEE: @me
+PROJECT: Laravel 12 Starter Kit
+MILESTONE:
+REFACTOR_MOTIVATION: Padronizar as ferramentas de desenvolvimento do projeto utilizando Python, substituindo o script Bash `gerar_contexto_llm.sh`. A migração para Python visa melhorar a manutenibilidade, legibilidade, robustez no tratamento de erros, testabilidade futura e facilitar a extensibilidade da ferramenta de coleta de contexto.
+REFACTOR_DESCRIPTION: Converter integralmente a funcionalidade do script Bash `gerar_contexto_llm.sh` (última versão conhecida: v2.6) em um script Python equivalente, nomeado `scripts/generate_context.py`. Esse script **DEVE** ser versionado conforme os releases do projeto, se for necessario acessar uma versão anterior o mesmo **DEVE** ser feito via analise dos commits.
+O novo script Python DEVE replicar TODAS as seguintes funcionalidades de coleta de contexto:
+1.  Informações do Ambiente (SO, PHP, Node, NPM, Python, Pip, Venv).
+2.  Informações do Git (log, diff empty-tree, diff cached, diff unstaged, status, ls-files, tags recentes).
+3.  Informações do GitHub via `gh` CLI (Repo view, Runs, Workflows, PRs, Releases, Secrets/Variables names, Rulesets, Code Scanning alerts, Dependabot alerts).
+4.  Status do GitHub Project via `gh` CLI (lista de itens e resumo via `jq` se disponível).
+5.  Informações do Laravel Artisan (about, route:list, db:show, event:list, permission:show, queue:failed, schedule:list, env, migrate:status, config:show app/database).
+6.  Informações de Dependências (composer show, npm list, pip freeze).
+7.  Estrutura do Projeto (tree, cloc - tratando ferramentas opcionais).
+8.  Resultados de `phpstan analyse`.
+9.  Resultados de `vendor/bin/pint --test`.
+10. Resultados de `php artisan test --env=testing`.
+11. Cópia de arquivos de `planos/*.txt`.
+12. Cópia de arquivos de `templates/meta-prompts/*.txt`.
+13. Geração do `manifest.md` resumindo os arquivos coletados.
+14. Geração do `dusk_test_info.txt`.
+15. Criação do diretório de saída timestamped (`./context_llm/code/YYYYMMDD_HHMMSS/`) e colocação de todos os arquivos de saída diretamente nele.
+
+O script Python finalizado DEVE residir em `scripts/generate_context.py`. O script Bash original (`gerar_contexto_llm.sh`) PODERIA ser mantido temporariamente, mas DEVE ser removido ou marcado como obsoleto após validação.
+PROPOSED_SOLUTION:
+- Utilizar Python 3.10 ou superior.
+- Utilizar bibliotecas padrão: `pathlib` (manipulação de caminhos), `subprocess` (execução de comandos externos como git, gh, php, cloc, tree, composer, npm, pip), `json` (processamento de saídas JSON), `datetime` (timestamp), `os`, `sys`, `argparse` (para futuras flags/opções), `shutil` (cópia de arquivos), `re` (se necessário para parsing).
+- Adotar uma estrutura modular com funções dedicadas para cada tipo de coleta (ex: `collect_git_info`, `collect_artisan_commands`, `run_gh_command`).
+- Reutilizar/adaptar a função `run_command` e outras helpers dos scripts Python existentes no projeto para garantir consistência no tratamento de subprocessos e erros.
+- Implementar tratamento de erro robusto para `subprocess.run`, capturando `stdout`, `stderr`, e `returncode`. Registrar falhas nos arquivos de saída apropriados (ex: "gh command failed: <stderr>").
+- Lidar graciosamente com a ausência de ferramentas **opcionais** (`gh`, `jq`, `tree`, `cloc`, `composer`, `npm`, `pip`, `lsb_release`), registrando um aviso claro no arquivo de saída correspondente e permitindo que o script continue.
+- Falhar explicitamente se ferramentas **essenciais** (`git`, `php`) não forem encontradas.
+- Incluir docstrings claras nas funções Python.
+- Adicionar comentários no código para lógica complexa ou decisões específicas.
+ACCEPTANCE_CRITERIA:
+- [ ] AC1: Script `scripts/generate_context.py` existe no diretório `scripts/` e possui permissão de execução.
+- [ ] AC2: Script Python replica funcionalmente **todas** as 15 categorias de coleta de dados listadas na descrição, gerando os mesmos arquivos de saída que a versão `v2.6` do script Bash.
+- [ ] AC3: Script cria corretamente o diretório de saída no formato `./context_llm/code/YYYYMMDD_HHMMSS/`.
+- [ ] AC4: Todos os arquivos de log/saída gerados são colocados **diretamente** dentro do diretório timestamped (sem subdiretórios não solicitados).
+- [ ] AC5: Arquivo `manifest.md` é gerado dentro do diretório timestamped e lista corretamente todos os outros arquivos coletados.
+- [ ] AC6: Arquivo `dusk_test_info.txt` é gerado com o conteúdo informativo padrão.
+- [ ] AC7: Script executa sem falhar e registra avisos nos arquivos de saída apropriados caso ferramentas **opcionais** (`gh`, `jq`, `tree`, `cloc`, `composer`, `npm`, `pip`, `python3`, `pip3`, `lsb_release`) não estejam disponíveis.
+- [ ] AC8: Script falha com mensagem de erro clara e código de saída > 0 se ferramentas **essenciais** (`git`, `php`) não forem encontradas no PATH.
+- [ ] AC9: Script captura e registra mensagens de erro de comandos externos (ex: falha de conexão com DB no `migrate:status`, erro de permissão no `gh secret list`) dentro do respectivo arquivo de saída, mas **continua** a execução para coletar outros dados.
+- [ ] AC10: Script lida corretamente com caminhos e nomes de arquivo que possam conter espaços ou caracteres especiais (embora incomum nos arquivos coletados).
+- [ ] AC11: Código Python do script adere às convenções do PEP 8 (verificável com linters ou revisão).
+- [ ] AC12: Funções principais e lógica complexa no script Python possuem docstrings explicativas.
+- [ ] AC13: A execução do script Python tem performance comparável (não significativamente mais lenta) à do script Bash original em um ambiente de teste padrão.
+- [ ] AC14: Documentação do projeto (`README.md`, `docs/guia_de_desenvolvimento.md`) é atualizada para refletir a existência e o uso do novo script Python `generate_context.py`, e menciona o plano de obsolescência/remoção do script Bash.

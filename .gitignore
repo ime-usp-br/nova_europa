@@ -25,3 +25,4 @@ source_code_string.txt
 update_project.py
 /context_llm/
 /llm_outputs/
+/scripts/data/
