@@ -1,7 +1,7 @@
 # Laravel 12 USP Starter Kit
 
 **Versão:** 0.1.0<br>
-**Data:** 2025-04-12
+**Data:** 2025-04-17
 
 [![Status da Build](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -53,11 +53,16 @@ Este Starter Kit vem pré-configurado com:
 *   **Testes Automatizados:**
     *   Estrutura inicial com testes unitários e de feature (**PHPUnit** como framework padrão, configurado pelo Breeze).
     *   Testes básicos de autenticação adicionados pelo Breeze.
+    *   **Laravel Dusk:** Para testes de browser End-to-End.
     *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais (Planejado).
 *   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
+*   **Ferramentas de Desenvolvimento:**
+    *   Script Bash (`criar_issues_script.sh`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`project_templates/issue_bodies/*.md`).
+    *   Script Bash (`gerar_contexto_llm.sh`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs.
+    *   Script Python (`scripts/llm_interact.py`) para interagir com a API Google Gemini, utilizando o contexto gerado e meta-prompts (`project_templates/meta-prompts/*.txt`), para auxiliar em tarefas de desenvolvimento (geração de código, commits, análise de ACs, documentação, PRs).
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
-*Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki).*
+*Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md).*
 
 ## 4. Stack Tecnológica
 
@@ -74,18 +79,21 @@ Este Starter Kit vem pré-configurado com:
     *   `uspdev/replicado`
 *   **Autenticação Scaffolding:** `laravel/breeze`
 *   **Permissões:** `spatie/laravel-permission`
-*   **Testes:** **PHPUnit**
+*   **Testes:** **PHPUnit**, **Laravel Dusk**
 *   **Qualidade:** Laravel Pint, Larastan
+*   **Ferramentas Dev:** Python 3.x, `google-genai`, `python-dotenv`, `tqdm` (para script LLM)
 
 ## 5. Instalação
 
-Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) pré-instalado e configurado. Siga os passos abaixo para iniciar seu projeto:
+Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) e Laravel Dusk pré-instalados e configurados. Siga os passos abaixo para iniciar seu projeto:
 
 1.  **Pré-requisitos:**
     *   PHP >= 8.2 (com extensões comuns do Laravel: ctype, fileinfo, json, mbstring, openssl, PDO, tokenizer, xml, etc.)
     *   Composer
     *   Node.js (v18+) e NPM
     *   Git
+    *   **Google Chrome** ou **Chromium** instalado (para testes Dusk)
+    *   (Opcional, para ferramentas de dev) Python >= 3.8, Pip, `gh` CLI, `jq`
 
 2.  **Clonar o Repositório:**
     ```bash
@@ -94,13 +102,11 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
     ```
 
 3.  **Instalar Dependências PHP:**
-    *   Isso instalará o Laravel, Breeze, pacotes USP, Spatie e outras dependências listadas no `composer.json`.
     ```bash
     composer install
     ```
 
 4.  **Instalar Dependências Frontend:**
-    *   Isso instalará Tailwind, Alpine.js e outras dependências listadas no `package.json`.
     ```bash
     npm install
     ```
@@ -120,9 +126,10 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         *   `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: Credenciais do seu banco de dados.
         *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail).
         *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
+        *   **(Opcional) `GEMINI_API_KEY`:** Adicione sua chave da API Google Gemini para usar o script `llm_interact.py`. Pode conter múltiplas chaves separadas por `|`.
 
 6.  **Banco de Dados e Dados Iniciais:**
-    *   Execute as migrações para criar todas as tabelas necessárias (usuários, cache, jobs, sessões, Breeze, Spatie, Senha Única):
+    *   Execute as migrações para criar todas as tabelas necessárias:
         ```bash
         php artisan migrate
         ```
@@ -130,7 +137,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         ```bash
         php artisan db:seed
         ```
-        *(Use `php artisan migrate --seed` se preferir combinar os comandos).*
 
 7.  **Compilar Assets Frontend:**
     ```bash
@@ -138,21 +144,31 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
     ```
     *(Ou use `npm run dev` durante o desenvolvimento para compilação automática).*
 
-8.  **Iniciar Servidores (Desenvolvimento):**
-    *   Servidor web PHP:
+8.  **Configuração Inicial do Dusk (Importante):**
+    *   **Verificar Instalação:** Confirme se o Dusk está instalado (já deveria estar no `composer.json`). Se necessário, rode `php artisan dusk:install`.
+    *   **Instalar ChromeDriver:** Instale o driver correto para sua versão do Chrome/Chromium:
         ```bash
-        php artisan serve
+        php artisan dusk:chrome-driver --detect
         ```
-    *   Compilador Vite (necessário se for fazer alterações no CSS/JS):
-        ```bash
-        npm run dev
-        ```
+        *(Se encontrar erros de conexão SSL/TLS (`cURL error 28`), resolva problemas de rede/firewall/certificados antes de continuar).*
+    *   **Criar/Verificar `.env.dusk.local`:** Crie este arquivo na raiz do projeto (se não existir) e configure-o para o ambiente de teste do Dusk. Um exemplo (`.env.dusk.local`) já está incluído neste repositório. Preste atenção especial a:
+        *   `APP_URL=http://127.0.0.1:8000` (ou a URL que `php artisan serve` usa)
+        *   `DB_CONNECTION=sqlite` e `DB_DATABASE=database/testing/dusk.sqlite` (recomendado usar um banco de dados SQLite separado para testes Dusk)
 
-Seu ambiente de desenvolvimento com o Starter Kit (incluindo a base do Breeze TALL) deve estar pronto para uso.
+9.  **(Opcional) Configurar Ferramentas de Desenvolvimento:**
+    *   Instale Python 3 e Pip, se necessário.
+    *   Instale as dependências Python para o script LLM:
+        ```bash
+        pip install google-genai python-dotenv tqdm
+        ```
+    *   Instale a `gh` CLI e `jq` se for usar os scripts `criar_issues_script.sh` ou `llm_interact.py` (tarefa `create-pr`).
+    *   Torne os scripts executáveis: `chmod +x criar_issues_script.sh gerar_contexto_llm.sh scripts/llm_interact.py scripts/create_issue.py`
+
+Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
 ## 6. Uso Básico
 
-1.  **Iniciar Servidores:**
+1.  **Iniciar Servidores (Desenvolvimento):**
     *   Para o servidor web PHP embutido:
         ```bash
         php artisan serve
@@ -164,7 +180,7 @@ Seu ambiente de desenvolvimento com o Starter Kit (incluindo a base do Breeze TA
 
 2.  **Acessar a Aplicação:**
     *   Abra seu navegador e acesse a `APP_URL` definida no `.env` (geralmente `http://localhost:8000`).
-    *   Páginas de autenticação: `/login`, `/register`.
+    *   Páginas de autenticação: `/login` (Senha Única), `/login/local`, `/register`.
 
 3.  **Credenciais Padrão:**
     *   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
@@ -190,14 +206,43 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 *   **Larastan (PHPStan):** Ferramenta de análise estática para encontrar erros sem executar o código.
     *   Para analisar: `vendor/bin/phpstan analyse`
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
-*   **Script de Criação de Issues (`criar_issues_script.sh`):** Uma ferramenta de automação (requer `gh` CLI, `jq`) que lê um arquivo de plano estruturado (veja `planos/plano_exemplo.txt`) e cria ou edita Issues no GitHub, utilizando templates (de `project_templates/issue_bodies/`) e associando metadados como labels, assignee, projeto e milestone. Facilita a transformação de planos em tarefas rastreáveis no GitHub.
+*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`project_templates/issue_bodies/*.md`).
+*   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python (requer `google-genai`, `python-dotenv`, `tqdm` e `GEMINI_API_KEY` no `.env`) que utiliza o contexto gerado e meta-prompts (`project_templates/meta-prompts/`) para interagir com a API Google Gemini e auxiliar em tarefas de desenvolvimento (gerar código, commits, análise de ACs, atualização de documentação, criação de PRs). Use `python scripts/llm_interact.py -h` para ver as opções.
 
 ## 9. Testes
 
-*   **Executando Testes:** Use o comando Artisan:
+*   **Executando Testes PHPUnit (Unitários e Feature):** Use o comando Artisan:
     ```bash
     php artisan test
     ```
+*   **Executando Testes Dusk (Browser / End-to-End):** Rodar testes Dusk requer que **o servidor da aplicação e o ChromeDriver estejam rodando simultaneamente** antes de executar o comando de teste.
+    1.  **Terminal 1 - Servidor da Aplicação:**
+        ```bash
+        php artisan serve
+        ```
+        *(Mantenha este terminal rodando)*
+    2.  **Terminal 2 - ChromeDriver:**
+        *   **Problema Comum:** Em alguns ambientes, o comando `php artisan dusk:chrome-driver` pode *não* manter o processo rodando como esperado, saindo imediatamente após confirmar a instalação.
+        *   **Solução Manual:** Se o comando acima sair imediatamente, inicie o ChromeDriver manualmente, **especificando a porta 9515** (ou a porta definida em `DUSK_DRIVER_URL` no seu `.env.dusk.local`). Encontre o executável correto para seu sistema operacional dentro de `./vendor/laravel/dusk/bin/` e execute-o com a flag `--port`:
+          ```bash
+          # Exemplo para Linux:
+          ./vendor/laravel/dusk/bin/chromedriver-linux --port=9515
+
+          # Exemplo para macOS (Intel):
+          # ./vendor/laravel/dusk/bin/chromedriver-mac-x64 --port=9515
+
+          # Exemplo para macOS (Apple Silicon):
+          # ./vendor/laravel/dusk/bin/chromedriver-mac-arm64 --port=9515
+
+          # Exemplo para Windows (use Git Bash ou similar):
+          # ./vendor/laravel/dusk/bin/chromedriver-win.exe --port=9515
+          ```
+        *(Mantenha este terminal rodando. Você deve ver uma mensagem como "ChromeDriver was started successfully on port 9515.")*
+    3.  **Terminal 3 - Executar Testes Dusk:**
+        ```bash
+        php artisan dusk
+        ```
 *   **Fakes para Dependências USP:** O kit inclui classes `Fake` (ex: `FakeReplicadoService`, `FakeSenhaUnicaSocialiteProvider`) para facilitar a escrita de testes que interagem com as funcionalidades da Senha Única ou Replicado sem depender dos serviços externos reais. Consulte a [Wiki](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para exemplos.
 
 ## 10. Documentação
@@ -220,7 +265,7 @@ Lá você encontrará:
 
 ## 11. Como Contribuir
 
-Contribuições são bem-vindas! Para garantir um desenvolvimento organizado e rastreável, siga o fluxo descrito no **[Guia de Estratégia de Desenvolvimento](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki)**.
+Contribuições são bem-vindas! Para garantir um desenvolvimento organizado e rastreável, siga o fluxo descrito no **[Guia de Estratégia de Desenvolvimento](./docs/guia_de_desenvolvimento.md)**.
 
 Em resumo:
 
@@ -231,7 +276,7 @@ Em resumo:
 5.  Aguarde a revisão (mesmo que seja auto-revisão) e a passagem da CI.
 6.  Faça o **Merge** do PR.
 
-*(Considere usar o script `criar_issues_script.sh` para agilizar a criação de issues a partir de um plano)*.
+*(Considere usar os scripts `scripts/create_issue.py` e `scripts/llm_interact.py` para agilizar a criação de issues e a geração de commits/PRs)*.
 
 ## 12. Licença
 

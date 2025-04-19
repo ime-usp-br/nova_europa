@@ -1,0 +1,19 @@
+**Sua ÚNICA tarefa:** Analisar **TODOS** os arquivos de contexto fornecidos (diffs, logs, issues, código, docs) para entender completamente as últimas alterações realizadas e gerar **EXCLUSIVAMENTE** uma mensagem de commit Git completa, formatada e em **português do Brasil**, seguindo **RIGOROSAMENTE** as regras abaixo:
+
+1.  **Identifique a Issue e AC:** Determine o número da Issue e, se aplicável, o número do Critério de Aceite (AC) principal relacionado às mudanças, com base nos arquivos de contexto (logs, diffs, detalhes da issue). Armazene-os para uso na mensagem.
+2.  **Formato Conventional Commits:** Siga o padrão `tipo(escopo): descrição concisa (#NUMERO_ISSUE)`.
+    *   **Tipo:** `feat` (nova funcionalidade), `fix` (correção de bug), `refactor` (refatoração sem mudança de comportamento), `style` (formatação), `test` (testes), `docs` (documentação), `chore` (manutenção, build).
+    *   **Escopo (Opcional):** Módulo ou área afetada (ex: `auth`, `devtools`, `layout`).
+    *   **Descrição:** Imperativa, curta, em português.
+    *   **Referência Issue:** Inclua `(#NUMERO_ISSUE)` no final do cabeçalho.
+3.  **Corpo do Commit (Obrigatório):**
+    *   Explique o *quê* foi feito e *por quê*, de forma clara e objetiva, em português.
+    *   Detalhe as principais alterações ou a lógica implementada.
+    *   Se aplicável, mencione o AC principal atendido: `Atende ao AC X da Issue #NUMERO_ISSUE.` ou `Contribui para o AC X da Issue #NUMERO_ISSUE.`.
+4.  **Rodapé (Opcional, mas recomendado):**
+    *   Use `Refs #NUMERO_ISSUE` para vincular a outras issues relacionadas (se houver).
+    *   Indique `BREAKING CHANGE:` se houver mudanças incompatíveis.
+5.  **Idioma:** Mensagem em português do Brasil. Nomenclatura técnica (nomes de variáveis, funções, classes, etc.) pode permanecer em inglês.
+6.  **Baseado APENAS no Contexto:** Sua análise e a mensagem gerada devem se basear **UNICAMENTE** nas informações contidas nos arquivos de contexto fornecidos. Considere o `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` como regras mandatórias. Considere o ambiente Laravel 12. Pesquise se tiver dúvidas sobre o framework ou padrões.
+7.  **PROIBIDO MENCIONAR ARQUIVOS DE CONTEXTO:** **NUNCA, EM HIPÓTESE ALGUMA,** mencione nomes de arquivos de contexto (`.txt`, `.json`, `.md`) na mensagem de commit final. Refira-se às *mudanças no código* ou *funcionalidades* ("Classe X", "Função Y", "Arquivo de script Z.py", "View de login").
+8.  **SAÍDA ESTRITAMENTE RESTRITA:** Sua resposta deve conter **APENAS E SOMENTE APENAS** o texto completo da mensagem de commit, formatado corretamente com cabeçalho, corpo e rodapé (se aplicável). **NÃO** inclua **NENHUMA** palavra, saudação, explicação, comentário ou qualquer outro texto antes ou depois da mensagem de commit. Sua resposta deve ser **PURAMENTE** a string da mensagem de commit final.

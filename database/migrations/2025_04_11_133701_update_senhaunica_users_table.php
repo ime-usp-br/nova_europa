@@ -15,7 +15,7 @@ class UpdateSenhaunicaUsersTable extends Migration
     {
         // Caso necessário, ajuste para refletir suas necessidades
         Schema::table('users', function (Blueprint $table) {
-            $table->string('password')->nullable()->change(); # deixar opcional
+            $table->string('password')->nullable()->change(); // deixar opcional
             $table->integer('codpes')->nullable();
         });
     }
@@ -28,6 +28,6 @@ class UpdateSenhaunicaUsersTable extends Migration
     public function down()
     {
         // Não vamos remover as colunas para preservar os dados
-        //$table->dropColumn('codpes');
+        // $table->dropColumn('codpes');
     }
 }

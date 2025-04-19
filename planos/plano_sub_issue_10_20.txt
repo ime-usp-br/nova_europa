@@ -1,0 +1,31 @@
+TITLE: [TEST][AUTH] Implementar Testes para Login UI (#20)
+TYPE: test
+LABELS: test,phpunit,dusk,ci,todo,autenticacao
+ASSIGNEE: @me
+PROJECT: laravel_12_starter_kit
+MILESTONE: v0.1.0: Autenticação Dupla (Senha Única + Local)
+PARENT_ISSUE: #20
+TEST_MOTIVATION: Garantir que a interface de login com opções dupla (Senha Única + Local), implementada na Issue #20 (especialmente AC10), funcione corretamente, seja responsiva, visualmente adequada (logos, links) e não sofra regressões com futuras alterações. Validar a presença e funcionalidade dos elementos chave e a integração com os fluxos de autenticação local e Senha Única.
+TEST_SCOPE: Configuração inicial do Laravel Dusk (instalação, `.env.dusk.local`), pois não está presente no `composer.json`. Criação de Testes de Feature (PHPUnit) para validar a lógica de autenticação local via componente Livewire/Form Object (sucesso, falha de validação, credenciais incorretas). Criação de Testes de Browser (Dusk) para verificar a renderização correta da view `/login/local`, a presença e funcionalidade dos elementos de UI (logos, campos de email/senha, botão 'Log in' local, botão 'Login com Senha Única USP', link 'Esqueci minha senha?', link 'Register'), e as interações de clique/submissão/redirecionamento. Validação e potencial configuração da execução de testes PHPUnit e Dusk no workflow de CI existente (`.github/workflows/laravel.yml`).
+TEST_APPROACH: Utilizar `UserFactory` para criar usuários de teste. Nos testes de Feature, simular a submissão do formulário Livewire e verificar a resposta/sessão/redirecionamento. Mockar/Simular o redirecionamento do Socialite para o botão SU no teste de Feature. Nos testes Dusk, utilizar seletores específicos e estáveis (IDs, `dusk:*` attributes se adicionados, ou seletores CSS/XPath robustos) para interagir com os elementos da página `/login/local`. Cobrir cenários de sucesso e falha no login local, e cliques nos links de navegação (Senha Única, Esqueci Senha, Registro).
+ACCEPTANCE_CRITERIA:
+- [ ] **Configuração:** Laravel Dusk instalado via Composer (`composer require --dev laravel/dusk`) e configurado (`php artisan dusk:install`).
+- [ ] **Configuração:** Arquivo `.env.dusk.local` criado e configurado para o ambiente de teste de browser (ex: URL da aplicação, DB de teste se diferente).
+- [ ] **Teste Feature (PHPUnit):** Teste verifica se um usuário pode se autenticar com sucesso usando credenciais locais válidas via componente Livewire de login e é redirecionado para `/dashboard`.
+- [ ] **Teste Feature (PHPUnit):** Teste verifica se a tentativa de login local com email inválido retorna erro de validação apropriado para o campo de email.
+- [ ] **Teste Feature (PHPUnit):** Teste verifica se a tentativa de login local com senha inválida retorna erro de validação apropriado para o campo de senha.
+- [ ] **Teste Feature (PHPUnit):** Teste verifica se a tentativa de login local com credenciais válidas, mas não existentes, retorna erro de autenticação (`auth.failed`).
+- [ ] **Teste Feature (PHPUnit):** Teste verifica se o acesso à rota `/login` (botão Senha Única) invoca o método correto do `SenhaunicaController` (ex: `redirectToProvider`). (Pode exigir mock do Socialite).
+- [ ] **Teste Browser (Dusk):** Teste acessa `/login/local` e verifica a presença dos logos (IME/USP), campos de Email e Senha, botão "Log in", botão "Login com Senha Única USP", link "Forgot your password?" e link "Register".
+- [ ] **Teste Browser (Dusk):** Teste preenche o formulário de login local com credenciais válidas, submete, e verifica se o usuário é redirecionado para `/dashboard`.
+- [ ] **Teste Browser (Dusk):** Teste preenche o formulário de login local com credenciais inválidas, submete, e verifica se uma mensagem de erro de autenticação é exibida na página `/login/local`.
+- [ ] **Teste Browser (Dusk):** Teste clica no botão "Login com Senha Única USP" e verifica se ocorre o redirecionamento para iniciar o fluxo OAuth (ex: verifica se a URL muda para a rota `/login` ou para o host da Senha Única, ou se não há erro JS).
+- [ ] **Teste Browser (Dusk):** Teste clica no link "Forgot your password?" e verifica se a página é redirecionada para `/forgot-password`.
+- [ ] **Teste Browser (Dusk):** Teste clica no link "Register" e verifica se a página é redirecionada para `/register`.
+- [ ] **Automação CI:** Workflow `.github/workflows/laravel.yml` existe e está ativo.
+- [ ] **Automação CI:** Workflow executa `php artisan test` (testes PHPUnit) com sucesso.
+- [ ] **Automação CI:** Workflow é atualizado para instalar dependências Dusk e executar `php artisan dusk` com sucesso (incluindo setup do ChromeDriver/Browser no ambiente CI).
+- [ ] **Automação CI:** Workflow é disparado em eventos de `push` e `pull_request` para o branch `main`.
+- [ ] **Qualidade:** Código dos testes (PHPUnit e Dusk) está formatado corretamente via `./vendor/bin/pint`.
+- [ ] **Qualidade:** Código dos testes passa na análise estática via `./vendor/bin/phpstan analyse`.
+- [ ] **Qualidade:** Documentação (`README.md` ou guia de desenvolvimento) atualizada com instruções sobre como configurar e rodar os testes Dusk localmente (se necessário).
