@@ -14,9 +14,10 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\DuskTestCase;
 
 /**
- * Testes para a funcionalidade de Login usando Laravel Dusk.
- *
- * Corresponde à Issue #31.
+ * Contém os testes de browser (Dusk) para a funcionalidade de Login.
+ * Garante que a interface de login local e seus elementos funcionem corretamente,
+ * incluindo a interação com os botões de login local e Senha Única,
+ * e os links de navegação para registro e recuperação de senha.
  */
 #[CoversClass(LoginForm::class)]
 #[CoversClass(GuestLayout::class)]
@@ -26,9 +27,8 @@ class LoginTest extends DuskTestCase
     use DatabaseMigrations;
 
     /**
-     * Testa se elementos essenciais da UI estão presentes na tela de login local.
-     *
-     * Este teste cobre o AC8 da Issue #31.
+     * Verifica se os elementos visuais essenciais (logos, campos, botões, links)
+     * estão presentes e visíveis na tela de login local (`/login/local`).
      */
     #[Test]
     #[Group('auth')]
@@ -54,9 +54,9 @@ class LoginTest extends DuskTestCase
     }
 
     /**
-     * Testa se um usuário pode logar com sucesso usando o formulário de credenciais locais.
-     *
-     * Este teste cobre o AC9 da Issue #31.
+     * Garante que um usuário registrado possa se autenticar com sucesso
+     * utilizando o formulário de login local (email e senha) e seja
+     * redirecionado para o painel de controle (`/dashboard`).
      */
     #[Test]
     #[Group('auth')]
@@ -82,9 +82,9 @@ class LoginTest extends DuskTestCase
     }
 
     /**
-     * Testa se uma mensagem de erro de autenticação é exibida com credenciais inválidas.
-     *
-     * Cobre o AC10 da Issue #31.
+     * Verifica se, ao tentar fazer login com credenciais locais inválidas
+     * (email correto, senha incorreta), o usuário permanece na página de login
+     * e uma mensagem de erro de autenticação (`auth.failed`) é exibida.
      */
     #[Test]
     #[Group('auth')]
@@ -113,11 +113,9 @@ class LoginTest extends DuskTestCase
     }
 
     /**
-     * Testa se clicar no botão Senha Única inicia um redirecionamento.
-     *
-     * Cobre o AC11 da Issue #31.
-     * Verifica que o navegador não está mais na página de login local após o clique,
-     * implicando que um redirecionamento foi iniciado (seja para /login ou para o provedor externo).
+     * Assegura que clicar no botão "Login com Senha Única USP" inicie um
+     * processo de redirecionamento, removendo o usuário da página de login local.
+     * O teste não verifica a URL exata de destino, apenas que a navegação ocorreu.
      */
     #[Test]
     #[Group('auth')]
@@ -129,14 +127,13 @@ class LoginTest extends DuskTestCase
                 ->waitFor('@senhaunica-login-button')
                 ->click('@senhaunica-login-button')
                 ->pause(100)
-                ->assertPathIsNot('/login/local');
+                ->assertPathIsNot('/login/local'); // Ensures a redirect happened
         });
     }
 
     /**
-     * Testa se clicar no link "Esqueceu sua senha?" redireciona corretamente.
-     *
-     * Cobre o AC12 da Issue #31.
+     * Verifica se clicar no link "Forgot your password?" na tela de login local
+     * redireciona o usuário corretamente para a página de recuperação de senha (`/forgot-password`).
      */
     #[Test]
     #[Group('auth')]
@@ -149,6 +146,34 @@ class LoginTest extends DuskTestCase
                 ->click('@forgot-password-link')
                 ->waitForLocation('/forgot-password')
                 ->assertPathIs('/forgot-password');
+        });
+    }
+
+    /**
+     * Garante que clicar no link "Register" na tela de login local redireciona
+     * o usuário para a página de registro (`/register`) e que os elementos
+     * esperados (campos de nome, email, senha, botão de registro, link "Já registrado?")
+     * estejam visíveis nesta nova página.
+     */
+    #[Test]
+    #[Group('auth')]
+    #[Group('dusk')]
+    public function clicking_register_link_redirects_correctly_and_shows_register_elements(): void
+    {
+        $this->browse(function (Browser $browser) {
+            $browser->visit('/login/local')
+                ->waitFor('@register-link')
+                ->click('@register-link')
+                ->waitForLocation('/register')
+                ->assertPathIs('/register')
+                ->assertVisible('@name-input')
+                ->assertVisible('@email-input')
+                ->assertVisible('@password-input')
+                ->assertVisible('@password-confirmation-input')
+                ->assertVisible('@register-button')
+                ->assertSeeIn('@register-button', strtoupper(__('Register')))
+                ->assertVisible('@already-registered-link')
+                ->assertSeeIn('@already-registered-link', __('Already registered?'));
         });
     }
 }
