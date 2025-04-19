@@ -3,33 +3,32 @@
 namespace Tests\Browser;
 
 use App\Livewire\Forms\LoginForm;
-use App\Models\User; // Added import for User model
+use App\Models\User;
 use App\View\Components\GuestLayout;
-use App\View\Components\usp\header as UspHeader; // Alias to avoid conflict
+use App\View\Components\usp\header as UspHeader;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Test; // Added for #[Test]
+use PHPUnit\Framework\Attributes\Test;
 use Tests\DuskTestCase;
 
 /**
- * Tests for the Login functionality using Laravel Dusk.
+ * Testes para a funcionalidade de Login usando Laravel Dusk.
  *
- * Corresponds to Issue #31.
+ * Corresponde à Issue #31.
  */
-// Covers the Livewire Form Object and the Layout/Header Components used
 #[CoversClass(LoginForm::class)]
 #[CoversClass(GuestLayout::class)]
-#[CoversClass(UspHeader::class)] // Use the alias
+#[CoversClass(UspHeader::class)]
 class LoginTest extends DuskTestCase
 {
-    use DatabaseMigrations; // Use migrations for Dusk tests if needed (e.g., if creating users)
+    use DatabaseMigrations;
 
     /**
-     * Test if essential UI elements are present on the local login screen.
+     * Testa se elementos essenciais da UI estão presentes na tela de login local.
      *
-     * This test covers AC8 of Issue #31.
+     * Este teste cobre o AC8 da Issue #31.
      */
     #[Test]
     #[Group('auth')]
@@ -37,94 +36,88 @@ class LoginTest extends DuskTestCase
     public function local_login_screen_elements_are_present(): void
     {
         $this->browse(function (Browser $browser) {
-            $browser->visit('/login/local') // Access the local login route
-                ->assertVisible('@usp-logo') // Check for USP logo (in header)
-                // Use assertPresent for logos that might depend on dark/light mode visibility
+            $browser->visit('/login/local')
+                ->assertVisible('@usp-logo')
                 ->assertPresent('@ime-logo-light')
                 ->assertPresent('@ime-logo-dark')
-                ->assertVisible('@email-input') // Check email input field
-                ->assertVisible('@password-input') // Check password input field
-                ->assertVisible('@login-button') // Check local "Log in" button
-                ->assertSeeIn('@login-button', strtoupper(__('Log in'))) // Verify text of local "Log in" button
-                ->assertVisible('@senhaunica-login-button') // Check Senha Única button/link
-                ->assertSeeIn('@senhaunica-login-button', strtoupper(__('Login with Senha Única USP'))) // Verify text of Senha Única button/link
-                ->assertVisible('@forgot-password-link') // Check "Forgot your password?" link
-                ->assertSeeIn('@forgot-password-link', __('Forgot your password?')) // Verify text of "Forgot password" link
-                ->assertVisible('@register-link') // Check "Register" link
-                ->assertSeeIn('@register-link', __('Register')); // Verify text of "Register" link
+                ->assertVisible('@email-input')
+                ->assertVisible('@password-input')
+                ->assertVisible('@login-button')
+                ->assertSeeIn('@login-button', strtoupper(__('Log in')))
+                ->assertVisible('@senhaunica-login-button')
+                ->assertSeeIn('@senhaunica-login-button', strtoupper(__('Login with Senha Única USP')))
+                ->assertVisible('@forgot-password-link')
+                ->assertSeeIn('@forgot-password-link', __('Forgot your password?'))
+                ->assertVisible('@register-link')
+                ->assertSeeIn('@register-link', __('Register'));
         });
     }
 
     /**
-     * Test if a user can log in successfully using the local credentials form.
+     * Testa se um usuário pode logar com sucesso usando o formulário de credenciais locais.
      *
-     * This test covers AC9 of Issue #31.
+     * Este teste cobre o AC9 da Issue #31.
      */
     #[Test]
     #[Group('auth')]
     #[Group('dusk')]
     public function user_can_login_successfully_via_local_form(): void
     {
-        // 1. Create a user using the factory
         $user = User::factory()->create([
-            'email' => 'dusk-user@example.com', // Use a specific email for clarity
-            // Assumes the default factory password is 'password'
+            'email' => 'dusk-user@example.com',
         ]);
 
-        // 2. Use Dusk browser to interact with the login form
         $this->browse(function (Browser $browser) use ($user) {
-            $browser->logout(); // Ensure clean state before login attempt
-            $browser->visit('/login/local') // Navigate to the local login page
-                ->waitFor('@email-input') // Wait for element
-                ->type('@email-input', $user->email) // Type the user's email using the Dusk selector
-                ->waitFor('@password-input') // Wait for element
-                ->type('@password-input', 'password') // Type the default password using the Dusk selector
-                ->waitFor('@login-button') // Wait for element
-                ->click('@login-button') // Click the local login button using the Dusk selector
-                ->waitForLocation('/dashboard') // Wait for redirection
-                ->assertPathIs('/dashboard'); // Assert that the browser is redirected to the dashboard
+            $browser->logout();
+            $browser->visit('/login/local')
+                ->waitFor('@email-input')
+                ->type('@email-input', $user->email)
+                ->waitFor('@password-input')
+                ->type('@password-input', 'password')
+                ->waitFor('@login-button')
+                ->click('@login-button')
+                ->waitForLocation('/dashboard')
+                ->assertPathIs('/dashboard');
         });
     }
 
     /**
-     * Test if an authentication error message is shown with invalid credentials.
+     * Testa se uma mensagem de erro de autenticação é exibida com credenciais inválidas.
      *
-     * Covers AC10 of Issue #31.
+     * Cobre o AC10 da Issue #31.
      */
     #[Test]
     #[Group('auth')]
     #[Group('dusk')]
     public function user_cannot_login_with_invalid_credentials(): void
     {
-        // Arrange: Create a user
         $user = User::factory()->create([
             'email' => 'dusk-invalid@example.com',
         ]);
 
-        // Act & Assert
         $this->browse(function (Browser $browser) use ($user) {
-            $browser->logout(); // Ensure clean state before login attempt
+            $browser->logout();
             $browser->visit('/login/local')
-                ->waitFor('@email-input') // Wait for element
+                ->waitFor('@email-input')
                 ->type('@email-input', $user->email)
-                ->waitFor('@password-input') // Wait for element
-                ->type('@password-input', 'wrong-password') // Use incorrect password
-                ->waitFor('@login-button') // Wait for element
+                ->waitFor('@password-input')
+                ->type('@password-input', 'wrong-password')
+                ->waitFor('@login-button')
                 ->click('@login-button')
                 ->pause(100)
-                ->assertPathIs('/login/local') // Should remain on the login page
-                ->waitFor('@email-error') // Wait for the error message element
-                ->assertVisible('@email-error') // Make sure the error container is visible
-                ->assertSeeIn('@email-error', trans('auth.failed')); // Check for the exact text
+                ->assertPathIs('/login/local')
+                ->waitFor('@email-error')
+                ->assertVisible('@email-error')
+                ->assertSeeIn('@email-error', trans('auth.failed'));
         });
     }
 
     /**
-     * Test if clicking the Senha Única button initiates a redirect.
+     * Testa se clicar no botão Senha Única inicia um redirecionamento.
      *
-     * Covers AC11 of Issue #31.
-     * Verifies that the browser is no longer on the local login page after clicking,
-     * implying a redirect was initiated (either to /login or the external provider).
+     * Cobre o AC11 da Issue #31.
+     * Verifica que o navegador não está mais na página de login local após o clique,
+     * implicando que um redirecionamento foi iniciado (seja para /login ou para o provedor externo).
      */
     #[Test]
     #[Group('auth')]
@@ -133,15 +126,29 @@ class LoginTest extends DuskTestCase
     {
         $this->browse(function (Browser $browser) {
             $browser->visit('/login/local')
-                ->waitFor('@senhaunica-login-button') // Wait for the button
-                ->click('@senhaunica-login-button') // Click the Senha Única button
-                ->pause(100) // Wait a bit for potential navigation/JS execution
-                ->assertPathIsNot('/login/local'); // Assert we are no longer on the local login page
-            // Note: We don't assert the exact target URL as it might be external or depend on Socialite config.
-            // Dusk might also not fully follow external redirects easily.
-            // The key is that the click action successfully triggered a navigation away from the local form.
+                ->waitFor('@senhaunica-login-button')
+                ->click('@senhaunica-login-button')
+                ->pause(100)
+                ->assertPathIsNot('/login/local');
         });
     }
 
-    // AC12 to AC13 will be implemented in separate test methods later.
+    /**
+     * Testa se clicar no link "Esqueceu sua senha?" redireciona corretamente.
+     *
+     * Cobre o AC12 da Issue #31.
+     */
+    #[Test]
+    #[Group('auth')]
+    #[Group('dusk')]
+    public function clicking_forgot_password_link_redirects_correctly(): void
+    {
+        $this->browse(function (Browser $browser) {
+            $browser->visit('/login/local')
+                ->waitFor('@forgot-password-link')
+                ->click('@forgot-password-link')
+                ->waitForLocation('/forgot-password')
+                ->assertPathIs('/forgot-password');
+        });
+    }
 }
