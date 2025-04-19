@@ -82,6 +82,25 @@ class AuthenticationTest extends TestCase
         $this->assertGuest(); // Garante que o usuário não foi autenticado
     }
 
+    public function test_users_can_not_authenticate_with_non_existent_credentials_on_local_login(): void
+    {
+        // Este teste atende ao Critério de Aceite 6 da Issue #31
+        $component = Volt::test('pages.auth.login')
+            ->set('form.email', 'nonexistent@example.com') // Email válido em formato, mas não existente
+            ->set('form.password', 'password'); // Senha qualquer
+
+        $component->call('login');
+
+        // Verifica se há erro no campo de email (auth.failed é associado ao email geralmente)
+        $component->assertHasErrors(['form.email' => trans('auth.failed')])
+            // Garante que não há erro específico de validação de formato na senha neste caso
+            ->assertHasNoErrors(['form.password']);
+
+        $component->assertNoRedirect(); // Garante que não houve redirecionamento
+
+        $this->assertGuest(); // Garante que o usuário não foi autenticado
+    }
+
     public function test_navigation_menu_can_be_rendered(): void
     {
         $user = User::factory()->create();
