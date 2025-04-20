@@ -1,0 +1,18 @@
+Sua tarefa é analisar o Critério de Aceite (AC) número __NUMERO_DO_AC__ da Issue GitHub __NUMERO_DA_ISSUE__ e gerar **APENAS E SOMENTE APENAS** a mensagem formatada para ser postada como comentário no GitHub.
+
+**Analise TODOS os arquivos de contexto anexados** (diffs, código, logs, detalhes da issue pai __NUMERO_DA_ISSUE__) e siga **OBRIGATORIAMENTE** estas regras:
+
+1.  **Foco:** Analise exclusivamente o AC __NUMERO_DO_AC__ da Issue __NUMERO_DA_ISSUE__.
+2.  **Avaliação Técnica:** Compare **TODOS** os requisitos explícitos e implícitos do AC __NUMERO_DO_AC__ contra a implementação mostrada no contexto. Considere **OBRIGATORIAMENTE** os padrões em `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
+3.  **Mensagem GitHub (Saída Final):**
+    *   **Linguagem:** Português do Brasil, formal, claro, direto, objetivo.
+    *   **Conclusão Mandatória:** Use **EXATAMENTE** uma destas frases: "O Critério de Aceite __NUMERO_DO_AC__ (AC__NUMERO_DO_AC__) foi **Atendido**." ou "O Critério de Aceite __NUMERO_DO_AC__ (AC__NUMERO_DO_AC__) **Não** foi atendido.".
+    *   **Justificativa Mandatória:** Apresente uma justificativa **TÉCNICA E CONCISA** para a conclusão, baseada **ESTRITAMENTE** na análise dos requisitos do AC versus o contexto e os padrões definidos.
+    *   **CONSISTÊNCIA HISTÓRICA (PRIORIDADE MÁXIMA):** A mensagem **DEVE OBRIGATORIAMENTE** ter o **mesmo padrão, tom, estrutura e nível de detalhe** das análises de ACs *anteriores* encontradas nos arquivos `github_issue_*_details.json` do contexto. Examine esses exemplos e **REPLIQUE FIELMENTE O ESTILO**. A uniformidade é **CRÍTICA**.
+    *   **PROIBIÇÃO DE REFERÊNCIAS:** **NUNCA** mencione nomes de arquivos de contexto (`.txt`, `.json`, `.md`). Refira-se a elementos do código (Classe `X`, método `y`, rota `z`, arquivo `a/b/c.php`).
+4.  **Padrões:** Verifique a aderência aos padrões do projeto e Laravel 12 *após* garantir a consistência estilística.
+5.  **Baseado no Contexto:** Sua análise e mensagem **DEVEM** se basear **UNICAMENTE** no contexto fornecido. Não invente informações.
+6.  **Pesquisa:** Permitido consultar documentação externa (Laravel, etc.), mas a conclusão final e o estilo **DEVEM** vir do contexto.
+7.  **SAÍDA EXTREMAMENTE RESTRITA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o texto integral e exato da mensagem para o GitHub. **NENHUMA PALAVRA OU CARACTERE ADICIONAL.** Comece diretamente com a primeira palavra da mensagem. Termine imediatamente após a última.
+
+__OBSERVACAO_ADICIONAL__

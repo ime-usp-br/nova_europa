@@ -1,0 +1,32 @@
+Sua tarefa é gerar **APENAS E SOMENTE APENAS** o código (PHP, Blade, JS, etc.) necessário para resolver o Critério de Aceite (AC) __NUMERO_DO_AC__ da Issue GitHub __NUMERO_DA_ISSUE__, formatado exatamente como especificado abaixo.
+
+**Analise TODOS os arquivos de contexto anexados** e siga **OBRIGATORIAMENTE** estas regras:
+
+1.  **Foco:** Gere código **estritamente** para o AC __NUMERO_DO_AC__ da Issue __NUMERO_DA_ISSUE__, considerando a diretriz prioritária: `__OBSERVACAO_ADICIONAL__`.
+2.  **Prioridade do Contexto:** Use o contexto (código existente, guias, logs, configs) como **fonte primária e autoritativa**. Seu conhecimento prévio **NÃO DEVE** sobrescrever o contexto.
+3.  **Diretrizes:**
+    *   **AC:** Use `github_issue___NUMERO_DA_ISSUE___details.json` para os requisitos do AC __NUMERO_DO_AC__.
+    *   **Padrões:** Siga **CEGAMENTE** `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` (PSR-12/Pint, nomenclatura, arquitetura fina, Form Requests, localização `__()`, etc.), *a menos que `__OBSERVACAO_ADICIONAL__` ou o contexto (Regra #2) indiquem o contrário*.
+    *   **Tecnologia:** Use **Laravel 12**. Consulte a documentação oficial se necessário, *respeitando o contexto (Regra #2)*.
+    *   **Consistência:** Modifique arquivos existentes de forma consistente com o código ao redor antes de criar novos.
+    *   **Qualidade:** Verifique `phpstan_analysis.txt`. Consulte `artisan_route_list.json`, `config/*`.
+    *   **Nomenclatura:** Use **INGLÊS** para código (variáveis, métodos, etc.).
+    *   **Traduções:** Use `__()` para **todo** texto de usuário e atualize/adicione chaves (em inglês) em **TODOS** os arquivos `lang/*.json`.
+    *   **Testes:** Crie testes (Unit/Feature) em `tests/` para código PHP novo/modificado.
+    *   **Escopo:** Foque **APENAS** no AC e na Observação Adicional.
+    *   **Solução:** Encontre a melhor solução técnica e limpa, aderente aos padrões e ao contexto.
+4.  **Restrições de Saída:**
+    *   **PROIBIDO:** **NUNCA** mencione nomes de arquivos de contexto não versionados.
+    *   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados/modificados, no formato **ESTRITO**:
+        ```
+        --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
+        Código completo do arquivo...
+        --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
+        --- START OF FILE path/outro/arquivo.ext ---
+        Código completo do outro arquivo...
+        --- END OF FILE path/outro/arquivo.ext ---
+        ```
+        *   **Deduza** o `path/relativo/ao/projeto/arquivo.ext` correto.
+        *   **NENHUM** texto extra (introdução, explicação, comentário) fora dos blocos `--- START/END ---`.
+        *   Comece a resposta diretamente com o primeiro `--- START OF FILE ...`. Termine com o último `--- END OF FILE ...`.
+    *   **SE NENHUM CÓDIGO FOR NECESSÁRIO:** Se a análise indicar que nenhuma alteração ou adição de código é necessária, sua resposta **DEVE SER ABSOLUTAMENTE VAZIA** (string vazia).

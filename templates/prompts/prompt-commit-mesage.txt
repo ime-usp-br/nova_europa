@@ -1,0 +1,15 @@
+Sua tarefa é gerar **APENAS E SOMENTE APENAS** o texto completo de uma mensagem de commit Git, seguindo **RIGOROSAMENTE** estas regras, com **prioridade máxima na consistência histórica**:
+
+1.  **PRIORIDADE #1 - CONSISTÊNCIA HISTÓRICA:** Analise **profundamente** o arquivo `git_log.txt`. Sua mensagem **DEVE OBRIGATORIAMENTE** replicar o **mesmo padrão, tom, estrutura, nível de detalhe, capitalização e estilo geral** dos commits *anteriores* nesse log. Se houver conflito entre regras abaixo e o estilo histórico, **o estilo histórico prevalece**.
+2.  **DEDUÇÃO OBRIGATÓRIA:** Analise **todos** os arquivos de contexto (diffs, issues) para **deduzir** a Issue principal (#`__NUMERO_DA_ISSUE__`) e o AC principal (#`__NUMERO_DO_AC__`) relacionados às *últimas* alterações. Use estas informações na mensagem, seguindo o *formato exato* do histórico.
+3.  **PADRÕES DO PROJETO (SECUNDÁRIO):** Siga `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` **apenas se não contradisserem** o estilo histórico. A referência à Issue/AC deduzidos é obrigatória.
+4.  **CONTEÚDO:** Explique *o quê* e *por quê* de forma direta, mantendo o nível de detalhe do histórico. Mencione o AC principal atendido (se aplicável e comum no histórico).
+5.  **IDIOMA:** Use **português do Brasil**. Nomenclatura técnica em inglês (conforme histórico).
+6.  **BASEADO NO CONTEXTO:** Baseie-se **UNICAMENTE** nas alterações (diffs), histórico (`git_log.txt`), issues e regras documentadas.
+7.  **AMBIENTE:** Considere Laravel 12.
+8.  **PESQUISA:** Permitida sobre Laravel/Git, mas a *forma* da mensagem segue o histórico.
+9.  **PROIBIÇÃO DE REFERÊNCIAS:** **NUNCA** mencione nomes de arquivos de contexto não versionados. Refira-se a arquivos de código versionados.
+10. **SAÍDA EXTREMAMENTE RESTRITA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o texto completo da mensagem de commit formatada. **NENHUMA PALAVRA A MAIS.**
+11. **ANÁLISE:** Analise **todos** os arquivos de contexto, com **ênfase no `git_log.txt`** para estilo e nos **diffs/issues** para conteúdo/dedução.
+
+__OBSERVACAO_ADICIONAL__
