@@ -202,15 +202,9 @@ public function processOrder(Request $request)
 
 ### Ferramentas de Desenvolvimento e Automação
 
-*   **Script de Criação de Issues (`criar_issues_script.sh`):** Esta ferramenta **PODERIA** ser usada para automatizar a criação de Issues no GitHub a partir de arquivos de plano estruturados (ex: `planos/*.txt`), utilizando templates de corpo de issue (`project_templates/issue_bodies/`). Consulte o script e os exemplos para detalhes de uso.
-*   **Script de Geração de Contexto (`gerar_contexto_llm.sh`):** Esta ferramenta **DEVE** ser usada para coletar informações abrangentes do projeto e ambiente, gerando arquivos de texto e JSON no diretório `context_llm/code/<timestamp>/`. Este contexto é essencial para alimentar ferramentas de IA.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python que utiliza o contexto gerado por `gerar_contexto_llm.sh` e meta-prompts (`project_templates/meta-prompts/`) para interagir com a API do Google Gemini. **PODERIA** ser utilizada para auxiliar e padronizar tarefas como:
-    *   `resolve-ac`: Gerar código para atender a um Critério de Aceite (AC) específico de uma Issue.
-    *   `commit-mesage`: Gerar mensagens de commit formatadas de acordo com o histórico e padrões do projeto.
-    *   `analyze-ac`: Gerar uma análise textual sobre o atendimento de um AC.
-    *   `update-doc`: Gerar conteúdo atualizado para arquivos de documentação.
-    *   `create-pr`: Gerar título e corpo para um Pull Request, e criá-lo via `gh` CLI.
-    *   **Uso:** Execute `python scripts/llm_interact.py -h` para ver as tarefas disponíveis (detectadas a partir dos meta-prompts) e as opções (flags) como `-i <issue>`, `-a <ac>`, `-d <doc_file>`, `-o <observation>`, `-g` (gerar contexto antes), `-w` (habilitar busca web), `-y` (pular confirmações), `-om` (ver meta-prompt), `-ws` (delay), `-b <branch>`, `--draft`.
+*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`).
+*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Ferramenta Python para coletar contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python que utiliza o contexto gerado e meta-prompts (`templates/meta-prompts/` e `templates/prompts/`) para interagir com a API do Google Gemini. Auxilia em tarefas como gerar código, commits, análise de ACs, docs, PRs. Use `python scripts/llm_interact.py -h`.
 
 ## Uso de Termos RFC 2119 na Documentação
 

@@ -478,6 +478,66 @@ def parse_arguments(available_tasks: List[str]) -> argparse.Namespace:
 
     return parser.parse_args()
 
+def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
+    """
+    Displays a numbered list of doc files and prompts the user for selection.
+
+    Args:
+        doc_files: A list of relative Path objects for the documentation files.
+
+    Returns:
+        The selected relative Path object, or None if the user quits.
+    """
+    print("\nMultiple documentation files found. Please choose one to update:")
+    for i, filepath in enumerate(doc_files):
+        print(f"  {i + 1}: {filepath}")
+    print("  q: Quit")
+
+    while True:
+        choice = input("Enter the number of the file to update (or 'q' to quit): ").strip().lower()
+        if choice == 'q':
+            return None
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(doc_files):
+                selected_path = doc_files[index]
+                print(f"  You selected: {selected_path}")
+                return selected_path # Return the relative path object
+            else:
+                print("  Invalid number. Please try again.")
+        except ValueError:
+            print("  Invalid input. Please enter a number or 'q'.")
+            
+def find_documentation_files(base_dir: Path) -> List[Path]:
+    """
+    Find potential documentation files (.md) in the project.
+
+    Args:
+        base_dir: The root directory of the project.
+
+    Returns:
+        A sorted list of relative Path objects for documentation files.
+    """
+    print("  Scanning for documentation files...")
+    found_paths: set[Path] = set() # Use a set to avoid duplicates
+
+    # Check specific root files
+    for filename in ["README.md", "CHANGELOG.md"]: # Add more root files if needed
+        filepath = base_dir / filename
+        if filepath.is_file():
+            found_paths.add(filepath.relative_to(base_dir))
+
+    # Check docs directory recursively
+    docs_dir = base_dir / "docs"
+    if docs_dir.is_dir():
+        for filepath in docs_dir.rglob("*.md"):
+            # Add more specific filtering here if needed (e.g., ignore subdirs)
+            if filepath.is_file():
+                 found_paths.add(filepath.relative_to(base_dir))
+
+    print(f"  Found {len(found_paths)} unique documentation files.")
+    # Return a sorted list of Path objects based on their string representation
+    return sorted(list(found_paths), key=lambda p: str(p))
 
 # --- Main Execution ---
 if __name__ == "__main__":

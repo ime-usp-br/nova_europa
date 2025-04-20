@@ -1,4 +1,4 @@
-Sua tarefa é analisar o Critério de Aceite (AC) número __NUMERO_DO_AC__ da Issue GitHub __NUMERO_DA_ISSUE__ e gerar **APENAS E SOMENTE APENAS** a mensagem formatada para ser postada como comentário no GitHub.
+Sua tarefa é analisar o Critério de Aceite (AC) número __NUMERO_DO_AC__ da Issue #__NUMERO_DA_ISSUE__ no GitHub e gerar **APENAS E SOMENTE APENAS** a mensagem formatada para ser postada como comentário no GitHub.
 
 **Analise TODOS os arquivos de contexto anexados** (diffs, código, logs, detalhes da issue pai __NUMERO_DA_ISSUE__) e siga **OBRIGATORIAMENTE** estas regras:
 

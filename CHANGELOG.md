@@ -11,7 +11,6 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 *   **[TEST][AUTH] Adiciona testes de Feature (PHPUnit) e Browser (Dusk) para a UI de login local (#20), incluindo configuração, ambiente de teste dedicado (`.env.dusk.local`), integração CI e documentação de execução local para Dusk. (#31)**
 *   **[DevTools] Ferramenta de Interação com LLM (`scripts/llm_interact.py`):** Adiciona script Python para automatizar tarefas de desenvolvimento (geração de código para ACs, mensagens de commit, criação de PRs, atualização de documentação, análise de ACs) usando a API Gemini e o contexto do projeto. Inclui flags para geração de contexto (`-g`), pesquisa web (`-w`), confirmação automática (`-y`), modo apenas meta-prompt (`-om`), espera (`-ws`), seleção de arquivo de doc (`-d`), criação de PRs (`create-pr` com `-i`, `-b`, `--draft`), tratamento de rate limit e mais. (Refs #28)
-*   **[DevTools] Script de Geração de Contexto (`gerar_contexto_llm.sh`):** Adiciona script (v2.4) para coletar contexto abrangente do projeto (Git, GitHub, Artisan, PHPStan, ambiente, dependências, estrutura, etc.) para uso por LLMs. Inclui coleta de status do Python, GitHub Project, cópia de planos/meta-prompts e geração de manifesto.
 *   **[DevTools] Meta-prompts para LLM:** Adicionados templates (`project_templates/meta-prompts/`) para guiar a IA na geração de código, mensagens de commit, análises de AC, atualizações de documentação e criação de PRs.
 *   **[DevTools] Planos de Desenvolvimento:** Adicionados arquivos de plano (`planos/`) para documentar o desenvolvimento futuro e servir de exemplo para o script `criar_issues_script.sh`.
 *   **Estrutura Base do Projeto:**
@@ -75,6 +74,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Alterado
 
+*   **[DevTools] Script de geração de contexto migrado de Bash (`gerar_contexto_llm.sh`) para Python (`scripts/generate_context.py`) para melhor manutenibilidade, robustez e extensibilidade, mantendo a funcionalidade de coleta original. (#35)**
 *   Nível de análise do PHPStan elevado para 10.
 *   README.md atualizado para refletir o estado do projeto (v0.1.0).
 *   Guias de desenvolvimento e ADRs movidos para o diretório `docs/`.

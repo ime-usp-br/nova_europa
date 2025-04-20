@@ -57,9 +57,9 @@ Este Starter Kit vem pré-configurado com:
     *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais (Planejado).
 *   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
 *   **Ferramentas de Desenvolvimento:**
-    *   Script Bash (`criar_issues_script.sh`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`project_templates/issue_bodies/*.md`).
-    *   Script Bash (`gerar_contexto_llm.sh`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs.
-    *   Script Python (`scripts/llm_interact.py`) para interagir com a API Google Gemini, utilizando o contexto gerado e meta-prompts (`project_templates/meta-prompts/*.txt`), para auxiliar em tarefas de desenvolvimento (geração de código, commits, análise de ACs, documentação, PRs).
+    *   Script Python (`scripts/create_issue.py`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
+    *   Script Python (`scripts/generate_context.py`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs.
+    *   Script Python (`scripts/llm_interact.py`) para interagir com a API Google Gemini, utilizando o contexto gerado e meta-prompts (`templates/meta-prompts/*.txt`), para auxiliar em tarefas de desenvolvimento (geração de código, commits, análise de ACs, documentação, PRs).
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
 *Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md).*
@@ -93,7 +93,7 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
     *   Node.js (v18+) e NPM
     *   Git
     *   **Google Chrome** ou **Chromium** instalado (para testes Dusk)
-    *   (Opcional, para ferramentas de dev) Python >= 3.8, Pip, `gh` CLI, `jq`
+    *   (Opcional, para ferramentas de dev) Python >= 3.10, Pip, `gh` CLI, `jq`
 
 2.  **Clonar o Repositório:**
     ```bash
@@ -156,13 +156,13 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         *   `DB_CONNECTION=sqlite` e `DB_DATABASE=database/testing/dusk.sqlite` (recomendado usar um banco de dados SQLite separado para testes Dusk)
 
 9.  **(Opcional) Configurar Ferramentas de Desenvolvimento:**
-    *   Instale Python 3 e Pip, se necessário.
+    *   Instale Python 3.10+ e Pip, se necessário.
     *   Instale as dependências Python para o script LLM:
         ```bash
         pip install google-genai python-dotenv tqdm
         ```
-    *   Instale a `gh` CLI e `jq` se for usar os scripts `criar_issues_script.sh` ou `llm_interact.py` (tarefa `create-pr`).
-    *   Torne os scripts executáveis: `chmod +x criar_issues_script.sh gerar_contexto_llm.sh scripts/llm_interact.py scripts/create_issue.py`
+    *   Instale a `gh` CLI e `jq` se for usar os scripts `scripts/create_issue.py` ou `scripts/llm_interact.py` (tarefa `create-pr`).
+    *   Torne os scripts Python executáveis: `chmod +x scripts/llm_interact.py scripts/create_issue.py scripts/generate_context.py scripts/update_project.py` (o script bash pode ser removido ou marcado como obsoleto).
 
 Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
@@ -206,9 +206,9 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 *   **Larastan (PHPStan):** Ferramenta de análise estática para encontrar erros sem executar o código.
     *   Para analisar: `vendor/bin/phpstan analyse`
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
-*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`project_templates/issue_bodies/*.md`).
-*   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python (requer `google-genai`, `python-dotenv`, `tqdm` e `GEMINI_API_KEY` no `.env`) que utiliza o contexto gerado e meta-prompts (`project_templates/meta-prompts/`) para interagir com a API Google Gemini e auxiliar em tarefas de desenvolvimento (gerar código, commits, análise de ACs, atualização de documentação, criação de PRs). Use `python scripts/llm_interact.py -h` para ver as opções.
+*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
+*   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python (requer `google-genai`, `python-dotenv`, `tqdm` e `GEMINI_API_KEY` no `.env`) que utiliza o contexto gerado e meta-prompts (`templates/meta-prompts/`) para interagir com a API Google Gemini e auxiliar em tarefas de desenvolvimento (gerar código, commits, análise de ACs, atualização de documentação, criação de PRs). Use `python scripts/llm_interact.py -h` para ver as opções.
 
 ## 9. Testes
 
