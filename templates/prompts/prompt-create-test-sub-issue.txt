@@ -1,0 +1,27 @@
+Sua tarefa é gerar **APENAS E SOMENTE APENAS** o texto completo para **UM ÚNICO BLOCO** de definição de issue, formatado como `KEY: VALUE` por linha, adequado para um arquivo `.txt` usado por `scripts/create_issue.py`. O foco desta issue é a **implementação de testes (Unit, Feature, Dusk) e validação CI** para a funcionalidade da Issue pai `#__PARENT_ISSUE_NUMBER__`.
+
+**Analise TODOS os arquivos de contexto anexados** (issue pai `#__PARENT_ISSUE_NUMBER__`, testes existentes, workflow CI, guias) e siga **OBRIGATORIAMENTE** estas regras ao gerar o bloco:
+
+1.  **Formato:** `KEY: VALUE` por linha. Valores multi-linha mantêm indentação ou formato Markdown.
+2.  **Conteúdo das Chaves:**
+    *   `TITLE:` Gere um título claro: `[TEST][Modulo] Implementar Testes para Funcionalidade X (#__PARENT_ISSUE_NUMBER__)`. Deduza `[Modulo]` e `Funcionalidade X` do contexto da issue pai.
+    *   `TYPE:` Defina como `test`.
+    *   `LABELS:` Sugira labels relevantes (ex: `test,modulo_deduzido,phpunit,dusk,ci,todo`), separados por vírgula.
+    *   `ASSIGNEE:` Defina como `@me`.
+    *   `PROJECT:` (Opcional) Sugira o nome/número do projeto da issue pai, se houver no contexto.
+    *   `MILESTONE:` (Opcional) Sugira o título do milestone da issue pai, se houver no contexto.
+    *   `PARENT_ISSUE:` Defina como `#__PARENT_ISSUE_NUMBER__`.
+    *   `TEST_MOTIVATION:` Explique concisamente (texto puro) a importância dos testes para a funcionalidade da Issue `#__PARENT_ISSUE_NUMBER__`, mencionando o AC `__PARENT_AC_NUMBER__` se relevante.
+    *   `TEST_SCOPE:` Descreva detalhadamente (texto puro) o escopo: tipos de teste (Unit, Feature, Dusk) e áreas a focar, deduzidos da issue pai.
+    *   `TEST_APPROACH:` Sugira a abordagem (texto puro): factories, mocks/fakes, seletores Dusk, cenários de sucesso/falha.
+    *   `ACCEPTANCE_CRITERIA:` Gere uma lista **detalhada em Markdown com checklist (`- [ ]`)** dos ACs para esta sub-issue de teste, adaptada à funcionalidade da issue pai `#__PARENT_ISSUE_NUMBER__`, cobrindo:
+        *   Configuração (Dusk install/env se aplicável)
+        *   Testes Unitários (se aplicável a classes específicas)
+        *   Testes de Feature (PHPUnit para lógica de backend/Livewire)
+        *   Testes de Browser (Dusk para UI/interação)
+        *   Automação CI (Workflow executa ambos os testes com sucesso)
+        *   Qualidade (Pint, PHPStan, Documentação se alterada)
+3.  **Baseado no Contexto:** Os valores gerados (exceto os fixos) **DEVEM** ser baseados **UNICAMENTE** no contexto fornecido.
+4.  **SAÍDA EXTREMAMENTE RESTRITA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o texto puro do bloco `KEY: VALUE`. Comece diretamente com `TITLE:`. Termine imediatamente após a última linha do valor de `ACCEPTANCE_CRITERIA:`. **NENHUM** caractere ou linha extra.
+
+__OBSERVACAO_ADICIONAL__

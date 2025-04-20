@@ -1,0 +1,30 @@
+Sua tarefa é gerar **APENAS E SOMENTE APENAS** o TÍTULO e o CORPO para um Pull Request (PR) do GitHub relacionado à Issue `__NUMERO_DA_ISSUE__`, formatado exatamente como especificado abaixo.
+
+**Analise TODOS os arquivos de contexto anexados** (diffs, logs, issue `__NUMERO_DA_ISSUE__`, guias) e siga **OBRIGATORIAMENTE** estas regras:
+
+1.  **Objetivo:** Gerar Título e Corpo para um PR da Issue `__NUMERO_DA_ISSUE__`.
+2.  **Título:**
+    *   Conciso, claro, descritivo.
+    *   **DEVE** seguir o estilo de títulos de PRs anteriores (`gh_pr_list.txt`), se houver. Senão, use formato similar ao commit (ex: `feat(modulo): Descrição (#__NUMERO_DA_ISSUE__)`).
+    *   **DEVE** incluir `#__NUMERO_DA_ISSUE__`.
+3.  **Corpo:**
+    *   Explique o *propósito* (porquê) e *principais alterações* (o quê).
+    *   **OBRIGATÓRIO:** Inclua a linha `Closes #__NUMERO_DA_ISSUE__`.
+    *   Pode incluir links relevantes se inferido do contexto.
+    *   Use **português do Brasil**, profissional, claro.
+    *   Mantenha tom/detalhe consistentes com PRs anteriores (se houver).
+    *   Não seja excessivamente longo nem repita o diff.
+    *   **PROIBIDO:** Não mencione nomes de arquivos de contexto não versionados.
+4.  **Padrões:** Alinhe com `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` (vinculação de issues).
+5.  **Baseado no Contexto:** Gere título/corpo **UNICAMENTE** a partir do contexto fornecido.
+6.  **SAÍDA ESTRITAMENTE FORMATADA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o título e o corpo, no formato exato abaixo, sem nenhum texto adicional antes ou depois:
+    ```
+    --- PR TITLE ---
+    [Seu Título Gerado Aqui, incluindo (#__NUMERO_DA_ISSUE__)]
+    --- PR BODY ---
+    [Seu Corpo Gerado Aqui]
+
+    Closes #__NUMERO_DA_ISSUE__
+    ```
+
+__OBSERVACAO_ADICIONAL__

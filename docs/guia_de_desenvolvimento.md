@@ -75,8 +75,8 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
     *   **Google Chrome ou Chromium:** Necessário para a execução dos testes Dusk.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
 *   **(Opcional) Ferramentas de Desenvolvimento Adicionais:**
-    *   **Script de Geração de Contexto LLM (`gerar_contexto_llm.sh`):** Ferramenta Bash para coletar informações abrangentes do projeto e ambiente. **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
-    *   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini. **PODE** ser usada para auxiliar em tarefas de desenvolvimento. Requer `python3 >= 3.8`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
+    *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto e ambiente. **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
+    *   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini. **PODE** ser usada para auxiliar em tarefas de desenvolvimento. Requer `python3 >= 3.10`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
     *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano. Requer `python3 >= 3.8`, `gh` CLI, `jq`.
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
@@ -239,7 +239,7 @@ O script `scripts/create_issue.py` incluído no repositório lê um arquivo de p
     **Versão:** X.Y.Z
     **Data:** YYYY-MM-DD
     ```
-*   **Atualização:** A `Versão` e `Data` são atualizadas no commit que prepara a tag de release.
+*   **Atualização:** A `Versão` e `Data` nos cabeçalhos dos documentos **DEVEM** ser atualizadas no commit que prepara a tag de release.
 *   **Escopo:** Aplica-se a: `README.md`, `docs/*.md` (exceto `CHANGELOG.md`), `docs/adr/*.md`.
 
 *Para detalhes completos, consulte `docs/versionamento_documentacao.md`.*
@@ -261,7 +261,7 @@ A chave é a rastreabilidade via Issues e commits vinculados.
 *   **Laravel Pint:** (`vendor/bin/pint`) Formatador PSR-12. Use antes de commitar.
 *   **Larastan:** (`vendor/bin/phpstan analyse`) Análise estática. Execute regularmente.
 *   **Script de Criação de Issues (`scripts/create_issue.py`):** Automatiza a criação/edição de Issues no GitHub a partir de planos `.txt`.
-*   **Script de Geração de Contexto (`gerar_contexto_llm.sh`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
+*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
 *   **Script de Interação com LLM (`scripts/llm_interact.py`):** Usa API Gemini, contexto e meta-prompts (`templates/meta-prompts/`) para auxiliar em tarefas (gerar código para ACs, commits, análise de ACs, docs, PRs - tasks `resolve-ac`, `commit-mesage`, `analyze-ac`, `update-doc`, `create-pr`, `create-test-sub-issue`). Requer setup (`pip install`, `GEMINI_API_KEY`). Use `python scripts/llm_interact.py -h`.
 
 ## 9. Testes Automatizados
