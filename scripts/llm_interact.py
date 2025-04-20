@@ -23,7 +23,7 @@ META_PROMPT_DIR = BASE_DIR / "templates/meta-prompts"
 CONTEXT_DIR_BASE = BASE_DIR / "context_llm/code"
 COMMON_CONTEXT_DIR = BASE_DIR / "context_llm/common" # Directory for common context files (AC7)
 OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs" # Directory for saving outputs, should be in .gitignore (AC8)
-CONTEXT_GENERATION_SCRIPT = BASE_DIR / "gerar_contexto_llm.sh" # Path to context script (AC14)
+CONTEXT_GENERATION_SCRIPT = BASE_DIR / "scripts/generate_context.py" # Path to context script (AC14)
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex to validate directory name format
 # Gemini model to use (choose an appropriate model for tasks)
 GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-pro-exp-03-25' # Do not change. Do not insert in commit mesage.
@@ -33,6 +33,7 @@ WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, si
 DEFAULT_BASE_BRANCH = 'main' # Default target branch for PRs (AC25)
 PR_CONTENT_DELIMITER_TITLE = "--- PR TITLE ---" # AC25
 PR_CONTENT_DELIMITER_BODY = "--- PR BODY ---" # AC25
+SLEEP_DURATION_SECONDS = 70
 
 # --- Global Variables for API Key Rotation (AC32) ---
 api_keys_list: List[str] = []
@@ -598,8 +599,10 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
     while True: # Loop for retrying with rotated keys
         try:
             print(f"\n---> Attempting API call with Key Index {current_api_key_index} <---") # Refined log (Commit #28)
-            # Optional sleep can be added here if needed before *every* call
-            # time.sleep(1)
+            if args.with_sleep:
+                print(f"\n---> Rate limit sleep (trying avoid ResourceExhausted) for Key Index {current_api_key_index}. Waiting and rotating API key... <---", file=sys.stderr) # Refined log
+                for i in tqdm(range(SLEEP_DURATION_SECONDS), desc="Waiting for quota", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): # Add progress bar
+                    time.sleep(1)
 
             response = genai_client.models.generate_content(
                 model=model,
@@ -633,9 +636,6 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
                  return ""
 
         except google_api_core_exceptions.ResourceExhausted as e: # Specific exception for rate limits (AC32)
-            print(f"\n---> Rate limit exceeded (ResourceExhausted) for Key Index {current_api_key_index}. Waiting and rotating API key... <---", file=sys.stderr) # Refined log
-            for i in tqdm(range(300), desc="Waiting for quota", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): # Add progress bar
-                time.sleep(1)
             if not rotate_api_key_and_reinitialize():
                 print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
                 raise e # Re-raise original error if rotation failed
@@ -652,9 +652,6 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
              # Check if it's a 429 error specifically if ResourceExhausted didn't catch it
              status_code = getattr(e, 'code', None) or getattr(e, 'status_code', None) # Try common attributes
              if status_code == 429:
-                  print(f"\n---> API Error indicates rate limit (status 429) for Key Index {current_api_key_index}. Waiting and rotating API key... <---", file=sys.stderr) # Refined log
-                  for i in tqdm(range(300), desc="Waiting for quota", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): # Add progress bar
-                      time.sleep(1)
                   if not rotate_api_key_and_reinitialize():
                        print("  Error: Could not rotate API key. Raising original error.", file=sys.stderr)
                        raise e
@@ -868,15 +865,6 @@ if __name__ == "__main__":
             print("  GenerateContentConfig created with tools.")
         # Add other base config options here if necessary (e.g., safety_settings)
 
-        # --- AC36: Optional 5-minute sleep before first API call ---
-        if args.with_sleep:
-            sleep_duration_seconds = 300
-            print(f"\n--with-sleep flag detected. Waiting for {sleep_duration_seconds // 60} minutes before proceeding...")
-            for _ in tqdm(range(sleep_duration_seconds), desc="Waiting 5 minutes (--with-sleep)", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"):
-                time.sleep(1)
-            print("Wait complete. Proceeding with API interaction.")
-        # --- End AC36 ---
-
         print("\nStarting interaction with Gemini API...")
 
         # --- Step 1 Loop (Meta-Prompt + Context -> Final Prompt) ---
@@ -950,16 +938,6 @@ if __name__ == "__main__":
             print("  Appending web search encouragement to final prompt...")
             prompt_final_content_current += WEB_SEARCH_ENCOURAGEMENT_PT
         
-
-        # --- AC36: Optional 5-minute sleep before second API call ---
-        if args.with_sleep:
-            sleep_duration_seconds = 300
-            print(f"\n--with-sleep flag detected. Waiting for {sleep_duration_seconds // 60} minutes before proceeding...")
-            for _ in tqdm(range(sleep_duration_seconds), desc="Waiting 5 minutes (--with-sleep)", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"):
-                time.sleep(1)
-            print("Wait complete. Proceeding with API interaction.")
-        # --- End AC36 ---
-
         while True:
             print(f"\nStep 2: Sending Final Prompt and Context (Model: {GEMINI_MODEL})...")
             # Pass final prompt using keyword argument 'text='
