@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py
+# generate_manifest.py (v1.7 - Implements AC3: Load previous manifest)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
 # Destinado a auxiliar ferramentas LLM e rastreamento de mudanças.
+# AC3: Adiciona lógica para encontrar e carregar o manifesto anterior mais recente.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v]
@@ -29,12 +30,14 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
+import traceback # Mantido para erros inesperados
 
 # --- Constantes Globais ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = BASE_DIR / "scripts" / "data"
+TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # Regex para validar nome do arquivo
 
-# TODO: Refinar estas listas e lógicas de exclusão/inclusão nos próximos ACs
+# TODO (ACs 4, 5): Refinar estas listas e lógicas de exclusão/inclusão
 DEFAULT_IGNORE_PATTERNS: Set[str] = {
     ".git/",
     ".vscode/",
@@ -110,7 +113,7 @@ def parse_arguments() -> argparse.Namespace:
 def setup_logging(verbose: bool):
     """Configura o nível de logging."""
     # TODO (AC Futuro): Implementar um sistema de logging mais robusto se necessário.
-    # Por enquanto, o modo verbose pode controlar prints adicionais.
+    # Por enquanto, o modo verbose controla prints adicionais.
     if verbose:
         print("Modo verbose habilitado.")
     pass # Placeholder
@@ -122,6 +125,55 @@ def get_default_output_filepath() -> Path:
     DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True) # Garante que o diretório exista
     return DEFAULT_OUTPUT_DIR / filename
 
+# --- NOVA FUNÇÃO (AC3) ---
+def load_previous_manifest(data_dir: Path, verbose: bool) -> Dict[str, Any]:
+    """
+    Encontra e carrega o manifesto anterior mais recente do diretório de dados.
+
+    Args:
+        data_dir: O diretório onde os manifestos são salvos (scripts/data/).
+        verbose: Flag para habilitar logging detalhado.
+
+    Returns:
+        Um dicionário contendo os dados do manifesto anterior ou um dicionário
+        vazio se nenhum for encontrado ou ocorrer um erro.
+    """
+    if not data_dir.is_dir():
+        if verbose: print(f"  Diretório de dados '{data_dir.relative_to(BASE_DIR)}' não encontrado. Nenhum manifesto anterior para carregar.")
+        return {}
+
+    manifest_files = [
+        f for f in data_dir.glob('*_manifest.json')
+        if f.is_file() and re.match(TIMESTAMP_MANIFEST_REGEX, f.name)
+    ]
+
+    if not manifest_files:
+        if verbose: print(f"  Nenhum arquivo de manifesto anterior encontrado em '{data_dir.relative_to(BASE_DIR)}'.")
+        return {}
+
+    # Ordena por nome (timestamp) para pegar o mais recente
+    latest_manifest_path = sorted(manifest_files, reverse=True)[0]
+
+    if verbose: print(f"  Encontrado manifesto anterior mais recente: '{latest_manifest_path.relative_to(BASE_DIR)}'")
+
+    try:
+        with open(latest_manifest_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if verbose: print(f"  Manifesto anterior carregado com sucesso.")
+        # Retorna apenas o dicionário 'files' se ele existir, caso contrário o dict completo (ou vazio em erro)
+        return data.get("files", data) if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        # Pouco provável devido ao glob, mas por segurança
+        if verbose: print(f"  Erro: Arquivo do manifesto anterior '{latest_manifest_path.name}' não encontrado ao tentar ler.", file=sys.stderr)
+        return {}
+    except json.JSONDecodeError:
+        print(f"  Erro: Falha ao decodificar JSON do manifesto anterior '{latest_manifest_path.name}'. Arquivo pode estar corrompido.", file=sys.stderr)
+        return {}
+    except Exception as e:
+        print(f"  Erro inesperado ao carregar manifesto anterior '{latest_manifest_path.name}': {e}", file=sys.stderr)
+        if verbose: traceback.print_exc(file=sys.stderr)
+        return {}
+
 # --- Bloco Principal ---
 if __name__ == "__main__":
     args = parse_arguments()
@@ -131,7 +183,11 @@ if __name__ == "__main__":
     if args.output_path:
         output_filepath = Path(args.output_path).resolve()
         # Garante que o diretório pai exista se um caminho completo for fornecido
-        output_filepath.parent.mkdir(parents=True, exist_ok=True)
+        try:
+             output_filepath.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+             print(f"Erro fatal: Não foi possível criar o diretório pai para o arquivo de saída '{output_filepath}': {e}", file=sys.stderr)
+             sys.exit(1)
     else:
         output_filepath = get_default_output_filepath()
 
@@ -143,8 +199,17 @@ if __name__ == "__main__":
     if args.verbose:
         print(f"Argumentos recebidos: {args}")
 
+    # --- AC3: Carrega o manifesto anterior ---
+    print("\n[AC3] Carregando manifesto anterior (se existir)...")
+    previous_manifest_data = load_previous_manifest(DEFAULT_OUTPUT_DIR, args.verbose)
+    if previous_manifest_data:
+        print(f"  Manifesto anterior carregado. Contém dados para {len(previous_manifest_data)} arquivo(s).")
+    else:
+        print("  Nenhum manifesto anterior válido carregado. Será gerado um manifesto completo.")
+    # ---------------------------------------
+
     # Placeholder para a lógica principal que virá nos próximos ACs
-    print("\n[!] Lógica principal de scan, hash, análise e escrita do JSON será implementada nos próximos ACs.")
+    print("\n[!] Lógica principal de scan, hash, análise e escrita do JSON será implementada nos próximos ACs (4-19).")
 
     # Exemplo de como acessar os argumentos (será usado nos próximos ACs)
     ignore_list = list(DEFAULT_IGNORE_PATTERNS) + args.ignore_patterns
@@ -152,26 +217,31 @@ if __name__ == "__main__":
         print(f"\nLista final de ignorados (combinada):")
         for item in sorted(ignore_list): print(f" - {item}")
 
-    # TODO AC3: Ler manifesto anterior (se existir)
     # TODO AC4: Implementar scan de arquivos (git ls-files + rglob)
     # TODO AC5: Aplicar filtros de exclusão (ignore_list)
     # TODO AC6-11: Identificar tipos, calcular hash (se aplicável), gerar metadados
-    # TODO AC12-13: Extrair dependências PHP
-    # TODO AC14-17: Calcular `needs_ai_update`
-    # TODO AC18: Comparar com manifesto anterior
+    # TODO AC12-13: Extrair dependências PHP (Usará 'previous_manifest_data')
+    # TODO AC14-17: Calcular `needs_ai_update` (Usará 'previous_manifest_data')
+    # TODO AC18: Comparar com manifesto anterior ('previous_manifest_data')
     # TODO AC19: Implementar tratamento de erro
     # TODO AC20-21: Garantir qualidade
     # TODO AC22: Ser chamado pelo generate_context.py
 
     # Exemplo de criação de um JSON vazio (será substituído pela lógica real)
+    # Agora o formato deve ser um dicionário (path -> metadata)
     manifest_data: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": "Manifesto inicial - Lógica de preenchimento pendente (ACs 3-19)",
+            "comment": "Manifesto inicial - Lógica de preenchimento pendente (ACs 4-19)",
             "output_file": str(output_filepath.relative_to(BASE_DIR)),
-            "args": vars(args) # Inclui args para referência
+            "args": vars(args), # Inclui args para referência
+            "previous_manifest_loaded": bool(previous_manifest_data) # Indica se carregou dados anteriores
         },
-        "files": {} # O dicionário principal será preenchido aqui
+        # AC7: A saída principal deve ser um dicionário onde as chaves são os paths
+        # "files": {
+        #    "app/Models/User.php": { "type": "code_php_model", "hash": "...", ... },
+        #    "resources/views/welcome.blade.php": { "type": "view_blade", "hash": "...", ... }
+        # }
     }
 
     # Salva o JSON (sobrescreve se já existir)
