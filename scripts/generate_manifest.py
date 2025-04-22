@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.12 - Implements AC9: Versioned Status)
+# generate_manifest.py (v1.13 - Implements AC10: Hash Calculation)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
@@ -14,6 +14,7 @@
 # AC7: Define a estrutura JSON final com chaves '_metadata' e 'files'.
 # AC8: Implementa a função get_file_type para categorização granular.
 # AC9: Implementa a lógica para determinar o status 'versioned' (rastreado pelo Git).
+# AC10: Implementa o cálculo do hash SHA1 para o conteúdo dos arquivos.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v]
@@ -28,7 +29,7 @@
 
 import argparse
 import datetime
-import hashlib
+import hashlib # AC10: Import hashlib
 import json
 import os
 import re
@@ -37,15 +38,16 @@ import sys
 import time # Importado para run_command
 import traceback # Importado para run_command e load_previous_manifest
 import shlex # Importado para run_command
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
-
+from dotenv import load_dotenv
 
 # --- Constantes Globais ---
-PROJECT_ROOT = Path(__file__).resolve().parent.parent # Alterado para pegar a raiz do projeto
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "scripts" / "data"
-TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # Regex para validar nome do arquivo
-TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex para validar nome de diretório timestamp
+TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$'
+TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$'
 CONTEXT_CODE_DIR = PROJECT_ROOT / "context_llm" / "code"
 CONTEXT_COMMON_DIR = PROJECT_ROOT / "context_llm" / "common"
 VENDOR_USPDEV_DIRS = [
@@ -55,29 +57,29 @@ VENDOR_USPDEV_DIRS = [
 
 # AC5: Default ignore patterns set
 DEFAULT_IGNORE_PATTERNS: Set[str] = {
-    ".git/",                        # Git directory
-    ".vscode/",                     # VSCode editor config
-    ".idea/",                       # PHPStorm/IntelliJ editor config
-    ".fleet/",                      # Fleet editor config
-    "node_modules/",                # Node dependencies
-    "storage/framework/cache/data/",# Laravel framework cache
-    "storage/framework/sessions/",  # Laravel sessions
-    "storage/framework/views/",     # Laravel compiled views
-    "storage/logs/",                # Laravel logs
-    "bootstrap/cache/",             # Laravel bootstrap cache
-    "public/build/",                # Laravel compiled assets (Vite/Mix)
-    "*.lock",                       # Dependency lock files (composer, npm, yarn)
-    "*.sqlite",                     # SQLite databases
-    "*.sqlite-journal",             # SQLite journals
-    # ".env*",                        # Environment files (Removido dos defaults, cuidado ao commitar)
-    "*.log",                        # Log files in general
-    ".phpunit.cache/",              # PHPUnit cache
-    "llm_outputs/",                 # LLM interaction script outputs
-    "scripts/data/",                # Script data directory (incl. this manifest)
-    "*.DS_Store",                   # macOS specific
-    "Thumbs.db",                    # Windows specific
-    "vendor/",                      # Default vendor dir (will be overridden by includes later)
-    "context_llm/",                 # Default context dir (overridden by includes)
+    ".git/",
+    ".vscode/",
+    ".idea/",
+    ".fleet/",
+    "node_modules/",
+    "storage/framework/cache/data/",
+    "storage/framework/sessions/",
+    "storage/framework/views/",
+    "storage/logs/",
+    "bootstrap/cache/",
+    "public/build/",
+    "*.lock",
+    "*.sqlite",
+    "*.sqlite-journal",
+    # ".env*", # Commented out for explicit handling based on type
+    "*.log",
+    ".phpunit.cache/",
+    "llm_outputs/",
+    "scripts/data/",
+    "*.DS_Store",
+    "Thumbs.db",
+    "vendor/",
+    "context_llm/",
 }
 
 # AC6: Constants for Binary File Detection
@@ -95,7 +97,7 @@ BINARY_EXTENSIONS = {
     # Executables & Libraries
     '.exe', '.dll', '.so', '.dylib', '.app', '.bin', '.o', '.a',
     # Databases
-    '.sqlite', '.db', # Note: .sqlite already ignored by default pattern
+    '.sqlite', '.db',
     # Fonts
     '.ttf', '.otf', '.woff', '.woff2', '.eot',
     # Other
@@ -212,13 +214,13 @@ def find_latest_context_code_dir(context_base_dir: Path) -> Optional[Path]:
     if not valid_context_dirs: return None
     return sorted(valid_context_dirs, reverse=True)[0]
 
-# --- MODIFICADO PARA AC9: Retorna também o conjunto de arquivos versionados ---
 def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
     """Escaneia o projeto, retornando TODOS os arquivos encontrados e os arquivos RASTREADOS pelo Git."""
     all_files_set: Set[Path] = set()
     git_files_set: Set[Path] = set() # Conjunto para arquivos explicitamente listados pelo Git
 
     if verbose: print("  Scanning versioned/tracked files using 'git ls-files'...")
+    # -c: cached (staged), -o: others (untracked, not ignored)
     exit_code_ls, stdout_ls, stderr_ls = run_command(['git', 'ls-files', '-z', '-c', '-o', '--exclude-standard'], check=False)
 
     if exit_code_ls == 0 and stdout_ls:
@@ -241,7 +243,6 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
         print("  Warning: 'git ls-files' failed or returned no files. Proceeding with manual scans only.", file=sys.stderr)
         if stderr_ls and verbose: print(f"    Git stderr: {stderr_ls.strip()}", file=sys.stderr)
 
-    # --- Aditional Scans (mantidos como antes) ---
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
     if latest_context_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR): additional_scan_dirs.append(latest_context_code_dir)
     additional_scan_dirs.extend(VENDOR_USPDEV_DIRS)
@@ -271,9 +272,7 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
                  print(f"    Warning: Additional scan directory not found: '{relative_scan_dir_str}'")
 
     if verbose: print(f"\n  Total unique files identified before filtering: {len(all_files_set)}")
-    # Retorna ambos os conjuntos
     return all_files_set, git_files_set
-# --- FIM DA MODIFICAÇÃO AC9 ---
 
 def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores: List[str], output_filepath: Path, verbose: bool) -> Set[Path]:
     """Filtra um conjunto de arquivos baseado em padrões de exclusão."""
@@ -302,12 +301,12 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
 
             # 2. Glob pattern match using pathlib.match (relative path)
             try:
-                # Handle special case: Ignore vendor/ except specific subdirs
-                if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT))) for usp_dir in VENDOR_USPDEV_DIRS):
+                # Special case: Ignore vendor/ except specific subdirs
+                if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT)).replace('\\', '/')) for usp_dir in VENDOR_USPDEV_DIRS):
                     continue # Don't ignore if it's a specifically included vendor path
 
-                 # Handle special case: Ignore context_llm/ except specific subdirs
-                if pattern == "context_llm/" and (file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT))) or (latest_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR)) and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT)))):
+                 # Special case: Ignore context_llm/ except specific subdirs
+                if pattern == "context_llm/" and (file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT)).replace('\\', '/')) or ((latest_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR)) and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT)).replace('\\', '/')))):
                     continue # Don't ignore if it's common or latest code context
 
                 if file_path.match(pattern):
@@ -397,7 +396,6 @@ def get_file_type(relative_path: Path) -> str:
             if 'Livewire/Actions' in path_str: return 'code_php_livewire_action'
             if 'Livewire' in path_str: return 'code_php_livewire' # Generic Livewire PHP
             return 'code_php_app' # Default for app/
-        # Check for Livewire Blade components specifically inside app/ if that's the convention
         elif name.endswith('.blade.php') and 'Livewire' in path_str: return 'view_livewire_blade'
 
     if parts[0] == 'config' and suffix == '.php': return 'config_laravel'
@@ -448,11 +446,11 @@ def get_file_type(relative_path: Path) -> str:
 
     # Check for context files
     if parts[0] == 'context_llm':
-        if parts[1] == 'common':
-            if suffix == '.md' or suffix == '.txt': return 'context_common_doc'
-            if suffix == '.json' or suffix == '.yaml' or suffix == '.yml': return 'context_common_config'
+        if len(parts) > 1 and parts[1] == 'common':
+            if suffix in ['.md', '.txt']: return 'context_common_doc'
+            if suffix in ['.json', '.yaml', '.yml']: return 'context_common_config'
             return 'context_common_other'
-        if parts[1] == 'code' and len(parts) > 2 and re.match(TIMESTAMP_DIR_REGEX, parts[2]): # Inside latest code dir
+        if len(parts) > 2 and parts[1] == 'code' and re.match(TIMESTAMP_DIR_REGEX, parts[2]): # Inside latest code dir
             if name.startswith('git_log'): return 'context_code_git_log'
             if name.startswith('git_diff'): return 'context_code_git_diff'
             if name.startswith('github_issue_'): return 'context_code_issue_details'
@@ -497,20 +495,16 @@ if __name__ == "__main__":
     print(f"--- Iniciando Geração do Manifesto ---")
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
 
-    # --- AC3: Carrega o manifesto anterior ---
     if args.verbose: print("\n[AC3] Carregando manifesto anterior (se existir)...")
     previous_manifest_files_data = load_previous_manifest(DEFAULT_OUTPUT_DIR, args.verbose)
     if previous_manifest_files_data: print(f"  Manifesto anterior carregado com dados para {len(previous_manifest_files_data)} arquivo(s).")
     else: print("  Nenhum manifesto anterior válido carregado. Será gerado um manifesto completo.")
 
-    # --- AC4 & AC9: Escaneia os arquivos do projeto E obtém lista versionada ---
     print("\n[AC4 & AC9] Escaneando arquivos do projeto e identificando versionados...")
     all_found_files_relative, versioned_files_set = scan_project_files(args.verbose)
     print(f"  Escaneamento concluído. Total de arquivos únicos identificados: {len(all_found_files_relative)}")
     if args.verbose: print(f"    Arquivos identificados como versionados (via git): {len(versioned_files_set)}")
-    # --- FIM DA MODIFICAÇÃO AC4/AC9 ---
 
-    # --- AC5: Aplica filtros de exclusão ---
     print("\n[AC5] Filtrando arquivos baseados nas regras de exclusão...")
     filtered_file_paths = filter_files(
         all_found_files_relative,
@@ -520,8 +514,7 @@ if __name__ == "__main__":
         args.verbose
     )
 
-    # --- AC6+ Processing Loop (AC8 & AC9 Integration) ---
-    print("\n[AC6-AC9+] Processando arquivos filtrados e gerando metadados...")
+    print("\n[AC6-AC10] Processando arquivos filtrados e gerando metadados (incluindo hash)...")
     current_manifest_files_data: Dict[str, Any] = {}
     binary_file_count = 0
     processed_file_count = 0
@@ -538,46 +531,61 @@ if __name__ == "__main__":
         file_type = get_file_type(file_path_relative)
         if args.verbose: print(f"      -> Type (AC8): {file_type}")
 
-        # --- AC9: Determine Versioned Status ---
         is_versioned = file_path_relative in versioned_files_set
-        # Apply overrides for specific paths that SHOULD NOT be considered versioned
         if relative_path_str.startswith('vendor/uspdev/') or relative_path_str.startswith('context_llm/'):
              is_versioned = False
              if args.verbose and file_path_relative in versioned_files_set:
                  print(f"      -> Versioned (AC9): Overridden to False (vendor/uspdev or context_llm path)")
         elif args.verbose:
              print(f"      -> Versioned (AC9): {is_versioned}")
-        # --- End AC9 ---
 
+        # --- AC10 & AC11: Hash Calculation & Handling Exclusions ---
+        calculated_hash: Optional[str] = None # Default to None
+        is_env_file = file_type == 'environment_env'
+        is_context_code = relative_path_str.startswith('context_llm/code/')
+
+        # Skip hash calculation if binary, env file, or context code file
+        if not is_binary and not is_env_file and not is_context_code:
+            try:
+                # Read in binary mode for consistent hashing
+                file_content_bytes = file_path_absolute.read_bytes()
+                calculated_hash = hashlib.sha1(file_content_bytes).hexdigest()
+                if args.verbose: print(f"      -> Hash (AC10): {calculated_hash}")
+            except Exception as e:
+                if args.verbose: print(f"      -> Hash (AC10/AC11): Error calculating hash: {e}", file=sys.stderr)
+                # calculated_hash remains None
+        elif args.verbose:
+             reason = "binary file (AC6)" if is_binary else \
+                      "env file (AC11)" if is_env_file else \
+                      "context_llm/code file (AC11)" if is_context_code else \
+                      "unknown exclusion"
+             print(f"      -> Hash (AC11): Skipping hash calculation for {reason}.")
+        # --- End AC10 & AC11 ---
 
         metadata: Dict[str, Any] = {
             "type": file_type,
-            "versioned": is_versioned, # AC9 value applied
-            "hash": None, # Placeholder for AC10/AC11
+            "versioned": is_versioned,
+            "hash": calculated_hash, # AC10/AC11 value applied
             "token_count": None, # Placeholder for AC12-AC18
             "dependencies": [], # Placeholder for AC19-AC21
             "dependents": [], # Placeholder for AC22
             "summary": None, # Placeholder for AC23-AC25
         }
 
+        # AC6: Ensure binary files have null summary (redundant with initial check, but safe)
         if is_binary:
-            metadata['hash'] = None
             metadata['summary'] = None
-            if args.verbose: print(f"      -> Binary: Setting hash and summary to null.")
-
-        # Placeholder for other ACs...
 
         current_manifest_files_data[relative_path_str] = metadata
 
-
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos identificados como binários.")
+    print(f"  Cálculo AC10: Hashes SHA1 calculados (ou nulos para exclusões/erros).")
 
-    # --- Final Manifest Structure (AC7) ---
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - AC9 (Versioned Status) Implementado. Metadados adicionais pendentes. Arquivos processados: {len(filtered_file_paths)}.", # Updated comment
+            "comment": f"Manifesto gerado - AC10 (Hash) Implementado. Outros metadados pendentes. Arquivos processados: {len(filtered_file_paths)}.", # Updated comment
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -591,11 +599,11 @@ if __name__ == "__main__":
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
             json.dump(manifest_data_final, f, indent=4, ensure_ascii=False)
-        print(f"\nManifesto JSON (com arquivos filtrados) salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
+        print(f"\nManifesto JSON (com hash) salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
     except Exception as e:
          print(f"\nErro ao salvar o arquivo de manifesto: {e}", file=sys.stderr)
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (AC9 Implementado) ---")
+    print(f"--- Geração do Manifesto Concluída (AC10 Implementado) ---")
     sys.exit(0)
