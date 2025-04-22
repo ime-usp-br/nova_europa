@@ -17,7 +17,7 @@
 #   -o, --output OUTPUT_PATH   Caminho para o arquivo JSON de saída.
 #                              (Padrão: scripts/data/YYYYMMDD_HHMMSS_manifest.json)
 #   -i, --ignore IGNORE_PATTERN Padrão (glob), diretório ou arquivo a ignorar. Pode ser usado várias vezes.
-#   -v, --verbose              Habilita logging mais detalhado.
+#   -v, --verbose              Habilita logging mais detalhado para depuração.
 #   -h, --help                 Mostra esta mensagem de ajuda.
 # ==============================================================================
 
@@ -29,15 +29,18 @@ import os
 import re
 import subprocess
 import sys
+import time # Importado para run_command
+import traceback # Importado para run_command e load_previous_manifest
+import shlex # Importado para run_command
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
-import traceback
-import shlex # Importado para run_command
+
 
 # --- Constantes Globais ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = BASE_DIR / "scripts" / "data"
 TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # Regex para validar nome do arquivo
+TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$' # Regex para validar nome de diretório timestamp
 CONTEXT_CODE_DIR = BASE_DIR / "context_llm" / "code"
 CONTEXT_COMMON_DIR = BASE_DIR / "context_llm" / "common"
 VENDOR_USPDEV_DIRS = [
@@ -86,7 +89,8 @@ def run_command(cmd_list: List[str], cwd: Path = BASE_DIR, check: bool = True, c
             check=check, # Raises CalledProcessError if check=True and return code is non-zero
             cwd=cwd,
             shell=shell,
-            timeout=timeout
+            timeout=timeout,
+            encoding='utf-8', errors='replace' # Add encoding/error handling
         )
         end_time = time.monotonic()
         duration = end_time - start_time
@@ -197,6 +201,7 @@ def load_previous_manifest(data_dir: Path, verbose: bool) -> Dict[str, Any]:
         elif isinstance(data, dict) and "_metadata" not in data: # Assume it's the path -> metadata dict directly
             return data
         else: # Fallback ou estrutura inesperada
+            print(f"  Warning: Estrutura inesperada no manifesto anterior '{latest_manifest_path.name}'. Ignorando.", file=sys.stderr)
             return {}
     except Exception as e:
         print(f"  Erro ao carregar ou processar manifesto anterior '{latest_manifest_path.name}': {e}", file=sys.stderr)
@@ -209,7 +214,8 @@ def find_latest_context_code_dir(context_base_dir: Path) -> Optional[Path]:
     if not context_base_dir.is_dir():
         # print(f"Warning: Context base directory not found: {context_base_dir}", file=sys.stderr)
         return None
-    valid_context_dirs = [d for d in context_base_dir.iterdir() if d.is_dir() and re.match(TIMESTAMP_DIR_REGEX.replace("_manifest.json", ""), d.name)] # Adjusted Regex
+    # Ajuste para o regex correto do diretório
+    valid_context_dirs = [d for d in context_base_dir.iterdir() if d.is_dir() and re.match(TIMESTAMP_DIR_REGEX, d.name)]
     if not valid_context_dirs:
         # print(f"Warning: No valid context directories found in {context_base_dir}", file=sys.stderr)
         return None
@@ -231,23 +237,25 @@ def scan_project_files(verbose: bool) -> Set[Path]:
 
     # 1. Prioritize git ls-files for versioned files
     if verbose: print("  Scanning versioned files using 'git ls-files'...")
-    exit_code, stdout, stderr = run_command(['git', 'ls-files', '-z'], check=False) # -z for null termination
-    if exit_code == 0 and stdout:
+    # -z para null termination, -c para cached (stage), -o para others (untracked mas não ignorados)
+    exit_code_ls, stdout_ls, stderr_ls = run_command(['git', 'ls-files', '-z', '-c', '-o', '--exclude-standard'], check=False)
+    if exit_code_ls == 0 and stdout_ls:
         # Split by null character and filter empty strings
-        versioned_paths = filter(None, stdout.split('\0'))
-        count = 0
-        for path_str in versioned_paths:
+        tracked_paths = filter(None, stdout_ls.split('\0'))
+        count_v = 0
+        for path_str in tracked_paths:
             path_obj = Path(path_str).resolve() # Resolve to absolute first
             if path_obj.is_file(): # Ensure it's actually a file
                 try:
-                    found_files.add(path_obj.relative_to(BASE_DIR))
-                    count += 1
+                    relative_path = path_obj.relative_to(BASE_DIR)
+                    found_files.add(relative_path)
+                    count_v += 1
                 except ValueError:
                      if verbose: print(f"    Warning: Skipping file outside base dir? {path_obj}")
-        if verbose: print(f"    Found {count} versioned files via git.")
+        if verbose: print(f"    Found {count_v} potentially versioned/tracked files via git ls-files.")
     else:
         print("  Warning: 'git ls-files' failed or returned no files. Proceeding with manual scans only.", file=sys.stderr)
-        if stderr and verbose: print(f"    Git stderr: {stderr.strip()}", file=sys.stderr)
+        if stderr_ls and verbose: print(f"    Git stderr: {stderr_ls.strip()}", file=sys.stderr)
 
     # 2. Additional scans for specific unversioned/vendor directories
     additional_scan_dirs: List[Path] = []
@@ -260,25 +268,33 @@ def scan_project_files(verbose: bool) -> Set[Path]:
 
     if verbose: print("\n  Performing additional scans for specific directories...")
     for scan_dir in additional_scan_dirs:
-        if scan_dir.is_dir():
+        abs_scan_dir = scan_dir.resolve() # Resolve antes de verificar is_dir
+        if abs_scan_dir.is_dir():
             if verbose: print(f"    Scanning recursively in '{scan_dir.relative_to(BASE_DIR)}'...")
-            count = 0
-            for item in scan_dir.rglob('*'):
-                if item.is_file():
+            count_a = 0
+            for item in abs_scan_dir.rglob('*'):
+                abs_item = item.resolve() # Resolve before checking type or adding
+                if abs_item.is_file():
                      try:
-                         found_files.add(item.resolve().relative_to(BASE_DIR))
-                         count += 1
+                         relative_path = abs_item.relative_to(BASE_DIR)
+                         found_files.add(relative_path)
+                         count_a += 1
                      except ValueError:
-                         if verbose: print(f"    Warning: Skipping file outside base dir? {item}")
-            if verbose: print(f"      Found {count} files in this directory.")
+                         if verbose: print(f"    Warning: Skipping file outside base dir? {abs_item}")
+            if verbose: print(f"      Found {count_a} files in this directory scan.")
         elif verbose:
             # Only warn if it's not the context dir (which might not exist initially)
-             if not str(scan_dir).startswith(str(CONTEXT_CODE_DIR)):
-                  print(f"    Warning: Additional scan directory not found: '{scan_dir.relative_to(BASE_DIR)}'")
+             try:
+                 relative_scan_dir = scan_dir.relative_to(BASE_DIR)
+                 if not str(relative_scan_dir).startswith("context_llm"):
+                     print(f"    Warning: Additional scan directory not found: '{relative_scan_dir}'")
+             except ValueError:
+                  print(f"    Warning: Additional scan directory '{scan_dir}' is outside BASE_DIR.")
 
 
     if verbose: print(f"\n  Total unique files identified before filtering: {len(found_files)}")
     return found_files
+# --- FIM DA NOVA FUNÇÃO ---
 
 # --- Bloco Principal ---
 if __name__ == "__main__":
@@ -303,8 +319,8 @@ if __name__ == "__main__":
 
     # --- AC4: Escaneia os arquivos do projeto ---
     print("\n[AC4] Escaneando arquivos do projeto...")
-    all_found_files = scan_project_files(args.verbose)
-    print(f"  Escaneamento concluído. Total de arquivos únicos identificados: {len(all_found_files)}")
+    all_found_files_relative: Set[Path] = scan_project_files(args.verbose)
+    print(f"  Escaneamento concluído. Total de arquivos únicos identificados: {len(all_found_files_relative)}")
     # -------------------------------------------
 
     # Placeholder para a lógica principal que virá nos próximos ACs
@@ -315,7 +331,7 @@ if __name__ == "__main__":
         print(f"\nLista final de ignorados (a ser aplicada no AC5):")
         for item in sorted(ignore_list): print(f" - {item}")
 
-    # TODO AC5: Aplicar filtros de exclusão (ignore_list, e filtro para o próprio output_filepath) em `all_found_files`
+    # TODO AC5: Aplicar filtros de exclusão (ignore_list, e filtro para o próprio output_filepath) em `all_found_files_relative`
     # TODO AC6-11: Identificar tipos, calcular hash (se aplicável), gerar metadados para cada ARQUIVO FILTRADO
     # TODO AC12-13: Extrair dependências PHP (Usará 'previous_manifest_files_data')
     # TODO AC14-17: Calcular `needs_ai_update` (Usará 'previous_manifest_files_data')
@@ -326,36 +342,39 @@ if __name__ == "__main__":
 
     # Exemplo de criação de um JSON (será substituído pela lógica real)
     # Formato final deve ser um dict: { "relative/path/file.php": { metadata... }, ... }
-    manifest_data: Dict[str, Any] = {
+    current_manifest_files_data: Dict[str, Any] = {}
+    for p in sorted(list(all_found_files_relative))[:10]: # Mostra só 10 como exemplo inicial
+         current_manifest_files_data[p.as_posix()] = { # Usar str(p.as_posix()) como chave
+              "type": "pending_filter_and_metadata...", # Placeholder
+              "versioned": "pending...",
+              "hash": None,
+              "dependencies": None,
+              "dependents": None,
+              "summary": None,
+              "needs_ai_update": "pending..."
+         }
+     # A lógica real iterará sobre os ARQUIVOS FILTRADOS no AC5
+
+    manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
             "comment": "Manifesto inicial - Lógica de preenchimento pendente (ACs 5+)",
             "output_file": str(output_filepath.relative_to(BASE_DIR)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
-            "files_found_before_filter": len(all_found_files) # Add count before filtering
+            "files_found_before_filter": len(all_found_files_relative) # Add count before filtering
         },
-        "files": {
-            # Exemplo:
-             str(p.as_posix()): { # Usar str(p.as_posix()) como chave
-                  "type": "pending...",
-                  "versioned": "pending...",
-                  "hash": None,
-                  "dependencies": None,
-                  "dependents": None,
-                  "summary": None,
-                  "needs_ai_update": "pending..."
-            } for p in sorted(list(all_found_files))[:5] # Mostra só 5 como exemplo
-            # A lógica real iterará sobre os ARQUIVOS FILTRADOS
-        }
+        "files": current_manifest_files_data # Adiciona os arquivos sob a chave "files"
     }
+
 
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
-            json.dump(manifest_data, f, indent=4, ensure_ascii=False)
+            json.dump(manifest_data_final, f, indent=4, ensure_ascii=False)
         print(f"\nManifesto JSON (placeholder) salvo em: {output_filepath.relative_to(BASE_DIR)}")
     except Exception as e:
          print(f"\nErro ao salvar o arquivo de manifesto: {e}", file=sys.stderr)
+         traceback.print_exc(file=sys.stderr) # Adiciona traceback para depuração
          sys.exit(1)
 
     print("--- Geração do Manifesto Concluída (com lógica pendente) ---")
