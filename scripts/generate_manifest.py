@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.14 - Implements AC12: Add token_count structure)
+# generate_manifest.py (v1.15 - Implements AC13: Call Gemini API for token count)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
@@ -16,6 +16,7 @@
 # AC9: Implementa a lógica para determinar o status 'versioned' (rastreado pelo Git).
 # AC10/AC11: Implementa o cálculo do hash SHA1 e exclusões.
 # AC12: Adiciona a chave 'token_count' a todos os arquivos e estrutura básica para contagem.
+# AC13: Implementa a chamada real à API google.genai.count_tokens para arquivos de texto elegíveis.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v]
@@ -43,9 +44,9 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
 from dotenv import load_dotenv
-import google.generativeai as genai # AC12: Import genai
-from google.genai import types # AC12: Import types if needed for future config
-from google.api_core import exceptions as google_api_core_exceptions # AC12: Import exceptions for future handling
+import google.generativeai as genai
+from google.genai import types
+from google.api_core import exceptions as google_api_core_exceptions
 
 # --- Constantes Globais ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -81,18 +82,18 @@ BINARY_EXTENSIONS = {
 }
 TEXTCHARS = bytes(range(32, 127)) + b'\n\r\t\f\b'
 
-# AC12/AC13: Constants for Token Counting
+# AC13: Constants for Token Counting
 GEMINI_MODEL_NAME = 'gemini-1.5-flash' # As specified in AC13
 
-# --- Variáveis Globais (incluindo novas para AC12+) ---
+# --- Variáveis Globais ---
 repo_owner: Optional[str] = None
-GEMINI_API_KEY: Optional[str] = None # AC12
-genai_client: Optional[genai.Client] = None # AC12
-genai_model: Optional[genai.GenerativeModel] = None # AC12
-api_key_loaded: bool = False # AC12: Track if key loaded
-gemini_initialized: bool = False # AC12: Track if client/model initialized
+GEMINI_API_KEY: Optional[str] = None
+genai_client: Optional[genai.Client] = None
+genai_model: Optional[genai.GenerativeModel] = None
+api_key_loaded: bool = False
+gemini_initialized: bool = False
 
-# --- Funções (run_command, parse_arguments, setup_logging, get_default_output_filepath, find_latest_context_code_dir, is_likely_binary - sem mudanças significativas) ---
+# --- Funções ---
 def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = True, capture: bool = True, input_data: Optional[str] = None, shell: bool = False, timeout: Optional[int] = 60) -> Tuple[int, str, str]:
     """Runs a subprocess command and returns exit code, stdout, stderr."""
     cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
@@ -146,9 +147,8 @@ def is_likely_binary(file_path: Path, verbose: bool) -> bool:
         non_text_count = sum(1 for byte in chunk if bytes([byte]) not in TEXTCHARS)
         proportion = non_text_count / len(chunk) if len(chunk) > 0 else 0
         return proportion > 0.30
-    except Exception as e: return False # Assume non-binary on error
+    except Exception as e: return False
 
-# --- Funções (load_previous_manifest, scan_project_files, filter_files, get_file_type - sem mudanças significativas) ---
 def load_previous_manifest(data_dir: Path, verbose: bool) -> Dict[str, Any]:
     if not data_dir.is_dir(): return {}
     manifest_files = [f for f in data_dir.glob('*_manifest.json') if f.is_file() and re.match(TIMESTAMP_MANIFEST_REGEX, f.name)]
@@ -158,7 +158,7 @@ def load_previous_manifest(data_dir: Path, verbose: bool) -> Dict[str, Any]:
     try:
         with open(latest_manifest_path, 'r', encoding='utf-8') as f: data = json.load(f)
         if isinstance(data, dict) and "files" in data and isinstance(data["files"], dict): return data["files"]
-        elif isinstance(data, dict) and "_metadata" not in data: return data # Assume old format
+        elif isinstance(data, dict) and "_metadata" not in data: return data
         else: return {}
     except Exception as e: return {}
 
@@ -175,7 +175,7 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
                     relative_path = absolute_path.relative_to(PROJECT_ROOT)
                     all_files_set.add(relative_path)
                     git_files_set.add(relative_path)
-            except (FileNotFoundError, ValueError, Exception): pass # Ignore files outside project or other errors
+            except (FileNotFoundError, ValueError, Exception): pass
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
     if latest_context_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR): additional_scan_dirs.append(latest_context_code_dir)
     additional_scan_dirs.extend(VENDOR_USPDEV_DIRS)
@@ -209,7 +209,7 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
         if not is_ignored: filtered_files.add(file_path)
     return filtered_files
 
-def get_file_type(relative_path: Path) -> str: # Simplified for brevity, assumed unchanged from AC8
+def get_file_type(relative_path: Path) -> str:
     path_str = relative_path.as_posix(); parts = relative_path.parts; name = relative_path.name; suffix = relative_path.suffix.lower()
     if name == 'composer.json': return 'dependency_composer'
     if name == 'package.json': return 'dependency_npm'
@@ -232,64 +232,103 @@ def get_file_type(relative_path: Path) -> str: # Simplified for brevity, assumed
             if 'Http/Controllers' in path_str: return 'code_php_controller'
             if 'Models' in path_str: return 'code_php_model'
             if 'Providers' in path_str: return 'code_php_provider'
-            # Add more specific app types here...
+            if 'Livewire' in path_str and 'Forms' in path_str: return 'code_php_livewire_form' #AC10 #31 fix
+            if 'Livewire' in path_str: return 'code_php_livewire'
+            if 'View/Components' in path_str: return 'code_php_view_component'
+            if 'Services' in path_str: return 'code_php_service' # Add Service detection
+            if 'Actions' in path_str: return 'code_php_action' # Add Action detection
+            if 'Http/Middleware' in path_str: return 'code_php_middleware' # Add Middleware detection
+            if 'Http/Requests' in path_str: return 'code_php_request' # Add Request detection
+            if 'Console/Commands' in path_str: return 'code_php_command' # Add Command detection
             return 'code_php_app'
     if parts[0] == 'config' and suffix == '.php': return 'config_laravel'
     if parts[0] == 'database':
         if 'migrations' in parts and suffix == '.php': return 'migration_php'
         if 'factories' in parts and suffix == '.php': return 'code_php_factory'
         if 'seeders' in parts and suffix == '.php': return 'code_php_seeder'
-    if parts[0] == 'resources' and 'views' in parts and suffix == '.blade.php': return 'view_blade'
+    if parts[0] == 'resources' and 'views' in parts and suffix == '.blade.php':
+         if 'components' in parts: return 'view_blade_component' # More specific
+         return 'view_blade'
+    if parts[0] == 'resources' and 'css' in parts: return 'asset_source_css'
+    if parts[0] == 'resources' and 'js' in parts: return 'asset_source_js'
+    if parts[0] == 'resources' and 'images' in parts: return f'asset_source_image_{suffix[1:]}' if suffix else 'asset_source_image'
+    if parts[0] == 'public' and suffix == '.php': return 'code_php_public'
+    if parts[0] == 'public' and suffix == '.ico': return 'asset_binary_ico' #AC6 #32 fix
+    if parts[0] == 'public' and suffix == '.png': return 'asset_source_image_png' #AC6 #32 fix
+    if parts[0] == 'public' and suffix == '.txt': return 'asset_public' #AC6 #32 fix
+    if parts[0] == 'public' and suffix == '.htaccess': return 'config_apache' #AC6 #32 fix
     if parts[0] == 'routes' and suffix == '.php': return 'code_php_route'
     if parts[0] == 'tests':
+        if 'Feature' in parts and suffix == '.php': return 'test_php_feature'
+        if 'Unit' in parts and suffix == '.php': return 'test_php_unit'
+        if 'Browser' in parts and suffix == '.php': return 'test_php_dusk'
+        if 'Fakes' in parts and suffix == '.php': return 'test_php_fake' # AC7 #31
         if suffix == '.php': return 'test_php'
     if parts[0] == 'scripts':
         if suffix == '.py': return 'code_python_script'
         if suffix == '.sh': return 'code_shell_script'
-    if path_str.startswith('vendor/uspdev/') and suffix == '.php': return 'code_php_vendor_uspdev'
+    if parts[0] == 'docs':
+        if 'adr' in parts and suffix == '.md': return 'docs_adr_md'
+        if suffix == '.md': return 'docs_md'
+    if parts[0] == 'planos' and suffix == '.txt': return 'plan_text' # AC7 #35 fix
+    if parts[0] == 'templates':
+        if 'meta-prompts' in parts and suffix == '.txt': return 'template_meta_prompt'
+        if 'prompts' in parts and suffix == '.txt': return 'template_prompt' #AC13 #28
+        if 'issue_bodies' in parts and suffix == '.md': return 'template_issue_body'
+    if path_str.startswith('vendor/uspdev/replicado/src/') and suffix == '.php': return 'code_php_vendor_uspdev_replicado'
+    if path_str.startswith('vendor/uspdev/senhaunica-socialite/src/') and suffix == '.php': return 'code_php_vendor_uspdev_senhaunica'
     if path_str.startswith('context_llm/common/'): return 'context_common'
-    if path_str.startswith('context_llm/code/') and len(parts) > 2: return 'context_code' # Simplified
+    if path_str.startswith('context_llm/code/') and len(parts) > 2:
+        file_part = name.lower()
+        if file_part.startswith('git_'): return 'context_code_git'
+        if file_part.startswith('gh_'): return 'context_code_github'
+        if file_part.startswith('artisan_'): return 'context_code_artisan'
+        if file_part.startswith('github_issue_'): return 'context_code_issue_details'
+        # Add more specific context types
+        return 'context_code'
     if suffix == '.php': return 'code_php'
+    if suffix == '.js': return 'code_js'
+    if suffix == '.py': return 'code_python'
+    if suffix == '.sh': return 'code_shell'
+    if suffix == '.json': return 'config_json'
+    if suffix in ['.yaml', '.yml']: return 'config_yaml'
+    if suffix == '.md': return 'docs_md'
+    if suffix == '.txt': return 'text_plain'
     if suffix in BINARY_EXTENSIONS: return f'binary_{suffix[1:]}'
     return 'unknown'
 
-# --- AC12: Funções Novas para API Key e Gemini ---
 def load_api_key(verbose: bool) -> bool:
-    """Carrega a GEMINI_API_KEY do .env ou variáveis de ambiente."""
+    """Loads GEMINI_API_KEY from .env or environment variables."""
     global GEMINI_API_KEY, api_key_loaded
-    if api_key_loaded: return True # Already loaded
-
-    # Prioriza .env no diretório base do projeto
+    if api_key_loaded: return True
     dotenv_path = PROJECT_ROOT / '.env'
     if dotenv_path.is_file():
         if verbose: print(f"  Carregando variáveis de ambiente de: {dotenv_path.relative_to(PROJECT_ROOT)}")
-        load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True) # Override system vars if needed
+        load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True)
     else:
-        if verbose: print("  Arquivo .env não encontrado na raiz do projeto. Usando variáveis de ambiente do sistema (se existirem).")
-
+        if verbose: print("  Arquivo .env não encontrado. Usando variáveis do sistema (se existirem).")
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
     if not GEMINI_API_KEY:
         print("Erro: Variável de ambiente GEMINI_API_KEY não encontrada.", file=sys.stderr)
-        print("  > Defina-a no seu arquivo .env ou nas variáveis de ambiente do sistema.", file=sys.stderr)
         api_key_loaded = False
         return False
     else:
-        if verbose: print("  Chave de API GEMINI_API_KEY carregada com sucesso.")
+        if verbose: print("  Chave de API GEMINI_API_KEY carregada.")
         api_key_loaded = True
         return True
 
 def initialize_gemini(verbose: bool) -> bool:
-    """Inicializa o cliente e modelo Gemini se a chave foi carregada."""
+    """Initializes the Gemini client and model if the key is loaded."""
     global genai_client, genai_model, gemini_initialized
-    if gemini_initialized: return True # Already initialized
+    if gemini_initialized: return True
     if not api_key_loaded:
         if verbose: print("  Aviso: Chave de API não carregada. Impossível inicializar Gemini.")
         return False
     try:
         if verbose: print(f"  Inicializando Google GenAI Client e modelo '{GEMINI_MODEL_NAME}'...")
-        genai.configure(api_key=GEMINI_API_KEY) # Configure directly
-        genai_client = genai.Client() # Instantiate client (can be useful later)
-        genai_model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+        genai.configure(api_key=GEMINI_API_KEY) # AC17: Key is used here
+        genai_client = genai.Client() # Keep client instance if needed later
+        genai_model = genai.GenerativeModel(GEMINI_MODEL_NAME) # AC13: Use correct model
         print("  Cliente e modelo Gemini inicializados com sucesso.")
         gemini_initialized = True
         return True
@@ -299,46 +338,47 @@ def initialize_gemini(verbose: bool) -> bool:
         gemini_initialized = False
         return False
 
-# --- AC12: Placeholder para a função de contagem (será implementada nos ACs 13-18) ---
+# --- AC13: Function to count tokens using Gemini API ---
 def count_tokens_for_file(
     filepath_absolute: Path,
-    model: Optional[genai.GenerativeModel],
+    model: Optional[genai.GenerativeModel], # Expects initialized model
     previous_token_count: Optional[int],
     current_hash: Optional[str],
     previous_hash: Optional[str],
     verbose: bool
 ) -> Optional[int]:
     """
-    (PLACEHOLDER AC12-18) Conta tokens de um arquivo usando a API Gemini,
-    com lógica incremental e tratamento de erro.
+    Counts tokens for a given file using the Gemini API, with incremental logic
+    and error handling.
 
-    Retorna Optional[int] para representar a contagem ou falha/skip.
+    Returns Optional[int]: The token count if successful, None otherwise.
     """
     if not gemini_initialized or not model:
-        if verbose: print(f"      -> Token Count (AC12+): Skipping (Gemini not initialized)")
+        if verbose: print(f"      -> Token Count (AC13): Skipping (Gemini not initialized)")
         return None
 
-    # Lógica Incremental (AC16 - será implementada aqui)
+    # AC16: Incremental Logic - Reuse if hash matches and previous count exists
     if current_hash and previous_hash and current_hash == previous_hash and previous_token_count is not None:
          if verbose: print(f"      -> Token Count (AC16): Reusing previous count ({previous_token_count}) as hash matches.")
          return previous_token_count
 
-    if verbose: print(f"      -> Token Count (AC12+): HASH different or no previous data. Counting needed (but placeholder for now).")
+    if verbose: print(f"      -> Token Count (AC13/16): Counting needed (new/changed/no previous data).")
 
-    # Lógica de Leitura e Chamada API (AC13, AC15, AC17, AC18 - será implementada aqui)
-    # try:
-    #     content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
-    #     response = model.count_tokens(content) # Placeholder call
-    #     token_count = response.total_tokens
-    #     if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
-    #     return token_count
-    # except Exception as e:
-    #     if verbose: print(f"      -> Token Count (AC14/18): Error counting tokens: {e}", file=sys.stderr)
-    #     return None
-
-    # Por enquanto, para AC12, só retornamos None para indicar que a estrutura existe
-    return None
-
+    try:
+        # AC13/15: Read content and call count_tokens
+        content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
+        response = model.count_tokens(content) # AC15: Use the API
+        token_count = response.total_tokens
+        if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
+        return token_count # AC13: Return Integer on success
+    except (IOError, OSError) as e: # AC14: Handle read errors
+        if verbose: print(f"      -> Token Count (AC14): Error reading file '{filepath_absolute.name}': {e}", file=sys.stderr)
+        return None
+    except (google_api_core_exceptions.GoogleAPICallError, errors.GoogleAPIError, Exception) as e: # AC18: Handle API errors
+        if verbose: print(f"      -> Token Count (AC14/18): Error counting tokens for '{filepath_absolute.name}': {type(e).__name__}", file=sys.stderr)
+        # Optionally log the full error in verbose mode
+        # if verbose: traceback.print_exc(file=sys.stderr)
+        return None # AC14: Return None on error
 
 # --- Bloco Principal ---
 if __name__ == "__main__":
@@ -355,8 +395,9 @@ if __name__ == "__main__":
     print(f"--- Iniciando Geração do Manifesto ---")
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
 
-    # AC12: Carregar chave de API e inicializar Gemini
+    # AC17: Load API key
     if load_api_key(args.verbose):
+        # AC13: Initialize Gemini only if key loaded
         initialize_gemini(args.verbose)
     else:
         print("  Aviso: Incapaz de carregar a chave de API. A contagem de tokens será pulada.")
@@ -370,10 +411,11 @@ if __name__ == "__main__":
     print("\n[AC5] Filtrando arquivos baseados nas regras de exclusão...")
     filtered_file_paths = filter_files( all_found_files_relative, DEFAULT_IGNORE_PATTERNS, args.ignore_patterns, output_filepath, args.verbose)
 
-    print("\n[AC6-AC12] Processando arquivos, gerando metadados (hash, tipo, token_count)...")
+    print("\n[AC6-AC13+] Processando arquivos, gerando metadados (hash, tipo, token_count)...")
     current_manifest_files_data: Dict[str, Any] = {}
     binary_file_count = 0
     processed_file_count = 0
+    token_api_calls_made = 0 # Track API calls
 
     for file_path_relative in sorted(list(filtered_file_paths)):
         processed_file_count += 1
@@ -401,18 +443,18 @@ if __name__ == "__main__":
             except Exception: pass # Handle read errors gracefully
         if args.verbose: print(f"      -> Hash (AC10/11): {calculated_hash or 'null (excluded/error)'}")
 
-        # AC12: Initialize token_count to None
+        # AC12: Initialize token_count
         token_count: Optional[int] = None
 
-        # --- Placeholder for AC13-18 Logic ---
+        # AC13/14/15/16/17/18: Logic to potentially call the token count function
         should_count_tokens = gemini_initialized and not is_binary and not is_env_file and not is_context_code
         if should_count_tokens:
             previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
             previous_hash = previous_file_data.get("hash")
             previous_count = previous_file_data.get("token_count")
 
-            # Placeholder call - will be implemented later
-            token_count = count_tokens_for_file(
+            # Call the actual counting function
+            token_count_result = count_tokens_for_file(
                 file_path_absolute,
                 genai_model,
                 previous_count,
@@ -420,40 +462,48 @@ if __name__ == "__main__":
                 previous_hash,
                 args.verbose
             )
+            # Check if the result is different from the previous one (indicates API call happened)
+            if token_count_result != previous_count or (calculated_hash != previous_hash and previous_count is None):
+                 if token_count_result is not None and (previous_count is None or calculated_hash != previous_hash):
+                     token_api_calls_made +=1 # Increment only if API was likely called and succeeded
+
+            token_count = token_count_result # Store the result (int or None)
+
         elif args.verbose:
              reason = "binary" if is_binary else "env file" if is_env_file else "context_code file" if is_context_code else "Gemini not initialized"
              print(f"      -> Token Count (AC14): Skipping count ({reason}).")
-        # --- End Placeholder ---
+        # --- End Token Count Logic ---
 
         metadata: Dict[str, Any] = {
             "type": file_type,
             "versioned": is_versioned,
             "hash": calculated_hash,
-            "token_count": token_count, # AC12: Key is present, value is None for now
+            "token_count": token_count, # AC12/13: Stores int or null
             "dependencies": [], # Placeholder
             "dependents": [], # Placeholder
             "summary": None, # Placeholder
         }
-        if is_binary: metadata['summary'] = None # Ensure summary is null for binary
+        if is_binary: metadata['summary'] = None
 
         current_manifest_files_data[relative_path_str] = metadata
 
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos binários.")
     print(f"  Cálculo AC10/11: Hashes SHA1 calculados ou nulos.")
-    print(f"  Estrutura AC12: Chave 'token_count' adicionada (valor placeholder 'null').")
+    print(f"  Contagem Tokens (AC13+): {token_api_calls_made} chamadas reais à API Gemini realizadas.")
 
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - AC12 (token_count structure) Implementado. Contagem real pendente. Arquivos processados: {len(filtered_file_paths)}.",
+            "comment": f"Manifesto gerado - AC13 (API token count) Implementado. Arquivos processados: {len(filtered_file_paths)}.", # Updated comment
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
             "files_found_before_filter": len(all_found_files_relative),
             "files_after_filter": len(filtered_file_paths),
             "binary_files_detected": binary_file_count,
-            "gemini_initialized": gemini_initialized, # AC12: Indicate if token counting might be possible later
+            "gemini_initialized": gemini_initialized,
+            "token_api_calls_made": token_api_calls_made, # Track calls
         },
         "files": current_manifest_files_data
     }
@@ -461,11 +511,11 @@ if __name__ == "__main__":
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
             json.dump(manifest_data_final, f, indent=4, ensure_ascii=False)
-        print(f"\nManifesto JSON (com estrutura token_count) salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
+        print(f"\nManifesto JSON (com contagem de tokens AC13) salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
     except Exception as e:
          print(f"\nErro ao salvar o arquivo de manifesto: {e}", file=sys.stderr)
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (AC12 Implementado) ---")
+    print(f"--- Geração do Manifesto Concluída (AC13 Implementado) ---")
     sys.exit(0)
