@@ -63,7 +63,7 @@ DEFAULT_GH_RELEASE_LIST_LIMIT = 10
 DEFAULT_GH_PROJECT_NUMBER = os.getenv('GH_PROJECT_NUMBER', "1")
 DEFAULT_GH_PROJECT_OWNER = os.getenv('GH_PROJECT_OWNER', "@me")
 DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv('GH_PROJECT_STATUS_FIELD_NAME',"Status")
-MANIFEST_GENERATOR_SCRIPT = BASE_DIR / "scripts/generate_manifest.py" # Script que gera o JSON
+MANIFEST_GENERATOR_SCRIPT = BASE_DIR / "scripts/generate_manifest.py -v" # Script que gera o JSON
 MANIFEST_DATA_DIR = BASE_DIR / "scripts" / "data" # Diretório onde o JSON é salvo
 TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # Regex para validar nome do arquivo JSON
 

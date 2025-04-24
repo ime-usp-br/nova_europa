@@ -2,30 +2,22 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.15 - Implements AC13: Call Gemini API for token count)
+# generate_manifest.py (v1.19 - Added Rate Limit Handling & Key Rotation)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
 # Destinado a auxiliar ferramentas LLM e rastreamento de mudanças.
-# AC3: Adiciona lógica para encontrar e carregar o manifesto anterior mais recente.
-# AC4: Implementa a lógica de varredura de arquivos via git ls-files e scans adicionais.
-# AC5: Implementa a filtragem de arquivos baseada em padrões padrão e argumentos --ignore.
-# AC6: Adiciona detecção de arquivos binários (extensão + bytes) e metadados nulos.
-# AC7: Define a estrutura JSON final com chaves '_metadata' e 'files'.
-# AC8: Implementa a função get_file_type para categorização granular.
-# AC9: Implementa a lógica para determinar o status 'versioned' (rastreado pelo Git).
-# AC10/AC11: Implementa o cálculo do hash SHA1 e exclusões.
-# AC12: Adiciona a chave 'token_count' a todos os arquivos e estrutura básica para contagem.
-# AC13: Implementa a chamada real à API google.genai.count_tokens para arquivos de texto elegíveis.
+# Adiciona sleep entre chamadas de contagem de tokens e implementa rotação
+# de API key (formato key1|key2|...) para lidar com erros de rate limit.
 #
 # Uso:
-#   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v]
+#   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v] [--sleep SLEEP_SECONDS]
 #
 # Argumentos:
 #   -o, --output OUTPUT_PATH   Caminho para o arquivo JSON de saída.
-#                              (Padrão: scripts/data/YYYYMMDD_HHMMSS_manifest.json)
-#   -i, --ignore IGNORE_PATTERN Padrão (glob), diretório ou arquivo a ignorar. Use múltiplas vezes.
-#   -v, --verbose              Habilita logging mais detalhado para depuração.
+#   -i, --ignore IGNORE_PATTERN Padrão (glob), diretório ou arquivo a ignorar.
+#   -v, --verbose              Habilita logging mais detalhado.
+#   --sleep SLEEP_SECONDS      Segundos de espera entre chamadas à API count_tokens (padrão: 1.0).
 #   -h, --help                 Mostra esta mensagem de ajuda.
 # ==============================================================================
 
@@ -44,8 +36,9 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 from google.genai import types
+from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
 
 # --- Constantes Globais ---
@@ -59,18 +52,14 @@ VENDOR_USPDEV_DIRS = [
     PROJECT_ROOT / "vendor/uspdev/replicado/src/",
     PROJECT_ROOT / "vendor/uspdev/senhaunica-socialite/src/",
 ]
-
-# AC5: Default ignore patterns set
 DEFAULT_IGNORE_PATTERNS: Set[str] = {
     ".git/", ".vscode/", ".idea/", ".fleet/", "node_modules/",
     "storage/framework/cache/data/", "storage/framework/sessions/",
     "storage/framework/views/", "storage/logs/", "bootstrap/cache/",
     "public/build/", "*.lock", "*.sqlite", "*.sqlite-journal", "*.log",
     ".phpunit.cache/", "llm_outputs/", "scripts/data/", "*.DS_Store",
-    "Thumbs.db", "vendor/", "context_llm/", # Ignore entire context_llm dir initially
+    "Thumbs.db", "vendor/", "context_llm/",
 }
-
-# AC6: Constants for Binary File Detection
 BINARY_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tif', '.tiff', '.webp',
     '.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a', '.mp4', '.avi', '.mov',
@@ -81,15 +70,15 @@ BINARY_EXTENSIONS = {
     '.swf', '.dat',
 }
 TEXTCHARS = bytes(range(32, 127)) + b'\n\r\t\f\b'
-
-# AC13: Constants for Token Counting
-GEMINI_MODEL_NAME = 'gemini-1.5-flash' # As specified in AC13
+GEMINI_MODEL_NAME = 'gemini-1.5-flash'
+DEFAULT_INTER_CALL_SLEEP = 1.0 # Default sleep between count_tokens calls
+DEFAULT_RATE_LIMIT_SLEEP = 5.0 # Default sleep after hitting rate limit
 
 # --- Variáveis Globais ---
 repo_owner: Optional[str] = None
-GEMINI_API_KEY: Optional[str] = None
+GEMINI_API_KEYS_LIST: List[str] = [] # Renamed for clarity
+current_api_key_index: int = 0
 genai_client: Optional[genai.Client] = None
-genai_model: Optional[genai.GenerativeModel] = None
 api_key_loaded: bool = False
 gemini_initialized: bool = False
 
@@ -114,10 +103,11 @@ def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = Tru
 
 def parse_arguments() -> argparse.Namespace:
     """Configura e processa os argumentos da linha de comando."""
-    parser = argparse.ArgumentParser( description="Gera um manifesto JSON estruturado do projeto.", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=f"""Exemplos:\n  python {Path(__file__).name}\n  python {Path(__file__).name} -o build/manifest.json\n  python {Path(__file__).name} -i '*.tmp' -i 'docs/drafts/' -v""")
+    parser = argparse.ArgumentParser( description="Gera um manifesto JSON estruturado do projeto.", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=f"""Exemplos:\n  python {Path(__file__).name}\n  python {Path(__file__).name} -o build/manifest.json\n  python {Path(__file__).name} -i '*.tmp' -i 'docs/drafts/' -v --sleep 0.5""") # Added sleep example
     parser.add_argument("-o", "--output", dest="output_path", type=str, default=None, help=f"Caminho para o arquivo JSON de saída. Padrão: {DEFAULT_OUTPUT_DIR.relative_to(PROJECT_ROOT)}/YYYYMMDD_HHMMSS_manifest.json")
     parser.add_argument("-i", "--ignore", dest="ignore_patterns", action="append", default=[], help="Padrão (glob), diretório ou arquivo a ignorar. Use múltiplas vezes.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Habilita logging mais detalhado.")
+    parser.add_argument("--sleep", type=float, default=DEFAULT_INTER_CALL_SLEEP, help=f"Segundos de espera entre chamadas à API count_tokens (padrão: {DEFAULT_INTER_CALL_SLEEP}).")
     return parser.parse_args()
 
 def setup_logging(verbose: bool):
@@ -139,77 +129,133 @@ def find_latest_context_code_dir(context_base_dir: Path) -> Optional[Path]:
 
 def is_likely_binary(file_path: Path, verbose: bool) -> bool:
     """Verifica se um arquivo é provavelmente binário."""
-    if file_path.suffix.lower() in BINARY_EXTENSIONS: return True
+    if file_path.suffix.lower() in BINARY_EXTENSIONS:
+        if verbose: print(f"      -> Binary Check (AC6): Positive (extension '{file_path.suffix}')")
+        return True
     try:
         with open(file_path, 'rb') as f: chunk = f.read(512)
-        if not chunk: return False
-        if b'\0' in chunk: return True
+        if not chunk: return False # Empty file is not binary
+        if b'\0' in chunk:
+             if verbose: print(f"      -> Binary Check (AC6): Positive (null byte found)")
+             return True
         non_text_count = sum(1 for byte in chunk if bytes([byte]) not in TEXTCHARS)
         proportion = non_text_count / len(chunk) if len(chunk) > 0 else 0
-        return proportion > 0.30
-    except Exception as e: return False
+        is_bin = proportion > 0.30 # Heuristic: >30% non-text bytes
+        if is_bin and verbose: print(f"      -> Binary Check (AC6): Positive (high proportion of non-text bytes: {proportion:.1%})")
+        return is_bin
+    except Exception as e:
+        if verbose: print(f"      -> Binary Check (AC6): Error reading file for binary check: {e}", file=sys.stderr)
+        return False # Treat as non-binary if cannot read
 
 def load_previous_manifest(data_dir: Path, verbose: bool) -> Dict[str, Any]:
-    if not data_dir.is_dir(): return {}
+    """Carrega o dicionário 'files' do manifesto anterior mais recente."""
+    if not data_dir.is_dir():
+        if verbose: print("  Aviso: Diretório de dados do manifesto não encontrado, não é possível carregar dados anteriores.")
+        return {}
     manifest_files = [f for f in data_dir.glob('*_manifest.json') if f.is_file() and re.match(TIMESTAMP_MANIFEST_REGEX, f.name)]
-    if not manifest_files: return {}
+    if not manifest_files:
+        if verbose: print("  Aviso: Nenhum arquivo de manifesto anterior encontrado.")
+        return {}
     latest_manifest_path = sorted(manifest_files, reverse=True)[0]
     if verbose: print(f"  Encontrado manifesto anterior: '{latest_manifest_path.relative_to(PROJECT_ROOT)}'")
     try:
         with open(latest_manifest_path, 'r', encoding='utf-8') as f: data = json.load(f)
-        if isinstance(data, dict) and "files" in data and isinstance(data["files"], dict): return data["files"]
-        elif isinstance(data, dict) and "_metadata" not in data: return data
-        else: return {}
-    except Exception as e: return {}
+        # Retorna o dicionário sob a chave 'files' se existir e for um dict, senão vazio
+        if isinstance(data, dict) and "files" in data and isinstance(data["files"], dict):
+            if verbose: print(f"  Manifesto anterior carregado com sucesso ({len(data['files'])} arquivos).")
+            return data["files"]
+        else:
+             if verbose: print("  Aviso: Formato inesperado no manifesto anterior ou chave 'files' ausente/inválida.")
+             return {}
+    except Exception as e:
+        if verbose: print(f"  Erro ao carregar ou parsear manifesto anterior '{latest_manifest_path.name}': {e}", file=sys.stderr)
+        return {}
 
 def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
+    """Escaneia o projeto por arquivos, priorizando git e incluindo dirs específicos."""
     all_files_set: Set[Path] = set()
     git_files_set: Set[Path] = set()
+    if verbose: print("  Executando 'git ls-files' para encontrar arquivos versionados/rastreados...")
+    # -c: cached, -o: others, -z: null terminated, --exclude-standard: use .gitignore
     exit_code_ls, stdout_ls, stderr_ls = run_command(['git', 'ls-files', '-z', '-c', '-o', '--exclude-standard'], check=False)
     if exit_code_ls == 0 and stdout_ls:
         tracked_paths = filter(None, stdout_ls.split('\0'))
         for path_str in tracked_paths:
             try:
-                absolute_path = (PROJECT_ROOT / Path(path_str)).resolve(strict=True)
+                absolute_path = (PROJECT_ROOT / Path(path_str)).resolve(strict=True) # Resolve symlinks, check existence
                 if absolute_path.is_file():
                     relative_path = absolute_path.relative_to(PROJECT_ROOT)
                     all_files_set.add(relative_path)
-                    git_files_set.add(relative_path)
-            except (FileNotFoundError, ValueError, Exception): pass
+                    git_files_set.add(relative_path) # Mark as versioned/tracked by git
+            except (FileNotFoundError, ValueError, Exception) as e:
+                 if verbose: print(f"    Aviso: Ignorando path de 'git ls-files' devido a erro: {path_str} ({e})", file=sys.stderr)
+    else:
+         print(f"  Aviso: 'git ls-files' falhou (Code: {exit_code_ls}). A varredura pode estar incompleta. Stderr: {stderr_ls.strip()}", file=sys.stderr)
+    if verbose: print(f"  Arquivos iniciais encontrados via Git: {len(all_files_set)}")
+
+    # Scans adicionais (contexto comum, último código, vendor uspdev)
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
-    if latest_context_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR): additional_scan_dirs.append(latest_context_code_dir)
+    latest_context_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
+    if latest_context_code_dir: additional_scan_dirs.append(latest_context_code_dir)
     additional_scan_dirs.extend(VENDOR_USPDEV_DIRS)
+    if verbose: print("  Realizando scans adicionais em diretórios específicos...")
     for scan_dir in additional_scan_dirs:
         abs_scan_dir = scan_dir.resolve(strict=False)
+        if verbose: print(f"    Escaneando: {abs_scan_dir.relative_to(PROJECT_ROOT)}")
         if abs_scan_dir.is_dir():
             for item in abs_scan_dir.rglob('*'):
                 try:
-                    if item.is_file(): all_files_set.add(item.resolve(strict=True).relative_to(PROJECT_ROOT))
-                except (FileNotFoundError, ValueError, Exception): pass
+                    if item.is_file():
+                        relative_path = item.resolve(strict=True).relative_to(PROJECT_ROOT)
+                        all_files_set.add(relative_path)
+                except (FileNotFoundError, ValueError, Exception) as e:
+                     if verbose: print(f"      Aviso: Ignorando item durante scan adicional: {item} ({e})", file=sys.stderr)
+        elif verbose: print(f"      Aviso: Diretório de scan adicional não existe: {abs_scan_dir}")
+
+    if verbose: print(f"  Total de arquivos únicos encontrados após scans: {len(all_files_set)}")
     return all_files_set, git_files_set
 
 def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores: List[str], output_filepath: Path, verbose: bool) -> Set[Path]:
+    """Filtra a lista de arquivos com base nos padrões de ignore."""
     filtered_files: Set[Path] = set()
     ignore_patterns = default_ignores.copy()
     ignore_patterns.update(custom_ignores)
     try: ignore_patterns.add(output_filepath.relative_to(PROJECT_ROOT).as_posix())
     except ValueError: pass
+    if verbose: print(f"  Aplicando {len(ignore_patterns)} padrões de exclusão...")
+    skipped_count = 0
     for file_path in all_files:
         file_path_str = file_path.as_posix()
         is_ignored = False
         for pattern in ignore_patterns:
+            # Check for vendor/uspdev/* explicitly to avoid excluding them due to vendor/ pattern
+            if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT).as_posix()) + '/') for usp_dir in VENDOR_USPDEV_DIRS):
+                continue # Don't ignore USPDev paths due to the general vendor/ rule
+            # Check for context_llm common/latest explicitly
+            if pattern == "context_llm/":
+                is_common = file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT).as_posix()) + '/')
+                latest_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
+                is_latest_code = latest_code_dir and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT).as_posix()) + '/')
+                if is_common or is_latest_code:
+                    continue # Don't ignore common or latest code dir due to general context_llm/ rule
+
             is_dir_pattern = pattern.endswith('/')
             cleaned_pattern = pattern.rstrip('/')
-            if file_path_str == cleaned_pattern or (is_dir_pattern and file_path_str.startswith(cleaned_pattern + '/')): is_ignored = True; break
-            if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT)).replace('\\', '/')) for usp_dir in VENDOR_USPDEV_DIRS): continue
-            if pattern == "context_llm/" and (file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT)).replace('\\', '/')) or ((latest_code_dir := find_latest_context_code_dir(CONTEXT_CODE_DIR)) and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT)).replace('\\', '/')))): continue
+            # Check for exact match or directory prefix match
+            if file_path_str == cleaned_pattern or (is_dir_pattern and file_path_str.startswith(cleaned_pattern + '/')):
+                is_ignored = True; break
+            # Check for glob match
             try:
                 if file_path.match(pattern): is_ignored = True; break
-            except Exception: pass
+            except Exception as e: # Catch potential issues with Path.match
+                 if verbose: print(f"    Warning: Error matching pattern '{pattern}' for file '{file_path_str}': {e}", file=sys.stderr)
         if not is_ignored: filtered_files.add(file_path)
+        elif verbose: skipped_count += 1
+    if verbose: print(f"  Filtro concluído. {len(filtered_files)} arquivos retidos, {skipped_count} ignorados.")
     return filtered_files
 
 def get_file_type(relative_path: Path) -> str:
+    """Determina um tipo granular para o arquivo baseado no caminho e extensão."""
     path_str = relative_path.as_posix(); parts = relative_path.parts; name = relative_path.name; suffix = relative_path.suffix.lower()
     if name == 'composer.json': return 'dependency_composer'
     if name == 'package.json': return 'dependency_npm'
@@ -232,14 +278,14 @@ def get_file_type(relative_path: Path) -> str:
             if 'Http/Controllers' in path_str: return 'code_php_controller'
             if 'Models' in path_str: return 'code_php_model'
             if 'Providers' in path_str: return 'code_php_provider'
-            if 'Livewire' in path_str and 'Forms' in path_str: return 'code_php_livewire_form' #AC10 #31 fix
+            if 'Livewire/Forms' in path_str: return 'code_php_livewire_form'
+            if 'Livewire/Actions' in path_str: return 'code_php_action'
             if 'Livewire' in path_str: return 'code_php_livewire'
             if 'View/Components' in path_str: return 'code_php_view_component'
-            if 'Services' in path_str: return 'code_php_service' # Add Service detection
-            if 'Actions' in path_str: return 'code_php_action' # Add Action detection
-            if 'Http/Middleware' in path_str: return 'code_php_middleware' # Add Middleware detection
-            if 'Http/Requests' in path_str: return 'code_php_request' # Add Request detection
-            if 'Console/Commands' in path_str: return 'code_php_command' # Add Command detection
+            if 'Services' in path_str: return 'code_php_service'
+            if 'Http/Middleware' in path_str: return 'code_php_middleware'
+            if 'Http/Requests' in path_str: return 'code_php_request'
+            if 'Console/Commands' in path_str: return 'code_php_command'
             return 'code_php_app'
     if parts[0] == 'config' and suffix == '.php': return 'config_laravel'
     if parts[0] == 'database':
@@ -247,22 +293,21 @@ def get_file_type(relative_path: Path) -> str:
         if 'factories' in parts and suffix == '.php': return 'code_php_factory'
         if 'seeders' in parts and suffix == '.php': return 'code_php_seeder'
     if parts[0] == 'resources' and 'views' in parts and suffix == '.blade.php':
-         if 'components' in parts: return 'view_blade_component' # More specific
+         if 'components' in parts: return 'view_blade_component'
          return 'view_blade'
     if parts[0] == 'resources' and 'css' in parts: return 'asset_source_css'
     if parts[0] == 'resources' and 'js' in parts: return 'asset_source_js'
     if parts[0] == 'resources' and 'images' in parts: return f'asset_source_image_{suffix[1:]}' if suffix else 'asset_source_image'
     if parts[0] == 'public' and suffix == '.php': return 'code_php_public'
-    if parts[0] == 'public' and suffix == '.ico': return 'asset_binary_ico' #AC6 #32 fix
-    if parts[0] == 'public' and suffix == '.png': return 'asset_source_image_png' #AC6 #32 fix
-    if parts[0] == 'public' and suffix == '.txt': return 'asset_public' #AC6 #32 fix
-    if parts[0] == 'public' and suffix == '.htaccess': return 'config_apache' #AC6 #32 fix
+    if parts[0] == 'public' and suffix in ['.ico', '.png', '.jpg', '.jpeg', '.gif']: return f'asset_binary_{suffix[1:]}'
+    if parts[0] == 'public' and suffix == '.txt': return 'asset_public'
+    if parts[0] == 'public' and suffix == '.htaccess': return 'config_apache'
     if parts[0] == 'routes' and suffix == '.php': return 'code_php_route'
     if parts[0] == 'tests':
         if 'Feature' in parts and suffix == '.php': return 'test_php_feature'
         if 'Unit' in parts and suffix == '.php': return 'test_php_unit'
         if 'Browser' in parts and suffix == '.php': return 'test_php_dusk'
-        if 'Fakes' in parts and suffix == '.php': return 'test_php_fake' # AC7 #31
+        if 'Fakes' in parts and suffix == '.php': return 'test_php_fake'
         if suffix == '.php': return 'test_php'
     if parts[0] == 'scripts':
         if suffix == '.py': return 'code_python_script'
@@ -270,21 +315,37 @@ def get_file_type(relative_path: Path) -> str:
     if parts[0] == 'docs':
         if 'adr' in parts and suffix == '.md': return 'docs_adr_md'
         if suffix == '.md': return 'docs_md'
-    if parts[0] == 'planos' and suffix == '.txt': return 'plan_text' # AC7 #35 fix
+    if parts[0] == 'planos' and suffix == '.txt': return 'plan_text'
     if parts[0] == 'templates':
         if 'meta-prompts' in parts and suffix == '.txt': return 'template_meta_prompt'
-        if 'prompts' in parts and suffix == '.txt': return 'template_prompt' #AC13 #28
+        if 'prompts' in parts and suffix == '.txt': return 'template_prompt'
         if 'issue_bodies' in parts and suffix == '.md': return 'template_issue_body'
     if path_str.startswith('vendor/uspdev/replicado/src/') and suffix == '.php': return 'code_php_vendor_uspdev_replicado'
     if path_str.startswith('vendor/uspdev/senhaunica-socialite/src/') and suffix == '.php': return 'code_php_vendor_uspdev_senhaunica'
     if path_str.startswith('context_llm/common/'): return 'context_common'
     if path_str.startswith('context_llm/code/') and len(parts) > 2:
         file_part = name.lower()
-        if file_part.startswith('git_'): return 'context_code_git'
-        if file_part.startswith('gh_'): return 'context_code_github'
-        if file_part.startswith('artisan_'): return 'context_code_artisan'
+        # More specific context file types
+        if file_part == 'git_log.txt': return 'context_code_git_log'
+        if file_part == 'git_diff_cached.txt': return 'context_code_git_diff_cached'
+        if file_part == 'git_diff_unstaged.txt': return 'context_code_git_diff_unstaged'
+        if file_part == 'git_status.txt': return 'context_code_git_status'
+        if file_part == 'git_ls_files.txt': return 'context_code_git_lsfiles'
         if file_part.startswith('github_issue_'): return 'context_code_issue_details'
-        # Add more specific context types
+        if file_part.startswith('artisan_'): return 'context_code_artisan_output'
+        if file_part.startswith('env_'): return 'context_code_env_info'
+        if file_part == 'composer_show.txt': return 'context_code_deps_composer'
+        if file_part == 'npm_list_depth0.txt': return 'context_code_deps_npm'
+        if file_part == 'env_pip_freeze.txt': return 'context_code_deps_pip'
+        if file_part == 'project_tree_l3.txt': return 'context_code_project_tree'
+        if file_part == 'project_cloc.txt': return 'context_code_cloc'
+        if file_part == 'phpstan_analysis.txt': return 'context_code_phpstan'
+        if file_part == 'pint_test_results.txt': return 'context_code_pint'
+        if file_part == 'phpunit_test_results.txt': return 'context_code_phpunit'
+        if file_part == 'dusk_test_results.txt': return 'context_code_dusk_results'
+        if file_part == 'dusk_test_info.txt': return 'context_code_dusk_info'
+        if file_part == 'manifest.md': return 'context_code_manifest_md'
+        # Fallback for other context files
         return 'context_code'
     if suffix == '.php': return 'code_php'
     if suffix == '.js': return 'code_js'
@@ -297,88 +358,146 @@ def get_file_type(relative_path: Path) -> str:
     if suffix in BINARY_EXTENSIONS: return f'binary_{suffix[1:]}'
     return 'unknown'
 
-def load_api_key(verbose: bool) -> bool:
-    """Loads GEMINI_API_KEY from .env or environment variables."""
-    global GEMINI_API_KEY, api_key_loaded
+# --- Funções para Rate Limit e Rotação de Chave (Adaptado de llm_interact.py) ---
+def load_api_keys(verbose: bool) -> bool:
+    """Loads GEMINI_API_KEYS from .env or environment variables."""
+    global GEMINI_API_KEYS_LIST, api_key_loaded, current_api_key_index
     if api_key_loaded: return True
+
     dotenv_path = PROJECT_ROOT / '.env'
     if dotenv_path.is_file():
         if verbose: print(f"  Carregando variáveis de ambiente de: {dotenv_path.relative_to(PROJECT_ROOT)}")
         load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True)
-    else:
-        if verbose: print("  Arquivo .env não encontrado. Usando variáveis do sistema (se existirem).")
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-    if not GEMINI_API_KEY:
+
+    api_key_string = os.getenv('GEMINI_API_KEY') # Assume a mesma variável usada em llm_interact
+    if not api_key_string:
         print("Erro: Variável de ambiente GEMINI_API_KEY não encontrada.", file=sys.stderr)
         api_key_loaded = False
         return False
-    else:
-        if verbose: print("  Chave de API GEMINI_API_KEY carregada.")
-        api_key_loaded = True
-        return True
+
+    GEMINI_API_KEYS_LIST = [key.strip() for key in api_key_string.split('|') if key.strip()]
+    if not GEMINI_API_KEYS_LIST:
+        print("Erro: Formato da GEMINI_API_KEY inválido ou vazio. Use '|' para separar múltiplas chaves.", file=sys.stderr)
+        api_key_loaded = False
+        return False
+
+    current_api_key_index = 0 # Start with the first key
+    api_key_loaded = True
+    if verbose: print(f"  {len(GEMINI_API_KEYS_LIST)} Chave(s) de API GEMINI carregadas.")
+    return True
 
 def initialize_gemini(verbose: bool) -> bool:
-    """Initializes the Gemini client and model if the key is loaded."""
-    global genai_client, genai_model, gemini_initialized
+    """Initializes the Gemini client using the current API key."""
+    global genai_client, gemini_initialized, GEMINI_API_KEYS_LIST, current_api_key_index
     if gemini_initialized: return True
-    if not api_key_loaded:
-        if verbose: print("  Aviso: Chave de API não carregada. Impossível inicializar Gemini.")
+    if not api_key_loaded or not GEMINI_API_KEYS_LIST or not (0 <= current_api_key_index < len(GEMINI_API_KEYS_LIST)):
+        if verbose: print("  Aviso: Chaves de API não carregadas ou índice inválido. Impossível inicializar Gemini.")
         return False
+
+    active_key = GEMINI_API_KEYS_LIST[current_api_key_index]
     try:
-        if verbose: print(f"  Inicializando Google GenAI Client e modelo '{GEMINI_MODEL_NAME}'...")
-        genai.configure(api_key=GEMINI_API_KEY) # AC17: Key is used here
-        genai_client = genai.Client() # Keep client instance if needed later
-        genai_model = genai.GenerativeModel(GEMINI_MODEL_NAME) # AC13: Use correct model
-        print("  Cliente e modelo Gemini inicializados com sucesso.")
+        if verbose: print(f"  Inicializando Google GenAI Client com Key Index {current_api_key_index}...")
+        genai_client = genai.Client(api_key=active_key)
+        print("  Cliente Gemini inicializado com sucesso.")
         gemini_initialized = True
         return True
     except Exception as e:
-        print(f"Erro ao inicializar Google GenAI: {e}", file=sys.stderr)
+        print(f"Erro ao inicializar Google GenAI Client com Key Index {current_api_key_index}: {e}", file=sys.stderr)
         if verbose: traceback.print_exc(file=sys.stderr)
         gemini_initialized = False
         return False
 
-# --- AC13: Function to count tokens using Gemini API ---
+def rotate_api_key_and_reinitialize(verbose: bool) -> bool:
+    """Rotates to the next API key and reinitializes the client."""
+    global current_api_key_index, GEMINI_API_KEYS_LIST
+    if not GEMINI_API_KEYS_LIST or len(GEMINI_API_KEYS_LIST) <= 1:
+        if verbose: print("  Aviso: Não é possível rotacionar (apenas uma ou nenhuma chave disponível).", file=sys.stderr)
+        return False # Cannot rotate if only one key
+
+    start_index = current_api_key_index
+    current_api_key_index = (current_api_key_index + 1) % len(GEMINI_API_KEYS_LIST)
+    print(f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n")
+    if current_api_key_index == start_index:
+        print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
+
+    return initialize_gemini(verbose) # Re-initialize with the new key
+
 def count_tokens_for_file(
     filepath_absolute: Path,
-    model: Optional[genai.GenerativeModel], # Expects initialized model
+    client: Optional[genai.Client],
     previous_token_count: Optional[int],
     current_hash: Optional[str],
     previous_hash: Optional[str],
-    verbose: bool
+    verbose: bool,
+    sleep_seconds: float # Add sleep parameter
 ) -> Optional[int]:
-    """
-    Counts tokens for a given file using the Gemini API, with incremental logic
-    and error handling.
-
-    Returns Optional[int]: The token count if successful, None otherwise.
-    """
-    if not gemini_initialized or not model:
-        if verbose: print(f"      -> Token Count (AC13): Skipping (Gemini not initialized)")
+    """Counts tokens with rate limit handling and key rotation."""
+    if not gemini_initialized or not client:
+        if verbose: print(f"      -> Token Count: Skipping (Gemini client not initialized)")
         return None
 
-    # AC16: Incremental Logic - Reuse if hash matches and previous count exists
+    # AC16: Incremental Logic
     if current_hash and previous_hash and current_hash == previous_hash and previous_token_count is not None:
-         if verbose: print(f"      -> Token Count (AC16): Reusing previous count ({previous_token_count}) as hash matches.")
-         return previous_token_count
+        if verbose: print(f"      -> Token Count (AC16): Reusing previous count ({previous_token_count}) as hash matches.")
+        return previous_token_count
 
-    if verbose: print(f"      -> Token Count (AC13/16): Counting needed (new/changed/no previous data).")
+    if verbose: print(f"      -> Token Count (AC13/16): Counting needed for {filepath_absolute.name}")
 
-    try:
-        # AC13/15: Read content and call count_tokens
-        content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
-        response = model.count_tokens(content) # AC15: Use the API
-        token_count = response.total_tokens
-        if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
-        return token_count # AC13: Return Integer on success
-    except (IOError, OSError) as e: # AC14: Handle read errors
-        if verbose: print(f"      -> Token Count (AC14): Error reading file '{filepath_absolute.name}': {e}", file=sys.stderr)
-        return None
-    except (google_api_core_exceptions.GoogleAPICallError, errors.GoogleAPIError, Exception) as e: # AC18: Handle API errors
-        if verbose: print(f"      -> Token Count (AC14/18): Error counting tokens for '{filepath_absolute.name}': {type(e).__name__}", file=sys.stderr)
-        # Optionally log the full error in verbose mode
-        # if verbose: traceback.print_exc(file=sys.stderr)
-        return None # AC14: Return None on error
+    # Apply sleep before making a potential API call
+    if sleep_seconds > 0:
+        if verbose: print(f"      -> Sleeping for {sleep_seconds:.2f}s before API call...")
+        time.sleep(sleep_seconds)
+
+    initial_key_index = current_api_key_index
+    keys_tried_in_this_call = {initial_key_index}
+
+    while True: # Loop for retries with key rotation
+        try:
+            if verbose: print(f"        -> Attempting count_tokens with Key Index {current_api_key_index}")
+            content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
+            response = client.models.count_tokens(model=GEMINI_MODEL_NAME, contents=content)
+            token_count = response.total_tokens
+            if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
+            return token_count # Success!
+
+        except (IOError, OSError) as e:
+            if verbose: print(f"      -> Token Count (AC14): Error reading file '{filepath_absolute.name}': {e}", file=sys.stderr)
+            return None # Read error, no retry
+
+        # --- Rate Limit / API Error Handling ---
+        except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.APIError) as e:
+            status_code = -1
+            is_rate_limit = isinstance(e, google_api_core_exceptions.ResourceExhausted)
+            if isinstance(e, google_genai_errors.APIError):
+                status_code = getattr(e, 'code', -1)
+                # Treat 429 specifically as rate limit
+                if status_code == 429:
+                    is_rate_limit = True
+
+            if is_rate_limit:
+                print(f"      -> Rate Limit Error ({type(e).__name__}{f', code={status_code}' if status_code != -1 else ''}) with Key Index {current_api_key_index}. Waiting {DEFAULT_RATE_LIMIT_SLEEP}s and rotating key...", file=sys.stderr)
+                time.sleep(DEFAULT_RATE_LIMIT_SLEEP)
+
+                if not rotate_api_key_and_reinitialize(verbose):
+                    print(f"      Error: Falha ao rotacionar chave de API após rate limit. Retornando None.", file=sys.stderr)
+                    return None
+
+                if current_api_key_index in keys_tried_in_this_call:
+                    print(f"      Error: Ciclo completo de chaves de API. Limite de taxa provavelmente persistente para '{filepath_absolute.name}'. Retornando None.", file=sys.stderr)
+                    return None
+
+                keys_tried_in_this_call.add(current_api_key_index)
+                if verbose: print(f"        -> Retrying count_tokens with new Key Index {current_api_key_index}")
+                continue # Continue the while loop to retry with the new key
+
+            else: # Handle other API errors without retry
+                if verbose: print(f"      -> Token Count (AC18): API Error for '{filepath_absolute.name}': {type(e).__name__} - {e}", file=sys.stderr)
+                return None
+        except Exception as e: # Catch other unexpected errors
+            if verbose: print(f"      -> Token Count: Unexpected Error for '{filepath_absolute.name}': {e}", file=sys.stderr)
+            # traceback.print_exc(file=sys.stderr) # Uncomment for full trace if needed
+            return None
+        # --- End Error Handling ---
 
 # --- Bloco Principal ---
 if __name__ == "__main__":
@@ -394,13 +513,14 @@ if __name__ == "__main__":
 
     print(f"--- Iniciando Geração do Manifesto ---")
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
+    print(f"Intervalo entre chamadas API count_tokens: {args.sleep}s")
 
-    # AC17: Load API key
-    if load_api_key(args.verbose):
-        # AC13: Initialize Gemini only if key loaded
-        initialize_gemini(args.verbose)
+    # Load API keys from the start
+    if not load_api_keys(args.verbose):
+        print("Aviso: Incapaz de carregar chave(s) de API. A contagem de tokens será pulada.")
     else:
-        print("  Aviso: Incapaz de carregar a chave de API. A contagem de tokens será pulada.")
+        # Initialize Gemini client with the first key
+        initialize_gemini(args.verbose)
 
     if args.verbose: print("\n[AC3] Carregando manifesto anterior (se existir)...")
     previous_manifest_files_data = load_previous_manifest(DEFAULT_OUTPUT_DIR, args.verbose)
@@ -411,11 +531,11 @@ if __name__ == "__main__":
     print("\n[AC5] Filtrando arquivos baseados nas regras de exclusão...")
     filtered_file_paths = filter_files( all_found_files_relative, DEFAULT_IGNORE_PATTERNS, args.ignore_patterns, output_filepath, args.verbose)
 
-    print("\n[AC6-AC13+] Processando arquivos, gerando metadados (hash, tipo, token_count)...")
+    print("\n[AC6-AC18] Processando arquivos, gerando metadados (hash, tipo, versioned, token_count)...")
     current_manifest_files_data: Dict[str, Any] = {}
     binary_file_count = 0
     processed_file_count = 0
-    token_api_calls_made = 0 # Track API calls
+    token_api_calls_made = 0
 
     for file_path_relative in sorted(list(filtered_file_paths)):
         processed_file_count += 1
@@ -423,65 +543,62 @@ if __name__ == "__main__":
         relative_path_str = file_path_relative.as_posix()
         if args.verbose: print(f"\n  Processing ({processed_file_count}/{len(filtered_file_paths)}): {relative_path_str}")
 
-        is_binary = is_likely_binary(file_path_absolute, args.verbose)
+        is_binary = is_likely_binary(file_path_absolute, args.verbose) # AC6
         if is_binary: binary_file_count += 1
 
-        file_type = get_file_type(file_path_relative)
+        file_type = get_file_type(file_path_relative) # AC8
         if args.verbose: print(f"      -> Type (AC8): {file_type}")
 
-        is_versioned = file_path_relative in versioned_files_set
-        if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/')): is_versioned = False
+        is_versioned = file_path_relative in versioned_files_set # AC9 check 1
+        if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/')): is_versioned = False # AC9 check 2
         if args.verbose: print(f"      -> Versioned (AC9): {is_versioned}")
 
         calculated_hash: Optional[str] = None
         is_env_file = file_type == 'environment_env'
         is_context_code = relative_path_str.startswith('context_llm/code/')
-        should_calculate_hash = not is_binary and not is_env_file and not is_context_code
+        should_calculate_hash = not is_binary and not is_env_file # AC11: Exclude binary and env
 
         if should_calculate_hash:
-            try: calculated_hash = hashlib.sha1(file_path_absolute.read_bytes()).hexdigest()
-            except Exception: pass # Handle read errors gracefully
+            try: calculated_hash = hashlib.sha1(file_path_absolute.read_bytes()).hexdigest() # AC10
+            except Exception as e:
+                 if args.verbose: print(f"      -> Hash (AC11): Error calculating hash: {e}", file=sys.stderr) # AC11 error case
+        if is_context_code: calculated_hash = None # AC11: Also null for context code
         if args.verbose: print(f"      -> Hash (AC10/11): {calculated_hash or 'null (excluded/error)'}")
 
-        # AC12: Initialize token_count
         token_count: Optional[int] = None
-
-        # AC13/14/15/16/17/18: Logic to potentially call the token count function
         should_count_tokens = gemini_initialized and not is_binary and not is_env_file and not is_context_code
         if should_count_tokens:
             previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
             previous_hash = previous_file_data.get("hash")
             previous_count = previous_file_data.get("token_count")
 
-            # Call the actual counting function
             token_count_result = count_tokens_for_file(
                 file_path_absolute,
-                genai_model,
+                genai_client, # Pass the global client
                 previous_count,
                 calculated_hash,
                 previous_hash,
-                args.verbose
+                args.verbose,
+                args.sleep # Pass the sleep duration
             )
-            # Check if the result is different from the previous one (indicates API call happened)
-            if token_count_result != previous_count or (calculated_hash != previous_hash and previous_count is None):
-                 if token_count_result is not None and (previous_count is None or calculated_hash != previous_hash):
-                     token_api_calls_made +=1 # Increment only if API was likely called and succeeded
 
-            token_count = token_count_result # Store the result (int or None)
+            if token_count_result is not None and (previous_count is None or calculated_hash != previous_hash):
+                 token_api_calls_made +=1
+
+            token_count = token_count_result
 
         elif args.verbose:
              reason = "binary" if is_binary else "env file" if is_env_file else "context_code file" if is_context_code else "Gemini not initialized"
-             print(f"      -> Token Count (AC14): Skipping count ({reason}).")
-        # --- End Token Count Logic ---
+             print(f"      -> Token Count (AC14): Skipping count ({reason}). Setting to null.")
 
         metadata: Dict[str, Any] = {
             "type": file_type,
             "versioned": is_versioned,
             "hash": calculated_hash,
-            "token_count": token_count, # AC12/13: Stores int or null
-            "dependencies": [], # Placeholder
-            "dependents": [], # Placeholder
-            "summary": None, # Placeholder
+            "token_count": token_count,
+            "dependencies": [],
+            "dependents": [],
+            "summary": None,
         }
         if is_binary: metadata['summary'] = None
 
@@ -490,12 +607,12 @@ if __name__ == "__main__":
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos binários.")
     print(f"  Cálculo AC10/11: Hashes SHA1 calculados ou nulos.")
-    print(f"  Contagem Tokens (AC13+): {token_api_calls_made} chamadas reais à API Gemini realizadas.")
+    print(f"  Contagem Tokens (AC12-18): {token_api_calls_made} chamadas reais à API Gemini realizadas (após reuso de cache e retentativas).")
 
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - AC13 (API token count) Implementado. Arquivos processados: {len(filtered_file_paths)}.", # Updated comment
+            "comment": f"Manifesto gerado - v1.19 (Rate Limit Handling/Key Rotation). Arquivos processados: {len(filtered_file_paths)}.", # Updated comment
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -503,19 +620,19 @@ if __name__ == "__main__":
             "files_after_filter": len(filtered_file_paths),
             "binary_files_detected": binary_file_count,
             "gemini_initialized": gemini_initialized,
-            "token_api_calls_made": token_api_calls_made, # Track calls
+            "token_api_calls_made": token_api_calls_made,
         },
-        "files": current_manifest_files_data
+        "files": current_manifest_files_data # AC7
     }
 
     try:
         with open(output_filepath, 'w', encoding='utf-8') as f:
             json.dump(manifest_data_final, f, indent=4, ensure_ascii=False)
-        print(f"\nManifesto JSON (com contagem de tokens AC13) salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
+        print(f"\nManifesto JSON salvo em: {output_filepath.relative_to(PROJECT_ROOT)}")
     except Exception as e:
          print(f"\nErro ao salvar o arquivo de manifesto: {e}", file=sys.stderr)
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (AC13 Implementado) ---")
+    print(f"--- Geração do Manifesto Concluída (v1.19) ---")
     sys.exit(0)
