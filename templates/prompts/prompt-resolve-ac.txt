@@ -1,32 +1,39 @@
-Sua tarefa é gerar **APENAS E SOMENTE APENAS** o código (PHP, Blade, JS, etc.) necessário para resolver o Critério de Aceite (AC) __NUMERO_DO_AC__ da Issue GitHub __NUMERO_DA_ISSUE__, formatado exatamente como especificado abaixo.
 
-**Analise TODOS os arquivos de contexto anexados** e siga **OBRIGATORIAMENTE** estas regras:
+Sua tarefa é gerar **APENAS E SOMENTE APENAS** o código PHP/Blade/JS/CSS/SQL (incluindo testes, traduções, migrations, etc.) **ESTRITAMENTE NECESSÁRIO** para resolver **APENAS** o Critério de Aceite (AC) **__NUMERO_DO_AC__** da Issue GitHub **__NUMERO_DA_ISSUE__**.
 
-1.  **Foco:** Gere código **estritamente** para o AC __NUMERO_DO_AC__ da Issue __NUMERO_DA_ISSUE__, considerando a diretriz prioritária: `__OBSERVACAO_ADICIONAL__`.
-2.  **Prioridade do Contexto:** Use o contexto (código existente, guias, logs, configs) como **fonte primária e autoritativa**. Seu conhecimento prévio **NÃO DEVE** sobrescrever o contexto.
-3.  **Diretrizes:**
-    *   **AC:** Use `github_issue___NUMERO_DA_ISSUE___details.json` para os requisitos do AC __NUMERO_DO_AC__.
-    *   **Padrões:** Siga **CEGAMENTE** `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` (PSR-12/Pint, nomenclatura, arquitetura fina, Form Requests, localização `__()`, etc.), *a menos que `__OBSERVACAO_ADICIONAL__` ou o contexto (Regra #2) indiquem o contrário*.
-    *   **Tecnologia:** Use **Laravel 12**. Consulte a documentação oficial se necessário, *respeitando o contexto (Regra #2)*.
-    *   **Consistência:** Modifique arquivos existentes de forma consistente com o código ao redor antes de criar novos.
-    *   **Qualidade:** Verifique `phpstan_analysis.txt`. Consulte `artisan_route_list.json`, `config/*`.
-    *   **Nomenclatura:** Use **INGLÊS** para código (variáveis, métodos, etc.).
-    *   **Traduções:** Use `__()` para **todo** texto de usuário e atualize/adicione chaves (em inglês) em **TODOS** os arquivos `lang/*.json`.
-    *   **Testes:** Crie testes (Unit/Feature) em `tests/` para código PHP novo/modificado.
-    *   **Escopo:** Foque **APENAS** no AC e na Observação Adicional.
-    *   **Solução:** Encontre a melhor solução técnica e limpa, aderente aos padrões e ao contexto.
-4.  **Restrições de Saída:**
-    *   **PROIBIDO:** **NUNCA** mencione nomes de arquivos de contexto não versionados.
-    *   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados/modificados, no formato **ESTRITO**:
-        ```
-        --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
-        Código completo do arquivo...
-        --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
-        --- START OF FILE path/outro/arquivo.ext ---
-        Código completo do outro arquivo...
-        --- END OF FILE path/outro/arquivo.ext ---
-        ```
-        *   **Deduza** o `path/relativo/ao/projeto/arquivo.ext` correto.
-        *   **NENHUM** texto extra (introdução, explicação, comentário) fora dos blocos `--- START/END ---`.
-        *   Comece a resposta diretamente com o primeiro `--- START OF FILE ...`. Termine com o último `--- END OF FILE ...`.
-    *   **SE NENHUM CÓDIGO FOR NECESSÁRIO:** Se a análise indicar que nenhuma alteração ou adição de código é necessária, sua resposta **DEVE SER ABSOLUTAMENTE VAZIA** (string vazia).
+**DIRETRIZ CRÍTICA DE ESCOPO:** Ao implementar a solução para o AC __NUMERO_DO_AC__, você **DEVE OBRIGATORIAMENTE** analisar o contexto completo da Issue __NUMERO_DA_ISSUE__ (incluindo todos os outros ACs detalhados em `github_issue___NUMERO_DA_ISSUE___details.json`) para garantir que sua solução seja arquiteturalmente sólida e **prepare o terreno** para a implementação futura dos ACs subsequentes dessa mesma issue, sem criar conflitos ou necessidade de refatoração posterior. Isso pode envolver a criação de interfaces, classes base ou estruturas de dados que serão usadas por outros ACs, mas **NÃO IMPLEMENTE A LÓGICA** específica desses outros ACs agora. Foque exclusivamente em fazer o AC __NUMERO_DO_AC__ funcionar de forma coesa com o plano geral da issue.
+
+**DIRETRIZ CRÍTICA DE CONTEXTO:** Analise **TODOS** os arquivos de contexto anexados (código existente via `git ls-files`, diffs, logs, guias `guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`, configs, etc.) como **FONTE PRIMÁRIA E AUTORITATIVA**. O estilo, padrões e estruturas presentes no contexto **DEVEM** ter prioridade sobre seu conhecimento geral.
+
+**DIRETRIZ ADICIONAL PRIORITÁRIA:** Aplique **RIGOROSAMENTE** a seguinte observação como guia principal para resolver o AC __NUMERO_DO_AC__:
+```
+__OBSERVACAO_ADICIONAL__
+```
+
+**REGRAS DE IMPLEMENTAÇÃO OBRIGATÓRIAS:**
+
+*   **Padrões:** Siga **CEGAMENTE** `guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md` (PSR-12/Pint, nomenclatura `camelCase`/`snake_case`, Controllers Finos, Form Requests, etc.), *a menos que `__OBSERVACAO_ADICIONAL__` ou o contexto (Regra #2) indiquem o contrário*.
+*   **Tecnologia:** Use **Laravel 12**.
+*   **Consistência:** Modifique arquivos existentes de forma consistente antes de criar novos.
+*   **Qualidade:** Verifique `phpstan_analysis.txt`, `artisan_route_list.json`, `config/*` conforme necessário.
+*   **Nomenclatura:** Código em **INGLÊS**. Texto de usuário em português/inglês.
+*   **Traduções:** Use `__()` para **todo** texto de usuário. Adicione/atualize chaves (em inglês) em **TODOS** os `lang/*.json`.
+*   **Testes:** Crie testes (Unit/Feature) em `tests/` para **todo** código PHP novo/modificado relacionado a este AC.
+*   **Escopo:** Implemente **APENAS** o AC __NUMERO_DO_AC__ e a `__OBSERVACAO_ADICIONAL__`, mas com visão do todo da Issue __NUMERO_DA_ISSUE__.
+
+**REGRAS DE SAÍDA EXTREMAMENTE RESTRITAS:**
+
+*   **PROIBIDO:** **NUNCA** mencione nomes de arquivos de contexto não versionados (`.txt`, `.json`, `.md`, etc.).
+*   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados/modificados para este AC, no formato **ESTRITO**:
+    ```
+    --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
+    Código completo do arquivo...
+    --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
+    --- START OF FILE path/relativo/ao/projeto/arquivo2.ext ---
+    Código completo do arquivo2...
+    --- END OF FILE path/relativo/ao/projeto/arquivo2.ext ---
+    ```
+    *   **Deduza** o `path/relativo/ao/projeto/arquivo.ext` correto.
+    *   **NENHUM** texto extra (introdução, explicação, comentários fora do código) fora dos blocos `--- START/END ---`.
+    *   Comece a resposta diretamente com o primeiro `--- START OF FILE ...`. Termine imediatamente após o último `--- END OF FILE ...`.
+*   **SE NENHUM CÓDIGO FOR NECESSÁRIO:** Se, após análise completa, você concluir que **NENHUMA alteração ou adição de código** é necessária para implementar *especificamente* o AC __NUMERO_DO_AC__ (porque já está coberto ou não requer código), sua resposta **DEVE SER ABSOLUTAMENTE VAZIA** (string vazia).

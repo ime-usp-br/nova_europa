@@ -1,4 +1,4 @@
-name: Laravel CI - Testes Completos e Qualidade
+name: Laravel CI
 
 on:
   push:
