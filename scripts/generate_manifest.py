@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.21.4 - Include Laravel Docs)
+# generate_manifest.py (v1.21.7 - Fix threading hang on exit)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
@@ -9,6 +10,10 @@
 # Adiciona timeout para chamadas count_tokens (AC19), fallback para estimativa
 # em caso de timeout (AC20), corrige inicialização do cliente google.genai,
 # e corrige o tipo de exceção GoogleAPICallError.
+# AC22 (Issue #32): Implementa extração de dependências PHP via 'use' statements.
+# v1.21.5: Corrige SyntaxError em f-string na função extract_php_dependencies.
+# v1.21.6: Corrige TypeError na chamada API count_tokens (não usar subscript).
+# v1.21.7: Refatora ThreadPoolExecutor para global e corrige hang na saída.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v] [--sleep SLEEP_SECONDS] [--timeout TIMEOUT_SECONDS]
@@ -82,23 +87,24 @@ DEFAULT_API_TIMEOUT_SECONDS = 6 # AC19: Timeout padrão para API call
 repo_owner: Optional[str] = None
 GEMINI_API_KEYS_LIST: List[str] = []
 current_api_key_index: int = 0
-# CORREÇÃO: Define genai_client como Optional[genai.Client]
 genai_client: Optional[genai.Client] = None
 api_key_loaded: bool = False
 gemini_initialized: bool = False
+# v1.21.7: Global ThreadPoolExecutor
+api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
 
 # --- Funções ---
 def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = True, capture: bool = True, input_data: Optional[str] = None, shell: bool = False, timeout: Optional[int] = 60) -> Tuple[int, str, str]:
     """Runs a subprocess command and returns exit code, stdout, stderr."""
-    cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
+    cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list)) # Safer joining for display
     start_time = time.monotonic()
     try:
         process = subprocess.run(
-            cmd_list if not shell else cmd_str,
+            cmd_list if not shell else cmd_str, # Pass list unless shell=True
             capture_output=capture, text=True, input=input_data,
             check=check, cwd=cwd, shell=shell, timeout=timeout,
-            encoding='utf-8', errors='replace'
+            encoding='utf-8', errors='replace' # Add encoding/error handling
         )
         duration = time.monotonic() - start_time
         return process.returncode, process.stdout or "", process.stderr or ""
@@ -182,27 +188,38 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
     all_files_set: Set[Path] = set()
     git_files_set: Set[Path] = set()
     if verbose: print("  Executando 'git ls-files' para encontrar arquivos versionados/rastreados...")
+    # Inclui -c (cached), -o (others), --exclude-standard. -z para nomes com espaços.
     exit_code_ls, stdout_ls, stderr_ls = run_command(['git', 'ls-files', '-z', '-c', '-o', '--exclude-standard'], check=False)
     if exit_code_ls == 0 and stdout_ls:
         tracked_paths = filter(None, stdout_ls.split('\0'))
         for path_str in tracked_paths:
             try:
+                # Resolve o caminho absoluto de forma segura
                 absolute_path = (PROJECT_ROOT / Path(path_str)).resolve(strict=True)
-                if absolute_path.is_file():
+                # Garante que o arquivo está dentro do projeto e é um arquivo
+                if absolute_path.is_file() and absolute_path.is_relative_to(PROJECT_ROOT):
                     relative_path = absolute_path.relative_to(PROJECT_ROOT)
                     all_files_set.add(relative_path)
-                    git_files_set.add(relative_path)
+                    # Arquivos listados por 'git ls-files -c' são considerados versionados
+                    # Para -o (others), precisamos verificar com --error-unmatch depois
+                    # Simplesmente adicionamos todos por agora, o filtro `versioned` refina depois.
+                    # A lógica do `versioned` usará 'git ls-files --error-unmatch' que é mais precisa.
+                # Não é mais necessário adicionar ao git_files_set aqui, pois `versioned` será determinado depois
             except (FileNotFoundError, ValueError, Exception) as e:
                  if verbose: print(f"    Aviso: Ignorando path de 'git ls-files' devido a erro: {path_str} ({e})", file=sys.stderr)
     else:
          print(f"  Aviso: 'git ls-files' falhou (Code: {exit_code_ls}). A varredura pode estar incompleta. Stderr: {stderr_ls.strip()}", file=sys.stderr)
-    if verbose: print(f"  Arquivos iniciais encontrados via Git: {len(all_files_set)}")
 
+    if verbose: print(f"  Arquivos iniciais encontrados via Git (incluindo others): {len(all_files_set)}")
+
+
+    # Diretórios adicionais para scan recursivo
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
     latest_context_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
     if latest_context_code_dir: additional_scan_dirs.append(latest_context_code_dir)
     additional_scan_dirs.extend(VENDOR_USPDEV_DIRS)
-    additional_scan_dirs.append(PROJECT_ROOT / "docs" / "laravel_12")
+    additional_scan_dirs.append(PROJECT_ROOT / "docs" / "laravel_12") # Adicionado
+
     if verbose: print("  Realizando scans adicionais em diretórios específicos...")
     for scan_dir in additional_scan_dirs:
         abs_scan_dir = scan_dir.resolve(strict=False)
@@ -210,7 +227,8 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
         if abs_scan_dir.is_dir():
             for item in abs_scan_dir.rglob('*'):
                 try:
-                    if item.is_file():
+                    # Garante que está dentro do projeto e é um arquivo
+                    if item.is_file() and item.resolve(strict=True).is_relative_to(PROJECT_ROOT):
                         relative_path = item.resolve(strict=True).relative_to(PROJECT_ROOT)
                         all_files_set.add(relative_path)
                 except (FileNotFoundError, ValueError, Exception) as e:
@@ -218,7 +236,8 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
         elif verbose: print(f"      Aviso: Diretório de scan adicional não existe: {abs_scan_dir}")
 
     if verbose: print(f"  Total de arquivos únicos encontrados após scans: {len(all_files_set)}")
-    return all_files_set, git_files_set
+    # Retorna all_files_set. O git_files_set será determinado pela flag 'versioned' depois.
+    return all_files_set, set() # Retorna set vazio para git_files_set por enquanto
 
 def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores: List[str], output_filepath: Path, verbose: bool) -> Set[Path]:
     """Filtra a lista de arquivos com base nos padrões de ignore."""
@@ -226,33 +245,39 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
     ignore_patterns = default_ignores.copy()
     ignore_patterns.update(custom_ignores)
     try: ignore_patterns.add(output_filepath.relative_to(PROJECT_ROOT).as_posix())
-    except ValueError: pass
+    except ValueError: pass # Output path might be outside project root
+
     if verbose: print(f"  Aplicando {len(ignore_patterns)} padrões de exclusão...")
     skipped_count = 0
     for file_path in all_files:
         file_path_str = file_path.as_posix()
         is_ignored = False
         for pattern in ignore_patterns:
-            if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT).as_posix()) + '/') for usp_dir in VENDOR_USPDEV_DIRS):
-                continue
+            # Lógica Especial para Vendor/Context
+            if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT).as_posix()) + '/') for usp_dir in VENDOR_USPDEV_DIRS): continue
             if pattern == "context_llm/":
                 is_common = file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT).as_posix()) + '/')
                 latest_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
                 is_latest_code = latest_code_dir and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT).as_posix()) + '/')
                 if is_common or is_latest_code: continue
 
+            # Lógica Geral de Ignore
             is_dir_pattern = pattern.endswith('/')
             cleaned_pattern = pattern.rstrip('/')
-            if file_path_str == cleaned_pattern or (is_dir_pattern and file_path_str.startswith(cleaned_pattern + '/')):
-                is_ignored = True; break
+            # Checa se é o próprio arquivo/diretório ou se começa com o padrão de diretório
+            if file_path_str == cleaned_pattern or (is_dir_pattern and file_path_str.startswith(cleaned_pattern + '/')): is_ignored = True; break
+            # Checa padrão Glob
             try:
                 if file_path.match(pattern): is_ignored = True; break
-            except Exception as e:
+            except Exception as e: # Captura erros de `match`
                  if verbose: print(f"    Warning: Error matching pattern '{pattern}' for file '{file_path_str}': {e}", file=sys.stderr)
+
         if not is_ignored: filtered_files.add(file_path)
         elif verbose: skipped_count += 1
+
     if verbose: print(f"  Filtro concluído. {len(filtered_files)} arquivos retidos, {skipped_count} ignorados.")
     return filtered_files
+
 
 def get_file_type(relative_path: Path) -> str:
     """Determina um tipo granular para o arquivo baseado no caminho e extensão."""
@@ -299,9 +324,11 @@ def get_file_type(relative_path: Path) -> str:
     if parts[0] == 'resources' and 'js' in parts: return 'asset_source_js'
     if parts[0] == 'resources' and 'images' in parts: return f'asset_source_image_{suffix[1:]}' if suffix else 'asset_source_image'
     if parts[0] == 'public' and suffix == '.php': return 'code_php_public'
-    if parts[0] == 'public' and suffix in ['.ico', '.png', '.jpg', '.jpeg', '.gif']: return f'asset_binary_{suffix[1:]}'
+    # Ajuste para diferenciar binários de assets públicos
+    if parts[0] == 'public' and suffix in BINARY_EXTENSIONS: return f'asset_binary_{suffix[1:]}'
     if parts[0] == 'public' and suffix == '.txt': return 'asset_public'
-    if parts[0] == 'public' and suffix == '.htaccess': return 'config_apache'
+    if parts[0] == 'public' and suffix == '.htaccess': return 'config_apache' # Especificado
+
     if parts[0] == 'routes' and suffix == '.php': return 'code_php_route'
     if parts[0] == 'tests':
         if 'Feature' in parts and suffix == '.php': return 'test_php_feature'
@@ -327,18 +354,21 @@ def get_file_type(relative_path: Path) -> str:
     if path_str.startswith('context_llm/common/'): return 'context_common'
     if path_str.startswith('context_llm/code/') and len(parts) > 2:
         file_part = name.lower()
+        # Adiciona mais tipos específicos de contexto
         if file_part == 'git_log.txt': return 'context_code_git_log'
         if file_part == 'git_diff_cached.txt': return 'context_code_git_diff_cached'
         if file_part == 'git_diff_unstaged.txt': return 'context_code_git_diff_unstaged'
+        if file_part == 'git_diff_empty_tree_to_head.txt': return 'context_code_git_diff_tree'
         if file_part == 'git_status.txt': return 'context_code_git_status'
         if file_part == 'git_ls_files.txt': return 'context_code_git_lsfiles'
+        if file_part == 'git_recent_tags.txt': return 'context_code_git_tags'
         if file_part.startswith('github_issue_'): return 'context_code_issue_details'
         if file_part.startswith('artisan_'): return 'context_code_artisan_output'
         if file_part.startswith('env_'): return 'context_code_env_info'
         if file_part == 'composer_show.txt': return 'context_code_deps_composer'
         if file_part == 'npm_list_depth0.txt': return 'context_code_deps_npm'
         if file_part == 'env_pip_freeze.txt': return 'context_code_deps_pip'
-        if file_part == 'project_tree_l3.txt': return 'context_code_project_tree'
+        if file_part.startswith('project_tree_'): return 'context_code_project_tree'
         if file_part == 'project_cloc.txt': return 'context_code_cloc'
         if file_part == 'phpstan_analysis.txt': return 'context_code_phpstan'
         if file_part == 'pint_test_results.txt': return 'context_code_pint'
@@ -347,7 +377,9 @@ def get_file_type(relative_path: Path) -> str:
         if file_part == 'dusk_test_info.txt': return 'context_code_dusk_info'
         if file_part == 'manifest.md': return 'context_code_manifest_md'
         if file_part.endswith('_manifest.json'): return 'context_code_manifest_json'
-        return 'context_code'
+        if file_part.startswith('gh_'): return 'context_code_github_cli'
+        if file_part.startswith('planos') or file_part.startswith('meta-prompt') or file_part.startswith('prompt-'): return 'context_code' # Arquivos de plano copiados
+        return 'context_code' # Genérico para outros arquivos copiados
     if suffix == '.php': return 'code_php'
     if suffix == '.js': return 'code_js'
     if suffix == '.py': return 'code_python'
@@ -356,11 +388,24 @@ def get_file_type(relative_path: Path) -> str:
     if suffix in ['.yaml', '.yml']: return 'config_yaml'
     if suffix == '.md': return 'docs_md'
     if suffix == '.txt': return 'text_plain'
+    # Se chegou até aqui e é binário, usa o tipo já detectado
     if suffix in BINARY_EXTENSIONS: return f'binary_{suffix[1:]}'
     return 'unknown'
 
-# --- Funções para Rate Limit e Rotação de Chave ---
+def get_git_versioned_status(filepath_relative: Path, verbose: bool) -> bool:
+    """Checks if a specific file is tracked by Git."""
+    try:
+        # --error-unmatch exits with 1 if not tracked
+        exit_code, _, _ = run_command(['git', 'ls-files', '--error-unmatch', str(filepath_relative)], check=True, capture=True)
+        return exit_code == 0
+    except subprocess.CalledProcessError:
+        return False
+    except Exception as e:
+        if verbose: print(f"      Warning: Error checking git status for {filepath_relative}: {e}", file=sys.stderr)
+        return False # Assume not versioned on error
+
 def load_api_keys(verbose: bool) -> bool:
+    """Loads API keys from .env file."""
     global GEMINI_API_KEYS_LIST, api_key_loaded, current_api_key_index
     if api_key_loaded: return True
     dotenv_path = PROJECT_ROOT / '.env'
@@ -376,7 +421,6 @@ def load_api_keys(verbose: bool) -> bool:
     if verbose: print(f"  {len(GEMINI_API_KEYS_LIST)} Chave(s) de API GEMINI carregadas.")
     return True
 
-# CORREÇÃO: Usar genai.Client() em vez de genai.configure()
 def initialize_gemini(verbose: bool) -> bool:
     """Initializes the Gemini client using the current API key."""
     global genai_client, gemini_initialized, GEMINI_API_KEYS_LIST, current_api_key_index
@@ -400,28 +444,62 @@ def initialize_gemini(verbose: bool) -> bool:
 
 def rotate_api_key_and_reinitialize(verbose: bool) -> bool:
     """Rotates to the next API key and reinitializes the client."""
-    global current_api_key_index, GEMINI_API_KEYS_LIST
+    global current_api_key_index, GEMINI_API_KEYS_LIST, gemini_initialized
     if not GEMINI_API_KEYS_LIST or len(GEMINI_API_KEYS_LIST) <= 1:
         if verbose: print("  Aviso: Não é possível rotacionar (apenas uma ou nenhuma chave disponível).", file=sys.stderr)
-        return False
+        return False # Can't rotate
     start_index = current_api_key_index
     current_api_key_index = (current_api_key_index + 1) % len(GEMINI_API_KEYS_LIST)
     print(f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n")
-    if current_api_key_index == start_index: print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
+    gemini_initialized = False # Force re-initialization
+    if current_api_key_index == start_index:
+        print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
     return initialize_gemini(verbose)
 
-# --- Função count_tokens_for_file MODIFICADA para AC19 e CORREÇÃO da chamada API ---
+# --- AC22: Função para extrair dependências PHP ---
+def extract_php_dependencies(file_content: str) -> List[str]:
+    """Extracts FQCNs from use statements in PHP code, excluding function/const."""
+    dependencies = set()
+    # Pattern for simple and aliased class/namespace uses (captures only FQCN)
+    # Ensures it doesn't start with 'use function' or 'use const'
+    simple_use_pattern = r'^\s*use\s+(?!function|const)([\w\\]+)(?:\s+as\s+\w+)?\s*;'
+    matches_simple = re.findall(simple_use_pattern, file_content, re.MULTILINE)
+    dependencies.update(matches_simple)
+
+    # Pattern for grouped uses
+    group_use_pattern = r'^\s*use\s+([\w\\]+)\s*\{([^}]+)\}\s*;'
+    matches_group = re.findall(group_use_pattern, file_content, re.MULTILINE)
+
+    for base_namespace, group_content in matches_group:
+        # Split items within braces, strip whitespace
+        items = [item.strip() for item in group_content.split(',')]
+        for item in items:
+            if not item: continue
+            # Check if it's a function or const import within the group and skip
+            if item.lower().startswith('function ') or item.lower().startswith('const '):
+                continue
+            # Handle potential alias within the group, taking only the FQCN part
+            parts = item.split(' as ')
+            class_or_subnamespace = parts[0].strip()
+            # Combine base namespace with the class/subnamespace
+            # CORREÇÃO v1.21.5: Usar concatenação em vez de f-string com backslash
+            full_path = base_namespace.rstrip('\\') + '\\' + class_or_subnamespace.lstrip('\\')
+            dependencies.add(full_path)
+
+    return sorted(list(dependencies))
+# --- Fim AC22 ---
+
 def count_tokens_for_file(
+    executor: concurrent.futures.ThreadPoolExecutor, # v1.21.7: Pass executor
     filepath_absolute: Path,
     previous_token_count: Optional[int],
     current_hash: Optional[str],
     previous_hash: Optional[str],
     verbose: bool,
     sleep_seconds: float,
-    timeout_seconds: int # AC19: Argumento para timeout
+    timeout_seconds: int
 ) -> Optional[int]:
     """Counts tokens with rate limit handling, key rotation, and timeout."""
-    # CORREÇÃO: Usar a variável global genai_client que é um objeto Client
     global genai_client
     if not gemini_initialized or not genai_client:
         if verbose: print(f"      -> Token Count: Skipping (Gemini client not initialized)")
@@ -439,6 +517,11 @@ def count_tokens_for_file(
     except (IOError, OSError) as e:
         if verbose: print(f"      -> Token Count (AC14): Error reading file '{filepath_absolute.name}': {e}", file=sys.stderr)
         return None
+    except MemoryError:
+        if verbose: print(f"      -> Token Count (AC14): MemoryError reading large file '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
+        token_count = max(1, int(os.path.getsize(filepath_absolute) / 4)) # Estimativa baseada no tamanho
+        if verbose: print(f"      -> Token Count (AC20 Fallback for MemoryError): Estimated tokens: {token_count}")
+        return token_count
 
     # Apply sleep before making a potential API call
     if sleep_seconds > 0:
@@ -447,84 +530,65 @@ def count_tokens_for_file(
 
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
+    # v1.21.7: Use the passed executor, don't create/destroy it here
+    # executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    token_count = None
 
-    # <<< MOVER A CRIAÇÃO DO EXECUTOR PARA FORA DO LOOP >>>
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    token_count = None # Inicializa token_count aqui
-
-    try: # Adiciona um try/finally externo para garantir o shutdown
-        while True:
-            def _api_call_task(content_str: str) -> int:
-                """Makes the actual API call to count tokens via client.models."""
-                if not genai_client:
-                    raise RuntimeError("Gemini client became uninitialized during execution.")
-                try:
-                    # <<< MODIFICAÇÃO PRINCIPAL: Voltar para client.models, mas tentar com args posicionais >>>
-                    # A ordem correta dos argumentos nomeados na definição é model, contents, config
-                    # Vamos tentar passar apenas os obrigatórios posicionalmente.
-                    response = genai_client.models.count_tokens(
-                        model=GEMINI_MODEL_NAME, # Mantenha 'model' nomeado, pois é o primeiro keyword-only arg
-                        contents=content_str      # Passe 'contents' nomeado também
-                        # config=None # Omitido, pois é opcional
-                    )
-                    # <<< FIM DA MODIFICAÇÃO >>>
-                    return response.total_tokens
-                except Exception as inner_e:
-                    # Log mais detalhado se a chamada do modelo falhar
-                    print(f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}", file=sys.stderr)
-                    raise inner_e # Relança para ser pego pelo except externo
-
-            future = None
+    # v1.21.7: Removed the outer try/finally for executor shutdown
+    while True:
+        def _api_call_task(content_str: str) -> int:
+            """Makes the actual API call to count tokens via client."""
+            if not genai_client: raise RuntimeError("Gemini client became uninitialized during execution.")
             try:
-                if verbose: print(f"        -> Attempting count_tokens with Key Index {current_api_key_index} and Timeout {timeout_seconds}s")
-                future = executor.submit(_api_call_task, content)
-                token_count = future.result(timeout=timeout_seconds) # Espera pelo resultado com timeout
-                if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
-                # <<< RETORNO DE SUCESSO AQUI >>>
-                return token_count # Sai da função E do loop
+                # v1.21.6: Usa a API correta do google-genai
+                response = genai_client.count_tokens(model=GEMINI_MODEL_NAME, contents=content_str)
+                return response.total_tokens
+            except Exception as inner_e:
+                print(f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}", file=sys.stderr)
+                raise inner_e
 
-            except concurrent.futures.TimeoutError:
-                print(f"      -> Token Count (AC19): API call timed out after {timeout_seconds}s for '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
-                # AC20 Fallback
-                token_count = max(1,int(len(content) / 4))
-                if verbose: print(f"      -> Token Count (AC20 Fallback): Estimated tokens: {token_count}")
-                # <<< RETORNO APÓS TIMEOUT/FALLBACK AQUI >>>
-                return token_count # Sai da função E do loop
+        future = None
+        try:
+            if verbose: print(f"        -> Attempting count_tokens with Key Index {current_api_key_index} and Timeout {timeout_seconds}s")
+            future = executor.submit(_api_call_task, content) # Use passed executor
+            token_count = future.result(timeout=timeout_seconds) # Espera com timeout
+            if verbose: print(f"      -> Token Count (AC13): Successfully counted: {token_count}")
+            return token_count # Sucesso
 
-            except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.ServerError) as e:
-                print(f"      -> Rate Limit/Server Error ({type(e).__name__}) with Key Index {current_api_key_index}. Waiting {DEFAULT_RATE_LIMIT_SLEEP}s and rotating key...", file=sys.stderr)
-                time.sleep(DEFAULT_RATE_LIMIT_SLEEP)
-                if not rotate_api_key_and_reinitialize(verbose):
-                    print(f"      Error: Falha ao rotacionar chave de API. Retornando None.", file=sys.stderr)
-                    # <<< RETORNO DE ERRO (NÃO RECUPERÁVEL APÓS FALHA NA ROTAÇÃO) >>>
-                    return None
-                if current_api_key_index in keys_tried_in_this_call:
-                    print(f"      Error: Ciclo completo de chaves API. Limite/Erro persistente para '{filepath_absolute.name}'. Retornando None.", file=sys.stderr)
-                    # <<< RETORNO DE ERRO (NÃO RECUPERÁVEL APÓS CICLO COMPLETO) >>>
-                    return None
-                keys_tried_in_this_call.add(current_api_key_index)
-                if verbose: print(f"        -> Retrying count_tokens with new Key Index {current_api_key_index}")
-                # <<< CONTINUE PARA PRÓXIMA ITERAÇÃO DO WHILE >>>
-                continue # Tenta novamente com a nova chave
+        except concurrent.futures.TimeoutError:
+            print(f"      -> Token Count (AC19): API call timed out after {timeout_seconds}s for '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
+            # AC20 Fallback
+            token_count = max(1,int(len(content) / 4)) if content else 0 # Garante 0 para vazio
+            if verbose: print(f"      -> Token Count (AC20 Fallback): Estimated tokens: {token_count}")
+            return token_count # Retorna estimativa após timeout
 
-            except (google_genai_errors.APIError, google_api_core_exceptions.GoogleAPICallError) as e:
-                 print(f"      -> Token Count (AC18): API Call Error for '{filepath_absolute.name}': {type(e).__name__} - {e}", file=sys.stderr)
-                 # <<< RETORNO DE ERRO NÃO RECUPERÁVEL >>>
-                 return None # Sai da função E do loop
-            except Exception as e:
-                if verbose: print(f"      -> Token Count: Unexpected Error during API call/result for '{filepath_absolute.name}': {e}", file=sys.stderr)
-                traceback.print_exc(file=sys.stderr)
-                # <<< RETORNO DE ERRO INESPERADO >>>
-                return None # Sai da função E do loop
-            # Não precisamos mais do finally interno aqui para o shutdown
+        except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.ServerError, google_api_core_exceptions.DeadlineExceeded) as e:
+            # Inclui DeadlineExceeded como erro de taxa/servidor para retentativa
+            print(f"      -> Rate Limit/Server Error/Deadline ({type(e).__name__}) with Key Index {current_api_key_index}. Waiting {DEFAULT_RATE_LIMIT_SLEEP}s and rotating key...", file=sys.stderr)
+            time.sleep(DEFAULT_RATE_LIMIT_SLEEP)
+            if not rotate_api_key_and_reinitialize(verbose):
+                print(f"      Error: Falha ao rotacionar chave de API. Retornando None.", file=sys.stderr)
+                return None
+            if current_api_key_index in keys_tried_in_this_call:
+                print(f"      Error: Ciclo completo de chaves API. Limite/Erro persistente para '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
+                # Fallback para estimativa após ciclo completo
+                token_count = max(1,int(len(content) / 4)) if content else 0
+                if verbose: print(f"      -> Token Count (AC20 Fallback after cycle): Estimated tokens: {token_count}")
+                return token_count
+            keys_tried_in_this_call.add(current_api_key_index)
+            if verbose: print(f"        -> Retrying count_tokens with new Key Index {current_api_key_index}")
+            continue # Tenta novamente
 
-    finally:
-        # <<< O SHUTDOWN AGORA FICA FORA DO WHILE >>>
-        # Garante que o executor criado para este ARQUIVO seja desligado
-        # sem esperar por threads que possam ter estourado timeout.
-        if executor: # Verifica se foi criado
-             executor.shutdown(wait=False, cancel_futures=True) # Tenta cancelar futuros pendentes (melhor esforço)
-# --- FIM DA FUNÇÃO count_tokens_for_file MODIFICADA ---
+        except (google_genai_errors.APIError, google_api_core_exceptions.GoogleAPICallError) as e:
+             print(f"      -> Token Count (AC18): API Call Error for '{filepath_absolute.name}': {type(e).__name__} - {e}", file=sys.stderr)
+             return None # Erro não recuperável
+        except Exception as e:
+            if verbose: print(f"      -> Token Count: Unexpected Error during API call/result for '{filepath_absolute.name}': {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return None # Erro inesperado
+
+    # v1.21.7: Removed the finally block that shut down the executor
+
 
 # --- Bloco Principal ---
 if __name__ == "__main__":
@@ -535,110 +599,145 @@ if __name__ == "__main__":
     try: output_filepath.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e: print(f"Erro fatal: Não foi possível criar diretório para '{output_filepath}': {e}", file=sys.stderr); sys.exit(1)
 
-    print(f"--- Iniciando Geração do Manifesto (v1.21.3) ---") # Atualizado
+    print(f"--- Iniciando Geração do Manifesto (v1.21.7) ---") # Atualizado
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
     print(f"Intervalo entre chamadas API count_tokens: {args.sleep}s")
     print(f"Timeout para chamadas API count_tokens: {args.timeout}s")
 
     if not load_api_keys(args.verbose): print("Aviso: Incapaz de carregar chave(s) de API. A contagem de tokens será pulada.")
-    else: initialize_gemini(args.verbose) # Chama a inicialização corrigida
+    else: initialize_gemini(args.verbose) # Inicializa globalmente
 
     if args.verbose: print("\n[AC3] Carregando manifesto anterior (se existir)...")
     previous_manifest_files_data = load_previous_manifest(DEFAULT_OUTPUT_DIR, args.verbose)
 
     print("\n[AC4 & AC9] Escaneando arquivos do projeto e identificando versionados...")
-    all_found_files_relative, versioned_files_set = scan_project_files(args.verbose)
+    all_found_files_relative, _ = scan_project_files(args.verbose) # Descartamos git_files_set inicial
 
     print("\n[AC5] Filtrando arquivos baseados nas regras de exclusão...")
     filtered_file_paths = filter_files( all_found_files_relative, DEFAULT_IGNORE_PATTERNS, args.ignore_patterns, output_filepath, args.verbose)
 
-    print("\n[AC6-AC21] Processando arquivos, gerando metadados...") # AC Range updated
+    print(f"\n[AC6-AC25] Processando {len(filtered_file_paths)} arquivos, gerando metadados...") # AC Range atualizado
     current_manifest_files_data: Dict[str, Any] = {}
     binary_file_count = 0
     processed_file_count = 0
-    token_api_calls_or_fallbacks = 0 # Renamed for clarity
+    token_api_calls_or_fallbacks = 0
 
-    for file_path_relative in sorted(list(filtered_file_paths)):
-        processed_file_count += 1
-        file_path_absolute = PROJECT_ROOT / file_path_relative
-        relative_path_str = file_path_relative.as_posix()
-        if args.verbose: print(f"\n  Processing ({processed_file_count}/{len(filtered_file_paths)}): {relative_path_str}")
+    # v1.21.7: Initialize global executor before the loop
+    api_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1) if gemini_initialized else None
 
-        is_binary = is_likely_binary(file_path_absolute, args.verbose)
-        if is_binary: binary_file_count += 1
+    try: # Wrap the loop in try/finally to ensure executor shutdown
+        for file_path_relative in sorted(list(filtered_file_paths)):
+            processed_file_count += 1
+            file_path_absolute = PROJECT_ROOT / file_path_relative
+            relative_path_str = file_path_relative.as_posix()
+            if args.verbose: print(f"\n  Processing ({processed_file_count}/{len(filtered_file_paths)}): {relative_path_str}")
 
-        file_type = get_file_type(file_path_relative)
-        if args.verbose: print(f"      -> Type (AC8): {file_type}")
+            is_binary = is_likely_binary(file_path_absolute, args.verbose)
+            if is_binary: binary_file_count += 1
 
-        is_versioned = file_path_relative in versioned_files_set
-        if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/')): is_versioned = False
-        if args.verbose: print(f"      -> Versioned (AC9): {is_versioned}")
+            file_type = get_file_type(file_path_relative)
+            if args.verbose: print(f"      -> Type (AC8): {file_type}")
 
-        calculated_hash: Optional[str] = None
-        file_content_bytes: Optional[bytes] = None
-        is_env_file = file_type == 'environment_env'
-        is_context_code = relative_path_str.startswith('context_llm/code/')
-        should_calculate_hash = not is_binary and not is_env_file
+            # AC9: Verifica se é versionado pelo Git
+            is_versioned = get_git_versioned_status(file_path_relative, args.verbose)
+            # Sobrescreve se for diretório especial
+            if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/', 'docs/laravel_12/')): is_versioned = False
+            if args.verbose: print(f"      -> Versioned (AC9): {is_versioned}")
 
-        if should_calculate_hash:
-            try: file_content_bytes = file_path_absolute.read_bytes()
-            except Exception as e:
-                 if args.verbose: print(f"      -> Error reading file content bytes: {e}", file=sys.stderr)
-                 file_content_bytes = None
+            calculated_hash: Optional[str] = None
+            file_content_bytes: Optional[bytes] = None
+            is_env_file = file_type == 'environment_env'
+            is_context_code = relative_path_str.startswith('context_llm/code/')
+            should_calculate_hash = not is_binary and not is_env_file
 
-        if should_calculate_hash and file_content_bytes is not None:
-            calculated_hash = hashlib.sha1(file_content_bytes).hexdigest()
-        if is_context_code: calculated_hash = None
-        if args.verbose: print(f"      -> Hash (AC10/11): {calculated_hash or 'null (excluded/error)'}")
+            if should_calculate_hash:
+                try: file_content_bytes = file_path_absolute.read_bytes()
+                except Exception as e:
+                     if args.verbose: print(f"      -> Error reading file content bytes: {e}", file=sys.stderr)
+                     file_content_bytes = None
 
-        dependencies: List[str] = []
-        dependents: List[str] = []
+            if should_calculate_hash and file_content_bytes is not None:
+                calculated_hash = hashlib.sha1(file_content_bytes).hexdigest()
+            if is_context_code: calculated_hash = None # AC11: Hash é null para context_llm/code/*
+            if args.verbose: print(f"      -> Hash (AC10/11): {calculated_hash or 'null (excluded/error)'}")
 
-        token_count: Optional[int] = None
-        should_count_tokens = not is_binary and not is_env_file and not is_context_code
-        if should_count_tokens:
-            previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
-            previous_hash = previous_file_data.get("hash")
-            previous_count = previous_file_data.get("token_count")
-            # Chama a função corrigida que usa genai_client.models.count_tokens
-            token_count_result = count_tokens_for_file(
-                file_path_absolute,
-                previous_count,
-                calculated_hash,
-                previous_hash,
-                args.verbose,
-                args.sleep,
-                args.timeout # Pass timeout arg
-            )
-            if token_count_result is not None: # Count if API call was made or fallback used
-                 token_api_calls_or_fallbacks += 1
-            token_count = token_count_result
-        elif args.verbose:
-             reason = "binary" if is_binary else "env file" if is_env_file else "context_code file" if is_context_code else "Skipped (non-text)"
-             print(f"      -> Token Count (AC14/20): Skipping count ({reason}). Setting to null.")
+            # --- AC22 & AC23: Extract PHP Dependencies ---
+            dependencies: List[str] = []
+            if file_type.startswith(('code_php_', 'migration_php', 'test_php_')):
+                try:
+                    # Re-read as text for regex, handle potential errors
+                    file_content_str = file_path_absolute.read_text(encoding='utf-8', errors='ignore')
+                    dependencies = extract_php_dependencies(file_content_str)
+                    if args.verbose: print(f"      -> Dependencies (AC22): Extracted {len(dependencies)} use statements.")
+                except Exception as e:
+                    if args.verbose: print(f"      -> Dependencies (AC22): Error extracting: {e}", file=sys.stderr)
+                    dependencies = [] # Fallback to empty list on error
+            elif args.verbose:
+                print(f"      -> Dependencies (AC23): Skipping (not a PHP file).")
+            # ---------------------------------------------
 
-        metadata: Dict[str, Any] = {
-            "type": file_type,
-            "versioned": is_versioned,
-            "hash": calculated_hash,
-            "token_count": token_count,
-            "dependencies": dependencies,
-            "dependents": dependents,
-            "summary": None,
-        }
-        if is_binary: metadata['summary'] = None
+            # AC24: Dependents starts empty
+            dependents: List[str] = []
 
-        current_manifest_files_data[relative_path_str] = metadata
+            token_count: Optional[int] = None
+            should_count_tokens = not is_binary and not is_env_file and not is_context_code and api_executor is not None
+            if should_count_tokens:
+                previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
+                previous_hash = previous_file_data.get("hash")
+                previous_count = previous_file_data.get("token_count")
+
+                # v1.21.7: Pass the global executor instance
+                token_count_result = count_tokens_for_file(
+                    api_executor, # Pass executor
+                    file_path_absolute,
+                    previous_count,
+                    calculated_hash,
+                    previous_hash,
+                    args.verbose,
+                    args.sleep,
+                    args.timeout # Pass timeout arg
+                )
+                # Contabiliza se houve chamada ou fallback
+                if token_count_result is not None and (not previous_hash or calculated_hash != previous_hash or previous_count is None):
+                     token_api_calls_or_fallbacks += 1
+                token_count = token_count_result
+            elif args.verbose:
+                 reason = "binary" if is_binary else "env file" if is_env_file else "context_code file" if is_context_code else "API executor not available" if not api_executor else "Skipped (non-text)"
+                 print(f"      -> Token Count (AC14/20): Skipping count ({reason}). Setting to null.")
+
+            # AC25: Summary is initialized to None
+            metadata: Dict[str, Any] = {
+                # "path": relative_path_str, # A chave agora é o path
+                "type": file_type,
+                "versioned": is_versioned,
+                "hash": calculated_hash,
+                "token_count": token_count,
+                "dependencies": dependencies, # AC21 / AC22 / AC23
+                "dependents": dependents,    # AC24
+                "summary": None,             # AC25
+            }
+            # AC6: Ensure summary stays null for binaries
+            if is_binary: metadata['summary'] = None
+
+            current_manifest_files_data[relative_path_str] = metadata
+
+    finally: # v1.21.7: Ensure executor shutdown even if loop errors out
+        if api_executor:
+            print("\nShutting down API thread pool executor...")
+            api_executor.shutdown(wait=True) # Wait for completion or cancellation
+            print("Executor shut down.")
+
 
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos binários.")
     print(f"  Cálculo AC10/11: Hashes SHA1 calculados ou nulos.")
     print(f"  Contagem Tokens (AC12-18, AC19 Timeout, AC20 Fallback): {token_api_calls_or_fallbacks} chamadas reais à API Gemini ou fallbacks de estimativa realizados.")
+    print(f"  Extração Dependências (AC22/23): Processado para arquivos PHP.")
 
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - v1.21.4 (Include Laravel Docs). Arquivos processados: {len(filtered_file_paths)}.",
+            "comment": f"Manifesto gerado - v1.21.7 (Fix threading hang). Arquivos processados: {len(filtered_file_paths)}.", # Atualizado
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -646,7 +745,7 @@ if __name__ == "__main__":
             "files_after_filter": len(filtered_file_paths),
             "binary_files_detected": binary_file_count,
             "gemini_initialized": gemini_initialized,
-            "token_api_calls_or_fallbacks": token_api_calls_or_fallbacks, # Renamed
+            "token_api_calls_or_fallbacks": token_api_calls_or_fallbacks,
         },
         "files": current_manifest_files_data
     }
@@ -660,5 +759,5 @@ if __name__ == "__main__":
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (v1.21.3) ---") # Atualizado
+    print(f"--- Geração do Manifesto Concluída (v1.21.7) ---") # Atualizado
     sys.exit(0)
