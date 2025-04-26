@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.22.0 - Token Estimate for Env/Context)
+# generate_manifest.py (v1.22.1 - Token Estimate Fallback for API Errors)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
 # Destinado a auxiliar ferramentas LLM e rastreamento de mudanças.
 # Inclui contagem de tokens via API Gemini com fallback para estimativa.
-# Adiciona cálculo de estimativa para arquivos .env* (AC1 #38).
+# Adiciona cálculo de estimativa para arquivos .env* e context_llm/code/*.
+# Adiciona fallback de estimativa para erros persistentes da API (AC3 #38).
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v] [--sleep SLEEP_SECONDS] [--timeout TIMEOUT_SECONDS]
@@ -88,6 +89,7 @@ api_key_loaded: bool = False
 gemini_initialized: bool = False
 # Global ThreadPoolExecutor
 api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+
 
 # --- Funções ---
 def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = True, capture: bool = True, input_data: Optional[str] = None, shell: bool = False, timeout: Optional[int] = 60) -> Tuple[int, str, str]:
@@ -202,20 +204,21 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
         tracked_paths = filter(None, stdout_ls.split('\0'))
         for path_str in tracked_paths:
             try:
-                absolute_path = (PROJECT_ROOT / Path(path_str)).resolve(strict=True)
-                if absolute_path.is_file() and absolute_path.is_relative_to(PROJECT_ROOT):
+                 absolute_path = (PROJECT_ROOT / Path(path_str)).resolve(strict=True)
+                 if absolute_path.is_file() and absolute_path.is_relative_to(PROJECT_ROOT):
                     all_files_set.add(absolute_path.relative_to(PROJECT_ROOT))
-            except (FileNotFoundError, ValueError, Exception) as e:
+            except Exception as e:
                  if verbose: print(f"    Aviso: Ignorando path de 'git ls-files': {path_str} ({e})", file=sys.stderr)
     else: print(f"  Aviso: 'git ls-files' falhou (Code: {exit_code_ls}). Stderr: {stderr_ls.strip()}", file=sys.stderr)
     if verbose: print(f"  Arquivos iniciais via Git: {len(all_files_set)}")
+
 
     # Diretórios adicionais para scan recursivo
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
     latest_context_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
     if latest_context_code_dir: additional_scan_dirs.append(latest_context_code_dir)
     additional_scan_dirs.extend(VENDOR_USPDEV_DIRS)
-    additional_scan_dirs.append(PROJECT_ROOT / "docs" / "laravel_12") # Adicionado
+    additional_scan_dirs.append(PROJECT_ROOT / "docs" / "laravel_12")
 
     if verbose: print("  Realizando scans adicionais em diretórios específicos...")
     for scan_dir in additional_scan_dirs:
@@ -278,6 +281,7 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
         elif verbose: skipped_count += 1
     if verbose: print(f"  Filtro concluído. {len(filtered_files)} arquivos retidos, {skipped_count} ignorados.")
     return filtered_files
+
 
 def get_file_type(relative_path: Path) -> str:
     """Determina um tipo granular para o arquivo baseado no caminho e extensão."""
@@ -388,7 +392,6 @@ def get_file_type(relative_path: Path) -> str:
     if suffix == '.txt': return 'text_plain'
     if suffix in BINARY_EXTENSIONS: return f'binary_{suffix[1:]}'
     return 'unknown'
-
 def load_api_keys(verbose: bool) -> bool:
     """Loads API keys from .env file."""
     global GEMINI_API_KEYS_LIST, api_key_loaded, current_api_key_index
@@ -485,10 +488,17 @@ def count_tokens_for_file(
             return None # Return None if reading fails
     # ----------------------------------------
 
-    # Skip API for context_code files (AC11)
+    # --- AC2 #38: Estimate for context_code_* files ---
     if file_type.startswith('context_code_'):
-        if verbose: print(f"      -> Token Count (AC14): Skipping API call for {file_type}. Setting to null.")
-        return None
+        try:
+            content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
+            token_count = max(1, int(len(content) / 4)) if content else 0
+            if verbose: print(f"      -> Token Count (AC2 Estimate): {token_count} (for {file_type})")
+            return token_count
+        except Exception as e:
+            if verbose: print(f"      -> Token Count (AC2): Error reading context file '{filepath_absolute.name}' for estimation: {e}", file=sys.stderr)
+            return None # Return None if reading fails
+    # ----------------------------------------------------
 
     # Reuse previous count if hash matches (AC16)
     if current_hash and previous_hash and current_hash == previous_hash and previous_token_count is not None:
@@ -497,11 +507,20 @@ def count_tokens_for_file(
 
     # Check if Gemini client is ready for API calls
     if not gemini_initialized or not genai_client:
-        if verbose: print(f"      -> Token Count: Skipping API call (Gemini client not initialized)")
-        return None # Cannot call API if not initialized
+        if verbose: print(f"      -> Token Count: Skipping API call (Gemini client not initialized). Estimating as fallback.")
+        try:
+            content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
+            token_count = max(1, int(len(content) / 4)) if content else 0
+            if verbose: print(f"      -> Token Count (Fallback Estimate due to no client): Estimated tokens: {token_count}")
+            return token_count
+        except Exception as e:
+            if verbose: print(f"      -> Token Count: Error reading file '{filepath_absolute.name}' for fallback estimation: {e}", file=sys.stderr)
+            return None
+        # Cannot call API if not initialized, use estimation as fallback
 
     if verbose: print(f"      -> Token Count (AC13/16): API/Fallback counting needed for {filepath_absolute.name}")
 
+    content_for_api: Optional[str] = None
     try:
         content_for_api = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
     except (IOError, OSError) as e:
@@ -520,7 +539,10 @@ def count_tokens_for_file(
     # Apply sleep before making a potential API call
     if sleep_seconds > 0:
         if verbose: print(f"      -> Sleeping for {sleep_seconds:.2f}s before API call...")
-        time.sleep(sleep_seconds)
+        # Usar tqdm para a barra de progresso
+        for _ in tqdm(range(int(sleep_seconds * 10)), desc="Waiting before API call", unit="ds", leave=False, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}"):
+            time.sleep(0.1)
+
 
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
@@ -531,6 +553,7 @@ def count_tokens_for_file(
             """Makes the actual API call to count tokens via client."""
             if not genai_client: raise RuntimeError("Gemini client became uninitialized.")
             try:
+                # Use the correct API from google-genai
                 response = genai_client.models.count_tokens(model=GEMINI_MODEL_NAME, contents=content_str)
                 return response.total_tokens
             except Exception as inner_e: print(f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}", file=sys.stderr); raise inner_e
@@ -555,15 +578,15 @@ def count_tokens_for_file(
             time.sleep(DEFAULT_RATE_LIMIT_SLEEP)
             if not rotate_api_key_and_reinitialize(verbose):
                 print(f"      Error: Falha ao rotacionar chave de API. Estimating as fallback.", file=sys.stderr)
-                # AC3 Fallback
-                token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
-                if verbose: print(f"      -> Token Count (AC3 Fallback): Estimated tokens: {token_count}")
+                # AC3 #38 Fallback for persistent API errors after rotation failure
+                token_count = max(1, int(len(content_for_api) / 4)) if content_for_api else 0
+                if verbose: print(f"      -> Token Count (AC3 Fallback - Rotation Failed): Estimated tokens: {token_count}")
                 return token_count
             if current_api_key_index in keys_tried_in_this_call:
                 print(f"      Error: Ciclo completo de chaves API. Limite/Erro persistente para '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
-                 # AC3 Fallback
+                 # AC3 #38 Fallback for persistent API errors after full cycle
                 token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
-                if verbose: print(f"      -> Token Count (AC3 Fallback after cycle): Estimated tokens: {token_count}")
+                if verbose: print(f"      -> Token Count (AC3 Fallback - Full Cycle): Estimated tokens: {token_count}")
                 return token_count
             keys_tried_in_this_call.add(current_api_key_index)
             if verbose: print(f"        -> Retrying count_tokens with new Key Index {current_api_key_index}")
@@ -571,9 +594,9 @@ def count_tokens_for_file(
 
         except (errors.APIError, google_api_core_exceptions.GoogleAPICallError) as e:
              print(f"      -> Token Count (AC18): API Call Error for '{filepath_absolute.name}': {type(e).__name__} - {e}. Estimating.", file=sys.stderr)
-             # AC3 Fallback for other API errors
+             # AC3 #38 Fallback for other API errors
              token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
-             if verbose: print(f"      -> Token Count (AC3 Fallback for API Error): Estimated tokens: {token_count}")
+             if verbose: print(f"      -> Token Count (AC3 Fallback - API Error): Estimated tokens: {token_count}")
              return token_count
         except Exception as e:
             if verbose: print(f"      -> Token Count: Unexpected Error during API call/result for '{filepath_absolute.name}': {e}", file=sys.stderr)
@@ -590,7 +613,7 @@ if __name__ == "__main__":
     try: output_filepath.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e: print(f"Erro fatal: Não foi possível criar diretório para '{output_filepath}': {e}", file=sys.stderr); sys.exit(1)
 
-    print(f"--- Iniciando Geração do Manifesto (v1.22.0) ---")
+    print(f"--- Iniciando Geração do Manifesto (v1.22.1) ---") # Versão Atualizada
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
     print(f"Intervalo entre chamadas API count_tokens: {args.sleep}s")
     print(f"Timeout para chamadas API count_tokens: {args.timeout}s")
@@ -664,9 +687,9 @@ if __name__ == "__main__":
             dependents: List[str] = []
 
             token_count: Optional[int] = None
-            # Determine if token counting is needed (not binary, not excluded type)
+            # Determine if token counting is needed (not binary)
             should_count_tokens_or_estimate = not is_binary
-            if should_count_tokens_or_estimate and api_executor:
+            if should_count_tokens_or_estimate:
                 previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
                 previous_hash = previous_file_data.get("hash")
                 previous_count = previous_file_data.get("token_count")
@@ -683,10 +706,10 @@ if __name__ == "__main__":
                     args.timeout
                 )
                 if token_count_result is not None and (not previous_hash or calculated_hash != previous_hash or previous_count is None):
-                     token_api_calls_or_fallbacks += 1
+                      token_api_calls_or_fallbacks += 1
                 token_count = token_count_result
             elif args.verbose:
-                 reason = "binary" if is_binary else "API executor not available" if not api_executor else "Skipped"
+                 reason = "binary"
                  print(f"      -> Token Count: Skipping count ({reason}). Setting to null.")
 
             metadata: Dict[str, Any] = {
@@ -712,13 +735,13 @@ if __name__ == "__main__":
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos binários.")
     print(f"  Cálculo AC10/11: Hashes SHA1 calculados ou nulos.")
-    print(f"  Contagem Tokens (AC1, AC12-20): {token_api_calls_or_fallbacks} chamadas API Gemini ou fallbacks de estimativa realizados.")
+    print(f"  Contagem Tokens (AC1, AC2, AC3, AC12-20): {token_api_calls_or_fallbacks} chamadas API Gemini ou fallbacks de estimativa realizados.") # Atualizado
     print(f"  Extração Dependências (AC22/23): Processado para arquivos PHP.")
 
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - v1.22.0 (Token Estimate for Env/Context). Arquivos processados: {len(filtered_file_paths)}.", # Atualizado
+            "comment": f"Manifesto gerado - v1.22.1 (Token Estimate Fallback for API Errors). Arquivos processados: {len(filtered_file_paths)}.", # Atualizado
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -740,6 +763,6 @@ if __name__ == "__main__":
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (v1.22.0) ---") # Atualizado
+    print(f"--- Geração do Manifesto Concluída (v1.22.1) ---") # Atualizado
     sys.exit(0)
     
