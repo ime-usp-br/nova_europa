@@ -1,0 +1,44 @@
+TITLE: [DevTools] Aprimorar manifesto: Contagem de tokens e Geração de Resumos
+TYPE: refactor
+LABELS: devtools, python, token-counting, summary-generation, manifest, llm, todo
+ASSIGNEE: @me
+PROJECT: Laravel 12 Starter Kit
+REFACTOR_MOTIVATION: Otimizar a interação com LLMs, fornecendo contagens de token mais precisas e resumos concisos dos arquivos do projeto diretamente no manifesto JSON.
+REFACTOR_DESCRIPTION: Modificar `scripts/generate_manifest.py` para ajustar a lógica de contagem de tokens:
+- Aplicar a estimativa `max(1, int(chars / 4))` aos arquivos de texto atualmente excluídos da contagem via API (`.env*`, `context_llm/code/*`). A contagem via API deve ser evitada para estes.
+- Utilizar essa mesma estimativa `max(1, int(chars / 4))` como fallback para erros persistentes da API (não apenas timeout, mas também erros como 429 ResourceExhausted após retentativas) nos arquivos que *são* incluídos na contagem via API, mantendo a API como método prioritário.
+
+Adicionar uma nova task chamada `manifest-summary` ao `scripts/llm_interact.py`:
+- Esta task deve ler o arquivo `manifest.json` mais recente gerado por `generate_manifest.py`.
+- Para cada arquivo listado no manifesto (priorizando arquivos modificados ou sem resumo prévio), a task deve gerar um resumo conciso de seu conteúdo utilizando a API do Google Gemini.
+- A task deve **atualizar diretamente** o campo `summary` correspondente a cada arquivo dentro do próprio arquivo `manifest.json`.
+PROPOSED_SOLUTION:
+Em `scripts/generate_manifest.py`:
+- Modificar a função `count_tokens_for_file` (ou similar existente, implementada na Issue #32):
+    - Adicionar lógica condicional para checar se o `file_type` é `environment_env` ou `context_code_*`. Se for, calcular `token_count` usando a estimativa `max(1, int(len(content) / 4))` e *não* chamar a API Gemini.
+    - No bloco `except` que trata falhas da API Gemini (`google.api_core.exceptions.ResourceExhausted`, `google.genai.errors.APIError`, `concurrent.futures.TimeoutError`, etc.), após as retentativas com rotação de chave (implementadas na Issue #32, AC32), implementar o cálculo de fallback usando a estimativa `max(1, int(len(content) / 4))` para arquivos de texto não vazios, em vez de retornar `None` para todos os tipos de erro persistente (conforme decisões #9, #11, #12 da Issue #32 que indicavam a necessidade de ter um valor numérico sempre que possível). A API continua sendo a prioridade.
+
+Em `scripts/llm_interact.py`:
+- Adicionar `manifest-summary` à lista de tasks válidas (detectada automaticamente se os prompts existirem).
+- Criar o template de prompt direto `templates/prompts/prompt-manifest-summary.txt`. Este prompt instruirá a LLM a gerar um resumo conciso para o conteúdo de um arquivo fornecido.
+- Criar o template de meta-prompt `templates/meta-prompts/meta-prompt-manifest-summary.txt` para o fluxo `--two-stage`. Este meta-prompt instruirá a LLM a gerar um prompt final adequado para a tarefa de resumo.
+- Implementar a lógica da task `manifest-summary`:
+    - Carregar o arquivo `manifest.json` mais recente (localizado em `scripts/data/`).
+    - Iterar sobre o dicionário `files` dentro do JSON. Priorizar arquivos cujo `hash` mudou desde a última execução ou cujo `summary` é `null`.
+    - Agrupar o conteúdo de múltiplos arquivos (respeitando limites de token da API) para chamadas em lote à API Gemini (modelo `gemini-2.5-flash-preview-04-17` como preferencial, mas permitir configurabilidade).
+    - Enviar o conteúdo junto com o prompt (`prompt-manifest-summary.txt` ou o gerado pelo meta-prompt) para a API.
+    - Parsear as respostas da API para extrair os resumos individuais para cada arquivo do lote.
+    - Ler novamente o `manifest.json` (para evitar race conditions se o script de manifesto rodar em paralelo, embora improvável) ou trabalhar com a estrutura em memória.
+    - Atualizar o campo `summary` de cada arquivo correspondente *diretamente na estrutura de dados do manifesto*.
+    - Salvar a estrutura de dados atualizada de volta no *mesmo* arquivo `manifest.json`.
+ACCEPTANCE_CRITERIA:
+- [ ] `generate_manifest.py` calcula `token_count` via estimativa para arquivos `.env*`.
+- [ ] `generate_manifest.py` calcula `token_count` via estimativa para arquivos em `context_llm/code/*`.
+- [ ] `generate_manifest.py` usa estimativa `max(1, int(chars / 4))` como fallback para erros persistentes da API nos arquivos incluídos (priorizando a API).
+- [ ] Nova task `manifest-summary` existe e é selecionável em `llm_interact.py`.
+- [ ] Task `manifest-summary` lê corretamente o arquivo `manifest.json` mais recente.
+- [ ] Task `manifest-summary` chama a API Gemini (preferencialmente em lote) para gerar resumos dos arquivos.
+- [ ] Task `manifest-summary` **atualiza diretamente** o arquivo `manifest.json` com os resumos gerados no campo `summary` para os arquivos corretos.
+- [ ] Arquivo `templates/prompts/prompt-manifest-summary.txt` existe.
+- [ ] Arquivo `templates/meta-prompts/meta-prompt-manifest-summary.txt` existe.
+- [ ] Código Python passa nas verificações de Pint e PHPStan (embora sejam Python, manter AC padrão do projeto).
