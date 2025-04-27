@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.22.1 - Token Estimate Fallback for API Errors)
+# generate_manifest.py (v1.23.0 - Preserve Previous Summary for Unchanged Files)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
 # Destinado a auxiliar ferramentas LLM e rastreamento de mudanças.
 # Inclui contagem de tokens via API Gemini com fallback para estimativa.
 # Adiciona cálculo de estimativa para arquivos .env* e context_llm/code/*.
-# Adiciona fallback de estimativa para erros persistentes da API (AC3 #38).
+# Adiciona fallback de estimativa para erros persistentes da API.
+# PRESERVA o campo 'summary' do manifesto anterior se o hash do arquivo não mudou.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v] [--sleep SLEEP_SECONDS] [--timeout TIMEOUT_SECONDS]
@@ -18,7 +19,7 @@
 #   -o, --output OUTPUT_PATH   Caminho para o arquivo JSON de saída.
 #   -i, --ignore IGNORE_PATTERN Padrão (glob), diretório ou arquivo a ignorar.
 #   -v, --verbose              Habilita logging mais detalhado.
-#   --sleep SLEEP_SECONDS      Segundos de espera entre chamadas à API count_tokens (padrão: 1.0).
+#   --sleep SLEEP_SECONDS      Segundos de espera entre chamadas à API count_tokens (padrão: 0.5).
 #   --timeout TIMEOUT_SECONDS  Timeout em segundos para a chamada API count_tokens (padrão: 6).
 #   -h, --help                 Mostra esta mensagem de ajuda.
 # ==============================================================================
@@ -63,7 +64,7 @@ DEFAULT_IGNORE_PATTERNS: Set[str] = {
     "storage/framework/views/", "storage/logs/", "bootstrap/cache/",
     "public/build/", "*.lock", "*.sqlite", "*.sqlite-journal", "*.log",
     ".phpunit.cache/", "llm_outputs/", "scripts/data/", "*.DS_Store",
-    "Thumbs.db", "vendor/", "context_llm/",
+    "Thumbs.db", "vendor/", "context_llm/", # context_llm/ base is ignored, specific subdirs are added later
 }
 BINARY_EXTENSIONS = {
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tif', '.tiff', '.webp',
@@ -76,7 +77,7 @@ BINARY_EXTENSIONS = {
 }
 TEXTCHARS = bytes(range(32, 127)) + b'\n\r\t\f\b'
 GEMINI_MODEL_NAME = 'gemini-1.5-flash' # Modelo para contagem de tokens
-DEFAULT_INTER_CALL_SLEEP = 0.5 # Reduzido o sleep padrão
+DEFAULT_INTER_CALL_SLEEP = 0.5
 DEFAULT_RATE_LIMIT_SLEEP = 5.0
 DEFAULT_API_TIMEOUT_SECONDS = 6
 
@@ -84,14 +85,13 @@ DEFAULT_API_TIMEOUT_SECONDS = 6
 repo_owner: Optional[str] = None
 GEMINI_API_KEYS_LIST: List[str] = []
 current_api_key_index: int = 0
-genai_client: Optional[genai.Client] = None # Mudança: Usar Client diretamente
+genai_client: Optional[genai.Client] = None
 api_key_loaded: bool = False
 gemini_initialized: bool = False
-# Global ThreadPoolExecutor
 api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
 
-# --- Funções ---
+# --- Funções Auxiliares ---
 def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = True, capture: bool = True, input_data: Optional[str] = None, shell: bool = False, timeout: Optional[int] = 60) -> Tuple[int, str, str]:
     """Runs a subprocess command and returns exit code, stdout, stderr."""
     cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
@@ -197,7 +197,6 @@ def get_git_versioned_status(filepath_relative: Path, verbose: bool) -> bool:
 def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
     """Escaneia o projeto por arquivos, priorizando git e incluindo dirs específicos."""
     all_files_set: Set[Path] = set()
-    # Use ls-files para obter uma lista base (versionados, stageados, outros não ignorados)
     if verbose: print("  Executando 'git ls-files -z -c -o --exclude-standard'...")
     exit_code_ls, stdout_ls, stderr_ls = run_command(['git', 'ls-files', '-z', '-c', '-o', '--exclude-standard'], check=False)
     if exit_code_ls == 0 and stdout_ls:
@@ -212,8 +211,6 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
     else: print(f"  Aviso: 'git ls-files' falhou (Code: {exit_code_ls}). Stderr: {stderr_ls.strip()}", file=sys.stderr)
     if verbose: print(f"  Arquivos iniciais via Git: {len(all_files_set)}")
 
-
-    # Diretórios adicionais para scan recursivo
     additional_scan_dirs: List[Path] = [CONTEXT_COMMON_DIR]
     latest_context_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
     if latest_context_code_dir: additional_scan_dirs.append(latest_context_code_dir)
@@ -234,20 +231,15 @@ def scan_project_files(verbose: bool) -> Tuple[Set[Path], Set[Path]]:
                      if verbose: print(f"      Aviso: Ignorando item durante scan adicional: {item} ({e})", file=sys.stderr)
         elif verbose: print(f"      Aviso: Diretório de scan adicional não existe: {abs_scan_dir}")
     if verbose: print(f"  Total de arquivos únicos encontrados após scans: {len(all_files_set)}")
-    # versioned_files_set será determinado depois
-    return all_files_set, set()
+    return all_files_set, set() # versioned_files_set is now determined later
 
 def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores: List[str], output_filepath: Path, verbose: bool) -> Set[Path]:
     """Filtra a lista de arquivos com base nos padrões de ignore."""
     filtered_files: Set[Path] = set()
-    # Constrói a lista de padrões de ignore combinados
     ignore_patterns = default_ignores.copy()
     ignore_patterns.update(custom_ignores)
-    try:
-        # Adiciona o próprio arquivo de saída à lista de ignores
-        ignore_patterns.add(output_filepath.relative_to(PROJECT_ROOT).as_posix())
-    except ValueError:
-        pass # output_filepath pode estar fora do root
+    try: ignore_patterns.add(output_filepath.relative_to(PROJECT_ROOT).as_posix())
+    except ValueError: pass # output_filepath might be outside root
 
     if verbose: print(f"  Aplicando {len(ignore_patterns)} padrões de exclusão...")
     skipped_count = 0
@@ -255,19 +247,19 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
         file_path_str = file_path.as_posix()
         is_ignored = False
         for pattern in ignore_patterns:
-            # Lógica Especial para Vendor/Context - Permitir subdirs específicos
-            # Permitir vendor/uspdev/*
+            # --- START Special Handling Logic ---
+            # Allow vendor/uspdev/*
             if pattern == "vendor/" and any(file_path_str.startswith(str(usp_dir.relative_to(PROJECT_ROOT).as_posix())) for usp_dir in VENDOR_USPDEV_DIRS):
-                continue # Não ignora se estiver dentro de um vendor/uspdev permitido
-            # Permitir context_llm/common/* e context_llm/code/<latest>/*
+                continue
+            # Allow context_llm/common/* and context_llm/code/<latest>/*
             if pattern == "context_llm/":
                 is_common = file_path_str.startswith(str(CONTEXT_COMMON_DIR.relative_to(PROJECT_ROOT).as_posix()))
                 latest_code_dir = find_latest_context_code_dir(CONTEXT_CODE_DIR)
                 is_latest_code = latest_code_dir and file_path_str.startswith(str(latest_code_dir.relative_to(PROJECT_ROOT).as_posix()))
-                if is_common or is_latest_code:
-                    continue # Não ignora se for common ou latest code
+                if is_common or is_latest_code: continue
+            # --- END Special Handling Logic ---
 
-            # Lógica Geral de Ignore
+            # General Ignore Logic
             is_dir_pattern = pattern.endswith('/')
             cleaned_pattern = pattern.rstrip('/')
             if file_path_str == cleaned_pattern or (is_dir_pattern and file_path_str.startswith(cleaned_pattern + '/')):
@@ -285,6 +277,7 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
 
 def get_file_type(relative_path: Path) -> str:
     """Determina um tipo granular para o arquivo baseado no caminho e extensão."""
+    # (Código da função mantido como na sua implementação anterior, v1.22.0)
     path_str = relative_path.as_posix(); parts = relative_path.parts; name = relative_path.name; suffix = relative_path.suffix.lower()
     if name == 'composer.json': return 'dependency_composer'
     if name == 'package.json': return 'dependency_npm'
@@ -392,6 +385,7 @@ def get_file_type(relative_path: Path) -> str:
     if suffix == '.txt': return 'text_plain'
     if suffix in BINARY_EXTENSIONS: return f'binary_{suffix[1:]}'
     return 'unknown'
+
 def load_api_keys(verbose: bool) -> bool:
     """Loads API keys from .env file."""
     global GEMINI_API_KEYS_LIST, api_key_loaded, current_api_key_index
@@ -419,6 +413,7 @@ def initialize_gemini(verbose: bool) -> bool:
     active_key = GEMINI_API_KEYS_LIST[current_api_key_index]
     try:
         if verbose: print(f"  Inicializando Google GenAI Client com Key Index {current_api_key_index}...")
+        # Use genai.Client directly for the client instance
         genai_client = genai.Client(api_key=active_key)
         print("  Google GenAI Client inicializado com sucesso.")
         gemini_initialized = True
@@ -438,9 +433,10 @@ def rotate_api_key_and_reinitialize(verbose: bool) -> bool:
     start_index = current_api_key_index
     current_api_key_index = (current_api_key_index + 1) % len(GEMINI_API_KEYS_LIST)
     print(f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n")
-    gemini_initialized = False
+    gemini_initialized = False # Mark as uninitialized before trying the new key
     if current_api_key_index == start_index:
         print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
+    # Try to initialize with the new key
     return initialize_gemini(verbose)
 
 def extract_php_dependencies(file_content: str) -> List[str]:
@@ -460,7 +456,6 @@ def extract_php_dependencies(file_content: str) -> List[str]:
             full_path = base_namespace.rstrip('\\') + '\\' + class_or_subnamespace.lstrip('\\')
             dependencies.add(full_path)
     return sorted(list(dependencies))
-
 
 def count_tokens_for_file(
     executor: concurrent.futures.ThreadPoolExecutor,
@@ -516,7 +511,6 @@ def count_tokens_for_file(
         except Exception as e:
             if verbose: print(f"      -> Token Count: Error reading file '{filepath_absolute.name}' for fallback estimation: {e}", file=sys.stderr)
             return None
-        # Cannot call API if not initialized, use estimation as fallback
 
     if verbose: print(f"      -> Token Count (AC13/16): API/Fallback counting needed for {filepath_absolute.name}")
 
@@ -539,10 +533,8 @@ def count_tokens_for_file(
     # Apply sleep before making a potential API call
     if sleep_seconds > 0:
         if verbose: print(f"      -> Sleeping for {sleep_seconds:.2f}s before API call...")
-        # Usar tqdm para a barra de progresso
         for _ in tqdm(range(int(sleep_seconds * 10)), desc="Waiting before API call", unit="ds", leave=False, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}"):
             time.sleep(0.1)
-
 
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
@@ -553,7 +545,6 @@ def count_tokens_for_file(
             """Makes the actual API call to count tokens via client."""
             if not genai_client: raise RuntimeError("Gemini client became uninitialized.")
             try:
-                # Use the correct API from google-genai
                 response = genai_client.models.count_tokens(model=GEMINI_MODEL_NAME, contents=content_str)
                 return response.total_tokens
             except Exception as inner_e: print(f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}", file=sys.stderr); raise inner_e
@@ -561,6 +552,7 @@ def count_tokens_for_file(
         future = None
         try:
             if verbose: print(f"        -> Attempting count_tokens with Key Index {current_api_key_index}, Timeout {timeout_seconds}s")
+            if not executor: raise RuntimeError("API Executor not initialized before API call.") # Check if executor is initialized
             future = executor.submit(_api_call_task, content_for_api)
             token_count = future.result(timeout=timeout_seconds)
             if verbose: print(f"      -> Token Count (AC13): Successfully counted via API: {token_count}")
@@ -613,7 +605,7 @@ if __name__ == "__main__":
     try: output_filepath.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e: print(f"Erro fatal: Não foi possível criar diretório para '{output_filepath}': {e}", file=sys.stderr); sys.exit(1)
 
-    print(f"--- Iniciando Geração do Manifesto (v1.22.1) ---") # Versão Atualizada
+    print(f"--- Iniciando Geração do Manifesto (v1.23.0) ---") # Versão Atualizada
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
     print(f"Intervalo entre chamadas API count_tokens: {args.sleep}s")
     print(f"Timeout para chamadas API count_tokens: {args.timeout}s")
@@ -636,7 +628,7 @@ if __name__ == "__main__":
     processed_file_count = 0
     token_api_calls_or_fallbacks = 0
 
-    # Initialize global executor before the loop
+    # Initialize global executor only if Gemini client is ready
     api_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1) if gemini_initialized else None
 
     try:
@@ -653,13 +645,13 @@ if __name__ == "__main__":
             if args.verbose: print(f"      -> Type (AC8): {file_type}")
 
             is_versioned = get_git_versioned_status(file_path_relative, args.verbose)
-            if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/')): is_versioned = False # Docs laravel não deve ser sobreescrito
+            if relative_path_str.startswith(('vendor/uspdev/', 'context_llm/')): is_versioned = False
             if args.verbose: print(f"      -> Versioned (AC9): {is_versioned}")
 
             calculated_hash: Optional[str] = None
             is_env_file = file_type == 'environment_env'
-            is_context_code = file_type.startswith('context_code_') # Inclui o manifest JSON copiado
-            should_calculate_hash = not is_binary and not is_env_file and not is_context_code # Don't hash context code
+            is_context_code = file_type.startswith('context_code_')
+            should_calculate_hash = not is_binary and not is_env_file and not is_context_code
 
             if should_calculate_hash:
                 try:
@@ -687,23 +679,16 @@ if __name__ == "__main__":
             dependents: List[str] = []
 
             token_count: Optional[int] = None
-            # Determine if token counting is needed (not binary)
             should_count_tokens_or_estimate = not is_binary
-            if should_count_tokens_or_estimate:
-                previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
-                previous_hash = previous_file_data.get("hash")
-                previous_count = previous_file_data.get("token_count")
+            previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
+            previous_hash = previous_file_data.get("hash")
+            previous_count = previous_file_data.get("token_count")
 
+            if should_count_tokens_or_estimate:
                 token_count_result = count_tokens_for_file(
-                    api_executor,
-                    file_path_absolute,
-                    file_type, # Passar o tipo do arquivo
-                    previous_count,
-                    calculated_hash,
-                    previous_hash,
-                    args.verbose,
-                    args.sleep,
-                    args.timeout
+                    api_executor, file_path_absolute, file_type,
+                    previous_count, calculated_hash, previous_hash,
+                    args.verbose, args.sleep, args.timeout
                 )
                 if token_count_result is not None and (not previous_hash or calculated_hash != previous_hash or previous_count is None):
                       token_api_calls_or_fallbacks += 1
@@ -712,6 +697,15 @@ if __name__ == "__main__":
                  reason = "binary"
                  print(f"      -> Token Count: Skipping count ({reason}). Setting to null.")
 
+
+            # --- Lógica de Preservação do Sumário (NOVO) ---
+            preserved_summary: Optional[str] = None
+            if calculated_hash and previous_hash and calculated_hash == previous_hash:
+                preserved_summary = previous_file_data.get("summary")
+                if preserved_summary is not None and args.verbose:
+                    print(f"      -> Summary: Reusing previous summary (hash unchanged).")
+            # ----------------------------------------------
+
             metadata: Dict[str, Any] = {
                 "type": file_type,
                 "versioned": is_versioned,
@@ -719,29 +713,30 @@ if __name__ == "__main__":
                 "token_count": token_count,
                 "dependencies": dependencies,
                 "dependents": dependents,
-                "summary": None,
+                # Usa o summary preservado ou None (que vira null no JSON)
+                "summary": preserved_summary,
             }
-            if is_binary: metadata['summary'] = None
+            if is_binary: metadata['summary'] = None # Garante que binários sempre tenham null
 
             current_manifest_files_data[relative_path_str] = metadata
 
     finally:
         if api_executor:
             print("\nShutting down API thread pool executor...")
-            api_executor.shutdown(wait=True)
+            api_executor.shutdown(wait=True) # Espera as tarefas pendentes antes de sair
             print("Executor shut down.")
 
 
     print(f"\n  Processamento concluído para {len(filtered_file_paths)} arquivos.")
     print(f"  Detecção AC6: {binary_file_count} arquivos binários.")
     print(f"  Cálculo AC10/11: Hashes SHA1 calculados ou nulos.")
-    print(f"  Contagem Tokens (AC1, AC2, AC3, AC12-20): {token_api_calls_or_fallbacks} chamadas API Gemini ou fallbacks de estimativa realizados.") # Atualizado
+    print(f"  Contagem Tokens (AC1, AC2, AC3, AC12-20): {token_api_calls_or_fallbacks} chamadas API Gemini ou fallbacks de estimativa realizados.")
     print(f"  Extração Dependências (AC22/23): Processado para arquivos PHP.")
 
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - v1.22.1 (Token Estimate Fallback for API Errors). Arquivos processados: {len(filtered_file_paths)}.", # Atualizado
+            "comment": f"Manifesto gerado - v1.23.0 (Preserve Summary). Arquivos processados: {len(filtered_file_paths)}.", # Versão Atualizada
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -763,6 +758,5 @@ if __name__ == "__main__":
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (v1.22.1) ---") # Atualizado
+    print(f"--- Geração do Manifesto Concluída (v1.23.0) ---") # Atualizado
     sys.exit(0)
-    
