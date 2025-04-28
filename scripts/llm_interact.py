@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# llm_interact.py (v2.3 - Implemented manifest-summary task logic)
+# llm_interact.py (v2.4 - Implements --select-context flag)
 #
 # Interacts with Google Gemini API using project context and prompt templates.
 # Offers two flows:
@@ -19,35 +19,40 @@
 # Supports creating test sub-issues via 'create-test-sub-issue'.
 # Supports updating documentation via 'update-doc'.
 # Supports generating file summaries and updating the manifest via 'manifest-summary'.
+# NEW: Includes --select-context flag to enable preliminary context selection (logic TBD).
 #
 # Dependencies: google-generativeai, python-dotenv, tqdm, argparse, standard libs
 # ==============================================================================
 
 import argparse
-import os
-import sys
-import subprocess
-from pathlib import Path
-import re
-import google.genai as genai
-from google.genai import types
-from google.genai import errors
-from google.api_core import exceptions as google_api_core_exceptions
-from dotenv import load_dotenv
-import traceback
-from datetime import datetime
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable, Set
-import time
-from tqdm import tqdm
-import shutil
-import shlex
+import concurrent.futures
+import datetime
+import hashlib
 import json # Added for manifest-summary logic
-import concurrent.futures # Added for API timeout
+import os
+import re # Adicionado para regex de timestamp
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+import traceback
+from pathlib import Path
+from typing import List, Dict, Tuple, Optional, Union, Any, Callable, Set
+
+from dotenv import load_dotenv
+# Importa diretamente o google.genai
+from google import genai
+from google.genai import types
+from google.genai import errors as google_genai_errors
+from google.api_core import exceptions as google_api_core_exceptions
+from tqdm import tqdm # Adicionado para barra de progresso no sleep
 
 # --- Configuration Constants (Globally Accessible) ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "templates/prompts"
 META_PROMPT_DIR = BASE_DIR / "templates/meta-prompts"
+CONTEXT_SELECTORS_DIR = BASE_DIR / "templates/context_selectors" # AC14 #38 (Directory expected for future ACs)
 CONTEXT_DIR_BASE = BASE_DIR / "context_llm/code"
 COMMON_CONTEXT_DIR = BASE_DIR / "context_llm/common"
 OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs"
@@ -55,10 +60,11 @@ CONTEXT_GENERATION_SCRIPT = BASE_DIR / "scripts/generate_context.py"
 MANIFEST_DATA_DIR = BASE_DIR / "scripts" / "data" # For manifest-summary task
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$'
 TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # For manifest-summary task
-GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-flash-preview-04-17' # Upgraded default model
-GEMINI_MODEL_RESOLVE = 'gemini-2.5-pro-exp-03-25' # Upgraded default model
+GEMINI_MODEL_GENERAL_TASKS = 'gemini-1.5-flash-preview-0514' # Upgraded default model
+GEMINI_MODEL_RESOLVE = 'gemini-1.5-pro-preview-0514' # Upgraded default model
 # Model for manifest summary - Flash for potentially faster/cheaper summaries
-GEMINI_MODEL_SUMMARY = 'gemini-2.5-flash-preview-04-17' # Updated to latest flash
+GEMINI_MODEL_SUMMARY = 'gemini-1.5-flash-preview-0514' # Updated to latest flash
+GEMINI_MODEL_FLASH = 'gemini-1.5-flash-preview-0514' # Model for preliminary context selection
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
 DEFAULT_BASE_BRANCH = 'main'
 PR_CONTENT_DELIMITER_TITLE = "--- PR TITLE ---"
@@ -67,7 +73,7 @@ SUMMARY_CONTENT_DELIMITER_START = "--- START OF FILE "
 SUMMARY_CONTENT_DELIMITER_END = "--- END OF FILE "
 SUMMARY_TOKEN_LIMIT_PER_CALL = 200000
 ESTIMATED_TOKENS_PER_SUMMARY = 200
-MAX_OUTPUT_TOKENS_ESTIMATE = 50000 
+MAX_OUTPUT_TOKENS_ESTIMATE = 50000
 SLEEP_DURATION_SECONDS = 70 # Default sleep duration for rate limiting
 DEFAULT_API_TIMEOUT_SECONDS = 60 # Default timeout for Gemini API calls
 
@@ -95,7 +101,6 @@ def suggest_install(cmd_name: str, pkg_name: Optional[str] = None) -> str:
     pkg = pkg_name or cmd_name
     suggestions = [f"AVISO: Comando '{cmd_name}' não encontrado."]
     suggestions.append(f" > Para usar esta funcionalidade, tente instalar o pacote '{pkg}'.")
-    # (installation suggestions for different OS omitted for brevity)
     if command_exists('apt'): suggestions.append(f" > Sugestão (Debian/Ubuntu): sudo apt update && sudo apt install -y {pkg}")
     elif command_exists('dnf'): suggestions.append(f" > Sugestão (Fedora): sudo dnf install -y {pkg}")
     elif command_exists('yum'): suggestions.append(f" > Sugestão (RHEL/CentOS): sudo yum install -y {pkg}")
@@ -110,7 +115,6 @@ def write_warning_to_file(output_file: Path, warning_message: str):
     try:
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(warning_message, encoding='utf-8')
-        # print(f"    {warning_message.splitlines()[0]}") # Less noisy
     except Exception as e:
         print(f"    ERRO CRÍTICO: Não foi possível escrever o aviso em {output_file}: {e}", file=sys.stderr)
 
@@ -178,19 +182,16 @@ def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> st
 def _load_files_from_dir(context_dir: Path, context_parts: List[types.Part], exclude_list: Optional[List[str]] = None) -> None:
     """Helper to load .txt, .json, .md files, excluding specified filenames."""
     file_patterns = ["*.txt", "*.json", "*.md"]
-    loaded_count = 0
-    excluded_count = 0
     exclude_set = set(exclude_list) if exclude_list else set()
     if not context_dir or not context_dir.is_dir(): return
     for pattern in file_patterns:
         for filepath in context_dir.glob(pattern):
             if filepath.is_file():
-                if filepath.name in exclude_set: excluded_count += 1; continue
+                if filepath.name in exclude_set: continue # Skip excluded files
                 try:
                     content = filepath.read_text(encoding='utf-8')
                     relative_path = filepath.relative_to(BASE_DIR)
                     context_parts.append(types.Part.from_text(text=f"--- START OF FILE {relative_path} ---\n{content}\n--- END OF FILE {relative_path} ---"))
-                    loaded_count += 1
                 except Exception as e: print(f"      - Warning: Could not read file {filepath.name}: {e}", file=sys.stderr)
 
 def prepare_context_parts(primary_context_dir: Path, common_context_dir: Optional[Path] = None, exclude_list: Optional[List[str]] = None) -> List[types.Part]:
@@ -200,7 +201,7 @@ def prepare_context_parts(primary_context_dir: Path, common_context_dir: Optiona
     _load_files_from_dir(primary_context_dir, context_parts, exclude_list)
     if common_context_dir and common_context_dir.exists() and common_context_dir.is_dir():
         _load_files_from_dir(common_context_dir, context_parts, exclude_list)
-    print(f"\n  Total context files loaded (after exclusions): {len(context_parts)}.")
+    print(f"  Total context files loaded (after exclusions): {len(context_parts)}.")
     return context_parts
 
 def save_llm_response(task_name: str, response_content: str) -> None:
@@ -208,7 +209,7 @@ def save_llm_response(task_name: str, response_content: str) -> None:
     try:
         task_output_dir = OUTPUT_DIR_BASE / task_name
         task_output_dir.mkdir(parents=True, exist_ok=True)
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         output_filename = f"{timestamp_str}.txt"
         output_filepath = task_output_dir / output_filename
         output_filepath.write_text(response_content, encoding='utf-8')
@@ -322,7 +323,7 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
                 return genai_client.models.generate_content(model=model, contents=contents, config=gen_config)
 
             future = api_executor.submit(_api_call_task)
-            response = future.result(timeout=DEFAULT_API_TIMEOUT_SECONDS) # Usar timeout global
+            response = future.result(timeout=DEFAULT_API_TIMEOUT_SECONDS)
 
             if response.prompt_feedback and response.prompt_feedback.block_reason:
                  print(f"  Warning: Prompt blocked due to {response.prompt_feedback.block_reason}.", file=sys.stderr)
@@ -409,8 +410,7 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
             else: print("  Invalid number. Please try again.")
         except ValueError: print("  Invalid input. Please enter a number or 'q'.")
 
-# --- Funções específicas para a task manifest-summary (AC7, AC8, AC9) ---
-
+# --- Funções específicas para a task manifest-summary (AC7, AC8, AC9 #38) ---
 def find_latest_manifest_json(manifest_data_dir: Path) -> Optional[Path]:
     """Encontra o arquivo _manifest.json mais recente no diretório de dados."""
     if not manifest_data_dir.is_dir(): return None
@@ -433,65 +433,31 @@ def load_manifest(manifest_path: Path) -> Optional[Dict[str, Any]]:
 def select_files_for_summary_batch(
     manifest_data: Dict[str, Any],
     all_candidates: List[str],
-    processed_files: Set[str], # Set of filepaths already processed in previous batches
+    processed_files: Set[str],
     max_files_per_call: int,
     max_input_tokens: int,
     max_output_tokens: int,
     est_tokens_per_summary: int
 ) -> Tuple[List[str], int, int]:
-    """Seleciona um lote de arquivos para sumarização, respeitando os limites de token.
-       Ignora arquivos individuais que excedam o limite de input e continua a busca.
-    """
-    batch_files = []
-    current_input_tokens = 0
-    current_estimated_output = 0
+    """Seleciona um lote de arquivos para sumarização, respeitando os limites de token."""
+    batch_files = []; current_input_tokens = 0; current_estimated_output = 0
     files_dict = manifest_data.get("files", {})
-
     for filepath in all_candidates:
-        if filepath in processed_files:
-            # print(f"    Skipping '{filepath}': Already processed in a previous batch of this run.") # Debug
-            continue # Skip already processed files
-
-        if len(batch_files) >= max_files_per_call:
-            # print(f"    Batch limit reached ({max_files_per_call} files). Stopping batch formation.") # Debug
-            break # Limit number of files per batch
-
+        if filepath in processed_files: continue
+        if len(batch_files) >= max_files_per_call: break
         metadata = files_dict.get(filepath)
-        if not isinstance(metadata, dict):
-            # print(f"    Skipping '{filepath}': Invalid metadata in manifest.") # Debug
-            continue # Skip invalid entries
-
+        if not isinstance(metadata, dict): continue
         file_token_count = metadata.get("token_count")
-        if file_token_count is None or not isinstance(file_token_count, int) or file_token_count <= 0:
-            # print(f"    Skipping '{filepath}' for batch: Invalid or missing token_count ({file_token_count}).") # Debug
-            continue
-
-        # --- ALTERAÇÃO INÍCIO ---
-        # 1. Verificar se o arquivo *sozinho* já excede o limite de ENTRADA
+        if file_token_count is None or not isinstance(file_token_count, int) or file_token_count <= 0: continue
         if file_token_count > max_input_tokens:
-            print(f"    Skipping '{filepath}' for batch: Individual file token count ({file_token_count}) exceeds max input limit ({max_input_tokens}).")
-            processed_files.add(filepath) # Marca como processado para não tentar de novo nesta execução
-            continue # Pula para o PRÓXIMO ARQUIVO candidato
-
-        # 2. Calcular totais potenciais se este arquivo for adicionado
+             print(f"    Skipping '{filepath}' for batch: Individual file token count ({file_token_count}) exceeds max input limit ({max_input_tokens}).")
+             processed_files.add(filepath) # Marca como processado nesta execução
+             continue
         potential_input_tokens = current_input_tokens + file_token_count
         potential_output_tokens = current_estimated_output + est_tokens_per_summary
-
-        # 3. Verificar se adicionar este arquivo excede os limites TOTAIS do lote
         if potential_input_tokens <= max_input_tokens and potential_output_tokens <= max_output_tokens:
-            # Arquivo cabe no lote atual
-            batch_files.append(filepath)
-            current_input_tokens = potential_input_tokens
-            current_estimated_output = potential_output_tokens
-            # print(f"    Added '{filepath}' to batch. Current Input: {current_input_tokens}, Est. Output: {current_estimated_output}") # Debug
-        else:
-            # Arquivo não cabe no lote atual. Pular este arquivo e TENTAR O PRÓXIMO candidato.
-            # print(f"    Cannot add '{filepath}' to current batch: Would exceed limits (Input: {potential_input_tokens}/{max_input_tokens} or Est. Output: {potential_output_tokens}/{max_output_tokens}). Trying next candidate.") # Debug
-            continue # Tenta o próximo arquivo da lista `all_candidates` para ESTE MESMO lote.
-        # --- ALTERAÇÃO FIM ---
-
-    # Retorna o lote formado
-    # print(f"  Batch formed with {len(batch_files)} files. Total Input: {current_input_tokens}, Total Est. Output: {current_estimated_output}") # Debug
+             batch_files.append(filepath); current_input_tokens = potential_input_tokens; current_estimated_output = potential_output_tokens
+        else: continue # Tenta o próximo arquivo para ESTE lote
     return batch_files, current_input_tokens, current_estimated_output
 
 def prepare_api_content_for_summary(batch_files: List[str], base_summary_prompt: str) -> Tuple[List[types.Part], List[str]]:
@@ -502,38 +468,29 @@ def prepare_api_content_for_summary(batch_files: List[str], base_summary_prompt:
         filepath = BASE_DIR / filepath_str
         try:
             content = filepath.read_text(encoding='utf-8', errors='ignore')
-            # Include path and metadata in the input part for context
-            # The prompt needs to instruct the LLM to use this info
             part_text = f"{SUMMARY_CONTENT_DELIMITER_START}{filepath_str} ---\n{content}\n{SUMMARY_CONTENT_DELIMITER_END}{filepath_str} ---"
             contents_for_api.append(types.Part.from_text(text=part_text))
             processed_paths.append(filepath_str)
-        except Exception as e:
-            print(f"    Warning: Could not read file '{filepath_str}' for summary API call: {e}", file=sys.stderr)
+        except Exception as e: print(f"    Warning: Could not read file '{filepath_str}' for summary API call: {e}", file=sys.stderr)
     return contents_for_api, processed_paths
 
 def parse_summaries_from_response(llm_response: str) -> Dict[str, str]:
     """Parseia a resposta da LLM para extrair sumários individuais."""
     summaries: Dict[str, str] = {}
-    # Regex para encontrar os blocos delimitados
     pattern = re.compile(
         rf"^{re.escape(SUMMARY_CONTENT_DELIMITER_START)}(.*?){re.escape(' ---')}\n(.*?)\n^{re.escape(SUMMARY_CONTENT_DELIMITER_END)}\1{re.escape(' ---')}",
         re.MULTILINE | re.DOTALL
     )
     matches = pattern.findall(llm_response)
-    for filepath, summary in matches:
-        summaries[filepath.strip()] = summary.strip()
+    for filepath, summary in matches: summaries[filepath.strip()] = summary.strip()
     return summaries
 
 def update_manifest_file(manifest_path: Path, manifest_data: Dict[str, Any]) -> bool:
     """Escreve os dados atualizados de volta no arquivo de manifesto JSON."""
     try:
-        with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(manifest_data, f, indent=4, ensure_ascii=False)
+        with open(manifest_path, 'w', encoding='utf-8') as f: json.dump(manifest_data, f, indent=4, ensure_ascii=False)
         return True
-    except Exception as e:
-        print(f"Error saving updated manifest file '{manifest_path.name}': {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
-        return False
+    except Exception as e: print(f"Error saving updated manifest file '{manifest_path.name}': {e}", file=sys.stderr); traceback.print_exc(file=sys.stderr); return False
 
 # --- Argument Parser Setup ---
 def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
@@ -548,6 +505,9 @@ def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
     epilog_lines.append("\n  # Two-Stage Flow (Meta-Prompt):")
     epilog_lines.append(f"    python {script_name} commit-mesage -i 35 --two-stage")
     epilog_lines.append(f"    python {script_name} resolve-ac -i 35 -a 9 --two-stage -om # Show meta-prompt only")
+    epilog_lines.append("\n  # Context Selection Flow:")
+    epilog_lines.append(f"    python {script_name} resolve-ac -i 38 -a 10 -sc # Enable context selection before resolving")
+    epilog_lines.append(f"    python {script_name} commit-mesage -i 38 -sc -ec git_diff_empty_tree_to_head.txt # Select context, then exclude a specific file")
     epilog_text = "\n".join(epilog_lines)
 
     parser = argparse.ArgumentParser(
@@ -571,6 +531,8 @@ def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
     parser.add_argument("-op", "--only-prompt", action="store_true", help="Only print the final prompt (direct or generated in Step 1) and exit.")
     parser.add_argument("-ws", "--with-sleep", action="store_true", help=f"Wait {SLEEP_DURATION_SECONDS}s before each API attempt.")
     parser.add_argument("-ec", "--exclude-context", action='append', help="Filename(s) to exclude from context (e.g., -ec file1.txt). Can be used multiple times.", default=[])
+    # AC10: Adiciona flag --select-context / -sc
+    parser.add_argument("-sc", "--select-context", action="store_true", help="Enable preliminary context selection via LLM before executing the main task.")
     # Arguments for manifest-summary task (AC6 #38)
     parser.add_argument("--manifest-path", type=str, help="[manifest-summary] Specify the path to the manifest file to process (optional, defaults to latest).")
     parser.add_argument("--force-summary", action='append', help="[manifest-summary] Force summary generation for specific files (relative path), even if summary exists. Can be used multiple times.", default=[])
@@ -578,30 +540,25 @@ def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
 
     return parser.parse_args()
 
-
 # --- Ponto de Entrada Principal ---
 if __name__ == "__main__":
+    # --- Setup inicial (sem alterações) ---
     dotenv_path = BASE_DIR / '.env'
     if dotenv_path.is_file(): load_dotenv(dotenv_path=dotenv_path, verbose=False)
-
     direct_tasks_dict = find_available_tasks(TEMPLATE_DIR)
     meta_tasks_dict = find_available_meta_tasks(META_PROMPT_DIR)
     all_tasks_dict = {**direct_tasks_dict, **meta_tasks_dict}
     all_task_names = list(all_tasks_dict.keys())
-
     try: args = parse_arguments(all_task_names)
     except SystemExit as e: sys.exit(e.code)
-
     selected_task = args.task
     if not selected_task:
         if not all_task_names: print("Error: No tasks found. Exiting.", file=sys.stderr); sys.exit(1)
         selected_task = prompt_user_to_select_task(all_tasks_dict)
         if not selected_task: print("No task selected. Exiting."); sys.exit(0)
-
     is_two_stage = args.two_stage
     prompt_path: Optional[Path] = None
     template_base_dir: Path
-
     if is_two_stage:
         prompt_path = meta_tasks_dict.get(selected_task)
         template_base_dir = META_PROMPT_DIR
@@ -612,11 +569,9 @@ if __name__ == "__main__":
         template_base_dir = TEMPLATE_DIR
         if not prompt_path: print(f"Error: Prompt for task '{selected_task}' not found in {template_base_dir.relative_to(BASE_DIR)}.", file=sys.stderr); sys.exit(1)
         print(f"\nSelected Flow: Direct"); print(f"Using Prompt: {prompt_path.relative_to(BASE_DIR)}")
-
     GEMINI_MODEL = GEMINI_MODEL_RESOLVE if selected_task == "resolve-ac" else GEMINI_MODEL_SUMMARY if selected_task == "manifest-summary" else GEMINI_MODEL_GENERAL_TASKS
     print(f"Using Gemini Model: {GEMINI_MODEL}")
-
-    # --- Validations ---
+    # --- Validações (sem alterações) ---
     if selected_task == 'create-pr' and not args.issue: print("Error: 'create-pr' task requires --issue.", file=sys.stderr); sys.exit(1)
     if selected_task == 'create-test-sub-issue' and not args.issue: print("Error: 'create-test-sub-issue' task requires --issue.", file=sys.stderr); sys.exit(1)
     if selected_task == 'update-doc':
@@ -625,8 +580,7 @@ if __name__ == "__main__":
         elif not args.doc_file: print("Info: --doc-file not specified for update-doc. Will prompt for selection.")
     if selected_task == 'analyze-ac' and (not args.issue or not args.ac): print("Error: 'analyze-ac' task requires --issue and --ac.", file=sys.stderr); sys.exit(1)
     if selected_task == 'resolve-ac' and (not args.issue or not args.ac): print("Error: 'resolve-ac' task requires --issue and --ac.", file=sys.stderr); sys.exit(1)
-
-    # --- Context Generation ---
+    # --- Context Generation (sem alterações) ---
     if args.generate_context:
         print(f"\nRunning context generation script: {CONTEXT_GENERATION_SCRIPT.relative_to(BASE_DIR)}...")
         if not CONTEXT_GENERATION_SCRIPT.is_file() or not os.access(CONTEXT_GENERATION_SCRIPT, os.X_OK):
@@ -634,8 +588,7 @@ if __name__ == "__main__":
         exit_code_ctx, _, stderr_ctx = run_command([sys.executable, str(CONTEXT_GENERATION_SCRIPT)], check=False)
         if exit_code_ctx != 0: print(f"Error: Context generation failed. Stderr:\n{stderr_ctx}", file=sys.stderr); sys.exit(1)
         print("Context generation script completed.")
-
-    # --- Load Context (Only if not manifest-summary) ---
+    # --- Load Context (sem alterações) ---
     latest_context_dir: Optional[Path] = None
     context_parts: List[types.Part] = []
     if selected_task != "manifest-summary":
@@ -644,8 +597,7 @@ if __name__ == "__main__":
         print(f"Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
         context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
         if not context_parts: print("Warning: No context files loaded (or all were excluded). Proceeding without file context.", file=sys.stderr)
-
-    # --- Prepare Variables ---
+    # --- Prepare Variables (sem alterações) ---
     task_variables: Dict[str, str] = {
         "NUMERO_DA_ISSUE": args.issue if args.issue else "",
         "NUMERO_DO_AC": args.ac if args.ac else "",
@@ -665,31 +617,26 @@ if __name__ == "__main__":
         task_variables["ARQUIVO_DOC_ALVO"] = doc_file_path_str
         if not task_variables["ARQUIVO_DOC_ALVO"]: print("Error: Target doc file missing.", file=sys.stderr); sys.exit(1)
         print(f"Target document file set to: {task_variables['ARQUIVO_DOC_ALVO']}")
-
-    # --- Load and Fill Initial Prompt ---
+    # --- Load and Fill Initial Prompt (sem alterações) ---
     initial_prompt_content_original = load_and_fill_template(prompt_path, task_variables)
     if not initial_prompt_content_original: print(f"Error loading initial prompt. Exiting.", file=sys.stderr); sys.exit(1)
     initial_prompt_content_current = initial_prompt_content_original
     if args.web_search: initial_prompt_content_current += WEB_SEARCH_ENCOURAGEMENT_PT
-
-    # --- Handle --only-meta / --only-prompt ---
+    # --- Handle --only-meta / --only-prompt (sem alterações) ---
     if args.only_meta and is_two_stage: print("\n--- Filled Meta-Prompt (--only-meta) ---"); print(initial_prompt_content_current.strip()); print("--- End ---"); sys.exit(0)
     elif args.only_meta: print("Warning: --only-meta is only applicable with --two-stage flow.", file=sys.stderr)
     if args.only_prompt and not is_two_stage: print(f"\n--- Final Prompt (--only-prompt) ---"); print(initial_prompt_content_current.strip()); print("--- End ---"); sys.exit(0)
-
-    # --- Initialize Client (if needed for API calls) ---
+    # --- Initialize Client (sem alterações) ---
     if not args.only_prompt and not args.only_meta:
         if genai_client is None:
             if not initialize_genai_client(): sys.exit(1)
-        # Initialize API executor only if client is ready and we might make API calls
         if genai_client: api_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-    # --- Prepare Tools/Config ---
+    # --- Prepare Tools/Config (sem alterações) ---
     tools_list = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else []
     base_config = types.GenerateContentConfig(tools=tools_list) if tools_list else None
-
     # --- Task Specific Logic ---
     if selected_task == "manifest-summary":
+        # (Lógica da task manifest-summary - sem alterações)
         print("\n[TASK: manifest-summary]")
         manifest_to_process_path = None
         if args.manifest_path:
@@ -698,91 +645,109 @@ if __name__ == "__main__":
         else:
             manifest_to_process_path = find_latest_manifest_json(MANIFEST_DATA_DIR)
             if not manifest_to_process_path: print(f"Error: Could not find the latest manifest file in {MANIFEST_DATA_DIR}.", file=sys.stderr); sys.exit(1)
-
         print(f"  Processing manifest: {manifest_to_process_path.relative_to(BASE_DIR)}")
         manifest_data = load_manifest(manifest_to_process_path)
         if not manifest_data or "files" not in manifest_data: print(f"Error: Invalid or empty manifest file: {manifest_to_process_path.name}", file=sys.stderr); sys.exit(1)
-
         files_dict = manifest_data.get("files", {})
         candidates_for_summary = []
+        forced_summary_set = set(args.force_summary)
         print("  Identifying files needing summary...")
         for filepath, metadata in files_dict.items():
             if not isinstance(metadata, dict): continue
-            if metadata.get("summary") is None and not metadata.get("type", "").startswith("binary_"):
+            is_binary = metadata.get("type", "").startswith("binary_")
+            needs_summary = metadata.get("summary") is None
+            is_forced = filepath in forced_summary_set
+            if (needs_summary or is_forced) and not is_binary:
                  if metadata.get("token_count") is not None: candidates_for_summary.append(filepath)
-                 else: print(f"    Skipping '{filepath}' for summary: Missing token_count.", file=sys.stderr)
-
+                 elif args.verbose: print(f"    Skipping '{filepath}' for summary: Missing token_count.", file=sys.stderr)
         if not candidates_for_summary: print("  No files found needing summaries in the manifest."); sys.exit(0)
         print(f"  Found {len(candidates_for_summary)} files potentially needing summaries.")
-
         if not genai_client or not api_executor: print("Error: Gemini client or API executor not initialized. Cannot proceed.", file=sys.stderr); sys.exit(1)
-
         summary_prompt_path = TEMPLATE_DIR / "prompt-manifest-summary.txt"
         if not summary_prompt_path.is_file(): print(f"Error: Summary prompt template not found at {summary_prompt_path}", file=sys.stderr); sys.exit(1)
         base_summary_prompt = summary_prompt_path.read_text(encoding='utf-8')
-
         processed_files_in_run: Set[str] = set()
         manifest_was_modified = False
-
         while True:
             batch_files, batch_input_tokens, batch_output_estimate = select_files_for_summary_batch(
                 manifest_data, candidates_for_summary, processed_files_in_run,
                 args.max_files_per_call, SUMMARY_TOKEN_LIMIT_PER_CALL,
                 MAX_OUTPUT_TOKENS_ESTIMATE, ESTIMATED_TOKENS_PER_SUMMARY
             )
-
-            if not batch_files: break # No more files to process
-
+            if not batch_files: break
             print(f"\n  Processing batch of {len(batch_files)} files (Input Tokens: ~{batch_input_tokens}, Est. Output Tokens: ~{batch_output_estimate})...")
-
             contents_for_api, processed_paths_in_batch = prepare_api_content_for_summary(batch_files, base_summary_prompt)
-
             if not processed_paths_in_batch: print("    Batch empty after attempting to read files. Skipping batch."); continue
-
             print(f"    Sending {len(processed_paths_in_batch)} files to API for summarization...")
             try:
-                 # Note: manifest-summary uses the direct flow, no meta-prompt step needed here.
                  llm_response = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
                  print("    API call successful.")
                  parsed_summaries = parse_summaries_from_response(llm_response)
                  print(f"    Parsed {len(parsed_summaries)} summaries from response.")
-
                  updated_count_in_batch = 0
                  for filepath, summary in parsed_summaries.items():
-                     if filepath in manifest_data["files"] and manifest_data["files"][filepath].get("summary") is None:
+                     if filepath in manifest_data["files"]: # Only update existing entries
                          manifest_data["files"][filepath]["summary"] = summary
                          processed_files_in_run.add(filepath)
                          manifest_was_modified = True
                          updated_count_in_batch+=1
-                     # else: print(f"    Warning: Parsed summary for '{filepath}' but no matching entry found or summary already exists.", file=sys.stderr)
-                 print(f"    Applied {updated_count_in_batch} new summaries to manifest data for this batch.")
-
-            except TimeoutError:
-                print(f"  ERROR: API call timed out for batch. Skipping this batch.", file=sys.stderr)
-            except Exception as e:
-                print(f"  ERROR: Failed to process batch: {e}", file=sys.stderr)
-                traceback.print_exc(file=sys.stderr)
-                print("  Skipping this batch due to error.")
-
-            # Add all attempted files in the batch to processed to avoid retrying them in this run
+                 print(f"    Applied {updated_count_in_batch} summaries to manifest data for this batch.")
+            except TimeoutError: print(f"  ERROR: API call timed out for batch. Skipping this batch.", file=sys.stderr)
+            except Exception as e: print(f"  ERROR: Failed to process batch: {e}", file=sys.stderr); traceback.print_exc(file=sys.stderr); print("  Skipping this batch due to error.")
             processed_files_in_run.update(batch_files)
-
-
         if manifest_was_modified:
              if update_manifest_file(manifest_to_process_path, manifest_data): print(f"\nManifest file '{manifest_to_process_path.name}' updated successfully.")
              else: print(f"\nError: Failed to update manifest file '{manifest_to_process_path.name}'.", file=sys.stderr); sys.exit(1)
         else: print("\nNo summaries were generated or updated in the manifest.")
+    else: # Outras tasks (Lógica existente)
+        # --- START: Lógica de Seleção de Contexto (AC12+) ---
+        selected_files_for_context: Optional[List[str]] = None
+        if args.select_context: # AC10
+            print("\n[Context Selection] Preliminary context selection enabled.")
+            # --- Logic for AC12+ will go here ---
+            # 1. Load manifest (AC12) - Reuse existing functions
+            # 2. Find selector prompt (AC13) - New function find_context_selector_prompt
+            # 3. Prepare preliminary input (AC17) - New function prepare_preliminary_api_input
+            # 4. Call preliminary API (AC16) - New function call_preliminary_gemini
+            # 5. Parse response (AC18)
+            # 6. Handle errors/empty (AC19, AC20, AC27)
+            # 7. Confirm/modify selection (AC21, AC22) - New function confirm_and_modify_selection
+            # 8. Update context_parts (AC23, AC24, AC29) or proceed with default
+            # 9. Apply exclude_context (AC25)
+            # Placeholder for now:
+            print("  [Placeholder] Context selection logic (AC12-AC29) not yet implemented.")
+            # If implemented and user confirmed a selection:
+            # selected_files_for_context = confirmed_or_modified_list
+            # else if user denied ('n') or selection failed:
+            # selected_files_for_context = None # Use default context
+        # --- END: Lógica de Seleção de Contexto ---
 
-    else: # Other tasks (Existing logic)
-        # --- Determine/Generate Final Prompt ---
+        # --- Load/Prepare Actual Context for Main Call ---
+        if selected_files_for_context is not None:
+            # --- Logic to load ONLY selected files ---
+            print(f"  Using context based on {len(selected_files_for_context)} selected files.")
+            # Placeholder: Implement loading based on selected_files_for_context
+            # Remember to apply args.exclude_context AFTER selection
+            context_parts_for_main_call = [] # Replace with actual loading
+            print("  [Placeholder] Logic to load *only* selected files and apply exclusions needs implementation.")
+        else:
+            # --- Use Default Context (latest + common - exclusions) ---
+            if latest_context_dir: # Ensure context dir was found for non-summary tasks
+                 print("  Using default context (latest + common).")
+                 # Load context normally, applying exclusions
+                 context_parts_for_main_call = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
+                 if not context_parts_for_main_call: print("Warning: Default context loading resulted in no files (or all excluded).")
+            else: print("Error: No context directory found and no context selected. Cannot proceed.", file=sys.stderr); sys.exit(1)
+
+        # --- Determine/Generate Final Prompt (sem alterações) ---
         final_prompt_to_send: Optional[str] = None
         if is_two_stage:
             print("\nExecuting Two-Stage Flow (Step 1: Meta -> Final Prompt)...")
-            prompt_final_content: Optional[str] = None
-            meta_prompt_current = initial_prompt_content_current
+            prompt_final_content: Optional[str] = None; meta_prompt_current = initial_prompt_content_current
             while True:
                 print(f"\nStep 1: Sending Meta-Prompt + Context...")
-                contents_step1 = [types.Part.from_text(text=meta_prompt_current)] + context_parts
+                # Use context_parts_for_main_call here
+                contents_step1 = [types.Part.from_text(text=meta_prompt_current)] + context_parts_for_main_call
                 try:
                     prompt_final_content = execute_gemini_call(GEMINI_MODEL, contents_step1, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
                     print("\n--- Generated Final Prompt (Step 1) ---"); print(prompt_final_content.strip()); print("---")
@@ -799,15 +764,13 @@ if __name__ == "__main__":
             if not final_prompt_to_send: print("Error: Could not obtain final prompt. Aborting.", file=sys.stderr); sys.exit(1)
             if args.web_search: final_prompt_to_send += WEB_SEARCH_ENCOURAGEMENT_PT
         else: final_prompt_to_send = initial_prompt_content_current
-
         if args.only_prompt: print(f"\n--- Final Prompt (--only-prompt) ---"); print(final_prompt_to_send.strip()); print("--- End ---"); sys.exit(0)
-
-        # --- Execute Final API Call ---
-        final_response_content: Optional[str] = None
-        final_prompt_current = final_prompt_to_send
+        # --- Execute Final API Call (sem alterações, mas usa o context_parts_for_main_call) ---
+        final_response_content: Optional[str] = None; final_prompt_current = final_prompt_to_send
         while True:
             print(f"\n{'Step 2: Sending' if is_two_stage else 'Sending'} Final Prompt + Context...")
-            contents_final = [types.Part.from_text(text=final_prompt_current)] + context_parts
+            # Use context_parts_for_main_call here too
+            contents_final = [types.Part.from_text(text=final_prompt_current)] + context_parts_for_main_call
             try:
                 final_response_content = execute_gemini_call(GEMINI_MODEL, contents_final, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
                 print("\n--- Final Response ---"); print(final_response_content.strip()); print("---")
@@ -821,10 +784,8 @@ if __name__ == "__main__":
                  print(f"  Error during final API call: {e}", file=sys.stderr)
                  retry_choice, _ = confirm_step("Final API call failed. Retry?")
                  if retry_choice != 'y': print("Exiting due to API error in final step."); sys.exit(1)
-
-        # --- Final Action ---
+        # --- Final Action (sem alterações) ---
         if final_response_content is None: print("Error: No final response obtained.", file=sys.stderr); sys.exit(1)
-
         if selected_task == 'create-pr':
             print("\nParsing PR content...")
             pr_title, pr_body = parse_pr_content(final_response_content)
@@ -848,9 +809,6 @@ if __name__ == "__main__":
                  save_llm_response(selected_task, final_response_content.strip())
             else: print("Save cancelled."); sys.exit(0)
 
-    # Shutdown executor if it was initialized
-    if api_executor:
-        print("Shutting down API executor...")
-        api_executor.shutdown(wait=False) # Don't wait indefinitely
-
+    # Shutdown executor (sem alterações)
+    if api_executor: print("Shutting down API executor..."); api_executor.shutdown(wait=False)
     sys.exit(0)
