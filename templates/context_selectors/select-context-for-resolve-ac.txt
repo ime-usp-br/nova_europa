@@ -1,0 +1,47 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+
+**Tarefa Principal:** Gerar o código PHP/Blade/JS/CSS/SQL (incluindo testes, traduções, migrations, etc.) estritamente necessário para resolver o Critério de Aceite (AC) número `__NUMERO_DO_AC__` da Issue GitHub `__NUMERO_DA_ISSUE__`, considerando também a observação adicional `__OBSERVACAO_ADICIONAL__` e o plano geral da Issue.
+
+**Manifesto JSON Fornecido:**
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+
+**Seu Processo de Seleção:**
+1.  Entenda profundamente o objetivo da **Tarefa Principal**: implementar o AC `__NUMERO_DO_AC__` da Issue `__NUMERO_DA_ISSUE__`, respeitando a observação `__OBSERVACAO_ADICIONAL__` e o contexto da issue inteira.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary, dependencies).
+3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
+    *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`) para entender o AC e o contexto geral.
+    *   Os arquivos de código fonte (Models, Controllers, Views, Services, Routes, etc.) que **precisarão ser modificados ou criados** para implementar o AC `__NUMERO_DO_AC__`. Use o `summary` e `type` para ajudar a identificar.
+    *   Arquivos de código fonte **relacionados** à funcionalidade do AC (classes que serão chamadas, interfaces que serão implementadas, traits utilizados, etc.). Analise `dependencies` nos metadados, se útil.
+    *   Arquivos de teste existentes (`tests/`) que cobrem áreas relacionadas ou que precisarão ser atualizados/criados.
+    *   Arquivos de tradução (`lang/*.json`) se o AC envolve texto para o usuário.
+    *   Arquivos de configuração (`config/*.php`) relevantes se o AC afetar a configuração.
+    *   Arquivos de documentação (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões a serem seguidos.
+    *   Diffs recentes (`git_diff_*`) se relevantes para entender o estado atual do código em desenvolvimento.
+4.  **Priorize:** Detalhes da Issue, código diretamente afetado, testes relacionados, e guias de padrões são essenciais. Código relacionado e configurações são importantes. Diffs são contextuais.
+5.  **Exclua:** Código fonte não relacionado, dependências (composer/package), logs genéricos, arquivos de contexto de outras issues, e outros arquivos não diretamente necessários para *escrever o código, testes e traduções* para este AC específico, a menos que o `summary` indique relevância crítica.
+
+**Formato de Saída OBRIGATÓRIO E ESTRITO:**
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+
+**Exemplo de Saída:**
+```json
+{
+  "relevant_files": [
+    "app/Http/Controllers/TargetController.php",
+    "app/Models/TargetModel.php",
+    "resources/views/target/view.blade.php",
+    "tests/Feature/TargetFeatureTest.php",
+    "lang/en.json",
+    "lang/pt_BR.json",
+    "docs/padroes_codigo_boas_praticas.md",
+    "context_llm/code/YYYYMMDD_HHMMSS/github_issue___NUMERO_DA_ISSUE___details.json",
+    "context_llm/code/YYYYMMDD_HHMMSS/git_diff_cached.txt"
+  ]
+}
+```
+
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo for considerado relevante (altamente improvável), retorne `{"relevant_files": []}`.

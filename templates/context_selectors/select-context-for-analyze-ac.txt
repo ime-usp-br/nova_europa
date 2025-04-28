@@ -1,0 +1,42 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+
+**Tarefa Principal:** Analisar o Critério de Aceite (AC) número `__NUMERO_DO_AC__` da Issue GitHub `__NUMERO_DA_ISSUE__` para determinar se ele foi atendido, gerando uma mensagem de conclusão para o GitHub. A análise deve considerar o código implementado, os padrões do projeto e o histórico de análises anteriores.
+
+**Manifesto JSON Fornecido:**
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+
+**Seu Processo de Seleção:**
+1.  Entenda profundamente o objetivo da **Tarefa Principal**: avaliar o AC `__NUMERO_DO_AC__` da Issue `__NUMERO_DA_ISSUE__`.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
+3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
+    *   O código-fonte diretamente modificado/adicionado para implementar o AC `__NUMERO_DO_AC__` (inferido pelos diffs no contexto geral, se disponíveis no manifesto como `git_diff_*`).
+    *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`).
+    *   Os arquivos de código (Models, Controllers, Views, Tests, etc.) que são DIRETAMENTE RELEVANTES para a funcionalidade descrita no AC `__NUMERO_DO_AC__`.
+    *   Os arquivos de documentação que definem os padrões a serem verificados (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`).
+    *   Arquivos de teste relacionados à funcionalidade do AC.
+    *   **IMPORTANTE:** Outros arquivos `github_issue_*_details.json` que contenham exemplos de *análises de AC anteriores* para referência de estilo.
+4.  **Priorize:** Arquivos com `summary` claro e relevante. Se houver muitos arquivos potencialmente relevantes, priorize os mais específicos e com menor `token_count`, se possível, mas garanta que o contexto essencial seja incluído.
+5.  **Exclua:** Arquivos genéricos de configuração, dependências (composer/package), ou arquivos de contexto não diretamente relacionados à validação específica do AC `__NUMERO_DO_AC__` ou ao estilo de análise, a menos que o `summary` indique alta relevância.
+
+**Formato de Saída OBRIGATÓRIO E ESTRITO:**
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+
+**Exemplo de Saída:**
+```json
+{
+  "relevant_files": [
+    "app/Http/Controllers/SomeController.php",
+    "resources/views/some/view.blade.php",
+    "tests/Feature/SomeFeatureTest.php",
+    "docs/padroes_codigo_boas_praticas.md",
+    "context_llm/code/YYYYMMDD_HHMMSS/github_issue___NUMERO_DA_ISSUE___details.json",
+    "context_llm/code/YYYYMMDD_HHMMSS/github_issue_PREVIOUS_details.json"
+  ]
+}
+```
+
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo for considerado relevante (caso extremamente raro), retorne `{"relevant_files": []}`.
