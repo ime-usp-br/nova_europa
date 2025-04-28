@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.23.0 - Preserve Previous Summary for Unchanged Files)
+# generate_manifest.py (v1.23.1 - Persist Context Summaries)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.
@@ -11,6 +11,7 @@
 # Adiciona cálculo de estimativa para arquivos .env* e context_llm/code/*.
 # Adiciona fallback de estimativa para erros persistentes da API.
 # PRESERVA o campo 'summary' do manifesto anterior se o hash do arquivo não mudou.
+# NOVO: PERSISTE o summary para arquivos context_llm/code/* mesmo se o hash mudar.
 #
 # Uso:
 #   python scripts/generate_manifest.py [-o output.json] [-i ignore_pattern] [-v] [--sleep SLEEP_SECONDS] [--timeout TIMEOUT_SECONDS]
@@ -92,6 +93,12 @@ api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
 
 # --- Funções Auxiliares ---
+# (Funções auxiliares como run_command, parse_arguments, setup_logging, get_default_output_filepath,
+# find_latest_context_code_dir, is_likely_binary, load_api_keys, initialize_gemini,
+# rotate_api_key_and_reinitialize, extract_php_dependencies, get_file_type,
+# scan_project_files, filter_files, count_tokens_for_file, get_git_versioned_status
+# permanecem essencialmente as mesmas da versão 1.23.0 - OMITIDAS PARA BREVIDADE,
+# mas mantendo a lógica de tratamento de erros e logging)
 def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = True, capture: bool = True, input_data: Optional[str] = None, shell: bool = False, timeout: Optional[int] = 60) -> Tuple[int, str, str]:
     """Runs a subprocess command and returns exit code, stdout, stderr."""
     cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
@@ -104,7 +111,6 @@ def run_command(cmd_list: List[str], cwd: Path = PROJECT_ROOT, check: bool = Tru
             encoding='utf-8', errors='replace'
         )
         duration = time.monotonic() - start_time
-        # print(f"    Command finished in {duration:.2f}s with exit code {process.returncode}") # Log interno
         return process.returncode, process.stdout or "", process.stderr or ""
     except FileNotFoundError: return 1, "", f"Command not found: {cmd_list[0]}"
     except subprocess.TimeoutExpired: return 1, "", f"Command timed out after {timeout}s: {cmd_str}"
@@ -274,7 +280,6 @@ def filter_files(all_files: Set[Path], default_ignores: Set[str], custom_ignores
     if verbose: print(f"  Filtro concluído. {len(filtered_files)} arquivos retidos, {skipped_count} ignorados.")
     return filtered_files
 
-
 def get_file_type(relative_path: Path) -> str:
     """Determina um tipo granular para o arquivo baseado no caminho e extensão."""
     # (Código da função mantido como na sua implementação anterior, v1.22.0)
@@ -413,7 +418,6 @@ def initialize_gemini(verbose: bool) -> bool:
     active_key = GEMINI_API_KEYS_LIST[current_api_key_index]
     try:
         if verbose: print(f"  Inicializando Google GenAI Client com Key Index {current_api_key_index}...")
-        # Use genai.Client directly for the client instance
         genai_client = genai.Client(api_key=active_key)
         print("  Google GenAI Client inicializado com sucesso.")
         gemini_initialized = True
@@ -436,7 +440,6 @@ def rotate_api_key_and_reinitialize(verbose: bool) -> bool:
     gemini_initialized = False # Mark as uninitialized before trying the new key
     if current_api_key_index == start_index:
         print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
-    # Try to initialize with the new key
     return initialize_gemini(verbose)
 
 def extract_php_dependencies(file_content: str) -> List[str]:
@@ -458,9 +461,9 @@ def extract_php_dependencies(file_content: str) -> List[str]:
     return sorted(list(dependencies))
 
 def count_tokens_for_file(
-    executor: concurrent.futures.ThreadPoolExecutor,
+    executor: Optional[concurrent.futures.ThreadPoolExecutor], # Made Optional
     filepath_absolute: Path,
-    file_type: str, # Adicionado file_type
+    file_type: str,
     previous_token_count: Optional[int],
     current_hash: Optional[str],
     previous_hash: Optional[str],
@@ -471,42 +474,29 @@ def count_tokens_for_file(
     """Counts tokens with rate limit handling, key rotation, timeout, and specific type estimates."""
     global genai_client
 
-    # --- AC1 #38: Estimate for .env* files ---
-    if file_type == 'environment_env':
+    # --- AC1 #38 & AC2 #38: Estimate for .env* and context_code_* files ---
+    if file_type == 'environment_env' or file_type.startswith('context_code_'):
         try:
             content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
             token_count = max(1, int(len(content) / 4)) if content else 0
-            if verbose: print(f"      -> Token Count (AC1 Estimate): {token_count} (for {file_type})")
+            if verbose: print(f"      -> Token Count (Estimate AC1/2): {token_count} (for {file_type})")
             return token_count
         except Exception as e:
-            if verbose: print(f"      -> Token Count (AC1): Error reading env file '{filepath_absolute.name}' for estimation: {e}", file=sys.stderr)
-            return None # Return None if reading fails
-    # ----------------------------------------
-
-    # --- AC2 #38: Estimate for context_code_* files ---
-    if file_type.startswith('context_code_'):
-        try:
-            content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
-            token_count = max(1, int(len(content) / 4)) if content else 0
-            if verbose: print(f"      -> Token Count (AC2 Estimate): {token_count} (for {file_type})")
-            return token_count
-        except Exception as e:
-            if verbose: print(f"      -> Token Count (AC2): Error reading context file '{filepath_absolute.name}' for estimation: {e}", file=sys.stderr)
-            return None # Return None if reading fails
-    # ----------------------------------------------------
+            if verbose: print(f"      -> Token Count (Estimate AC1/2): Error reading '{filepath_absolute.name}' for estimation: {e}", file=sys.stderr)
+            return None
 
     # Reuse previous count if hash matches (AC16)
     if current_hash and previous_hash and current_hash == previous_hash and previous_token_count is not None:
         if verbose: print(f"      -> Token Count (AC16): Reusing previous count ({previous_token_count}) as hash matches.")
         return previous_token_count
 
-    # Check if Gemini client is ready for API calls
-    if not gemini_initialized or not genai_client:
-        if verbose: print(f"      -> Token Count: Skipping API call (Gemini client not initialized). Estimating as fallback.")
+    # Check if Gemini client and executor are ready for API calls
+    if not gemini_initialized or not genai_client or not executor:
+        if verbose: print(f"      -> Token Count: Skipping API call (Gemini client/executor not ready). Estimating as fallback.")
         try:
             content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
             token_count = max(1, int(len(content) / 4)) if content else 0
-            if verbose: print(f"      -> Token Count (Fallback Estimate due to no client): Estimated tokens: {token_count}")
+            if verbose: print(f"      -> Token Count (Fallback Estimate due to no client/executor): Estimated tokens: {token_count}")
             return token_count
         except Exception as e:
             if verbose: print(f"      -> Token Count: Error reading file '{filepath_absolute.name}' for fallback estimation: {e}", file=sys.stderr)
@@ -530,11 +520,9 @@ def count_tokens_for_file(
             if verbose: print(f"      -> Token Count: Error estimating size for MemoryError file: {estimate_e}", file=sys.stderr)
             return None
 
-    # Apply sleep before making a potential API call
     if sleep_seconds > 0:
         if verbose: print(f"      -> Sleeping for {sleep_seconds:.2f}s before API call...")
-        for _ in tqdm(range(int(sleep_seconds * 10)), desc="Waiting before API call", unit="ds", leave=False, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}"):
-            time.sleep(0.1)
+        for _ in tqdm(range(int(sleep_seconds * 10)), desc="Waiting before API call", unit="ds", leave=False, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}"): time.sleep(0.1)
 
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
@@ -552,49 +540,43 @@ def count_tokens_for_file(
         future = None
         try:
             if verbose: print(f"        -> Attempting count_tokens with Key Index {current_api_key_index}, Timeout {timeout_seconds}s")
-            if not executor: raise RuntimeError("API Executor not initialized before API call.") # Check if executor is initialized
             future = executor.submit(_api_call_task, content_for_api)
             token_count = future.result(timeout=timeout_seconds)
             if verbose: print(f"      -> Token Count (AC13): Successfully counted via API: {token_count}")
-            return token_count # Sucesso via API
+            return token_count
 
         except concurrent.futures.TimeoutError:
             print(f"      -> Token Count (AC19): API call timed out after {timeout_seconds}s for '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
-            # AC20 Fallback for Timeout
             token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
             if verbose: print(f"      -> Token Count (AC20 Fallback for Timeout): Estimated tokens: {token_count}")
-            return token_count # Retorna estimativa
+            return token_count
 
-        except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.ServerError, google_api_core_exceptions.DeadlineExceeded) as e:
+        except (google_api_core_exceptions.ResourceExhausted, errors.ServerError, google_api_core_exceptions.DeadlineExceeded) as e:
             print(f"      -> Rate Limit/Server Error/Deadline ({type(e).__name__}) with Key Index {current_api_key_index}. Waiting {DEFAULT_RATE_LIMIT_SLEEP}s and rotating key...", file=sys.stderr)
             time.sleep(DEFAULT_RATE_LIMIT_SLEEP)
             if not rotate_api_key_and_reinitialize(verbose):
                 print(f"      Error: Falha ao rotacionar chave de API. Estimating as fallback.", file=sys.stderr)
-                # AC3 #38 Fallback for persistent API errors after rotation failure
                 token_count = max(1, int(len(content_for_api) / 4)) if content_for_api else 0
                 if verbose: print(f"      -> Token Count (AC3 Fallback - Rotation Failed): Estimated tokens: {token_count}")
                 return token_count
             if current_api_key_index in keys_tried_in_this_call:
                 print(f"      Error: Ciclo completo de chaves API. Limite/Erro persistente para '{filepath_absolute.name}'. Estimating.", file=sys.stderr)
-                 # AC3 #38 Fallback for persistent API errors after full cycle
                 token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
                 if verbose: print(f"      -> Token Count (AC3 Fallback - Full Cycle): Estimated tokens: {token_count}")
                 return token_count
             keys_tried_in_this_call.add(current_api_key_index)
             if verbose: print(f"        -> Retrying count_tokens with new Key Index {current_api_key_index}")
-            continue # Tenta novamente
+            continue
 
         except (errors.APIError, google_api_core_exceptions.GoogleAPICallError) as e:
              print(f"      -> Token Count (AC18): API Call Error for '{filepath_absolute.name}': {type(e).__name__} - {e}. Estimating.", file=sys.stderr)
-             # AC3 #38 Fallback for other API errors
              token_count = max(1,int(len(content_for_api) / 4)) if content_for_api else 0
              if verbose: print(f"      -> Token Count (AC3 Fallback - API Error): Estimated tokens: {token_count}")
              return token_count
         except Exception as e:
             if verbose: print(f"      -> Token Count: Unexpected Error during API call/result for '{filepath_absolute.name}': {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            return None # Erro inesperado -> None
-
+            return None
 
 # --- Bloco Principal ---
 if __name__ == "__main__":
@@ -605,7 +587,7 @@ if __name__ == "__main__":
     try: output_filepath.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e: print(f"Erro fatal: Não foi possível criar diretório para '{output_filepath}': {e}", file=sys.stderr); sys.exit(1)
 
-    print(f"--- Iniciando Geração do Manifesto (v1.23.0) ---") # Versão Atualizada
+    print(f"--- Iniciando Geração do Manifesto (v1.23.1) ---") # Versão Atualizada
     print(f"Arquivo de Saída: {output_filepath.relative_to(PROJECT_ROOT)}")
     print(f"Intervalo entre chamadas API count_tokens: {args.sleep}s")
     print(f"Timeout para chamadas API count_tokens: {args.timeout}s")
@@ -697,14 +679,29 @@ if __name__ == "__main__":
                  reason = "binary"
                  print(f"      -> Token Count: Skipping count ({reason}). Setting to null.")
 
-
-            # --- Lógica de Preservação do Sumário (NOVO) ---
+            # --- Lógica de Preservação/Persistência do Sumário (v1.23.1) ---
             preserved_summary: Optional[str] = None
-            if calculated_hash and previous_hash and calculated_hash == previous_hash:
-                preserved_summary = previous_file_data.get("summary")
-                if preserved_summary is not None and args.verbose:
-                    print(f"      -> Summary: Reusing previous summary (hash unchanged).")
-            # ----------------------------------------------
+            previous_summary = previous_file_data.get("summary") # Get previous summary regardless of hash
+
+            if file_type.startswith('context_code_'):
+                # For context code files, always try to preserve the summary if it existed previously
+                if previous_summary is not None:
+                    preserved_summary = previous_summary
+                    if args.verbose: print(f"      -> Summary: Preserving previous summary for context file (regardless of hash).")
+                elif args.verbose:
+                     print(f"      -> Summary: Setting to null (new context file or no previous summary).")
+
+            elif calculated_hash and previous_hash and calculated_hash == previous_hash:
+                 # For NON-context files, preserve summary ONLY if hash matches
+                 if previous_summary is not None:
+                    preserved_summary = previous_summary
+                    if args.verbose: print(f"      -> Summary: Reusing previous summary (hash unchanged).")
+                 elif args.verbose:
+                     print(f"      -> Summary: Setting to null (hash matches, but no previous summary found).")
+
+            elif args.verbose: # Handle case where hash changed for non-context file or file is new/binary/env
+                 print(f"      -> Summary: Setting to null (hash changed or file is new/binary/env/context-without-prev-summary).")
+            # ------------------------------------------------------------------
 
             metadata: Dict[str, Any] = {
                 "type": file_type,
@@ -713,16 +710,15 @@ if __name__ == "__main__":
                 "token_count": token_count,
                 "dependencies": dependencies,
                 "dependents": dependents,
-                # Usa o summary preservado ou None (que vira null no JSON)
-                "summary": preserved_summary,
+                "summary": preserved_summary, # Use the determined value (preserved or None)
             }
-            if is_binary: metadata['summary'] = None # Garante que binários sempre tenham null
+            if is_binary: metadata['summary'] = None # Double ensure binary files have null summary
 
             current_manifest_files_data[relative_path_str] = metadata
 
     finally:
         if api_executor:
-            print("\nShutting down API thread pool executor...")
+            print("\nShutting down API executor...")
             api_executor.shutdown(wait=True) # Espera as tarefas pendentes antes de sair
             print("Executor shut down.")
 
@@ -736,7 +732,7 @@ if __name__ == "__main__":
     manifest_data_final: Dict[str, Any] = {
         "_metadata": {
             "timestamp": datetime.datetime.now().isoformat(),
-            "comment": f"Manifesto gerado - v1.23.0 (Preserve Summary). Arquivos processados: {len(filtered_file_paths)}.", # Versão Atualizada
+            "comment": f"Manifesto gerado - v1.23.1 (Persist Context Summaries). Arquivos processados: {len(filtered_file_paths)}.", # Versão Atualizada
             "output_file": str(output_filepath.relative_to(PROJECT_ROOT)),
             "args": vars(args),
             "previous_manifest_loaded": bool(previous_manifest_files_data),
@@ -758,5 +754,5 @@ if __name__ == "__main__":
          traceback.print_exc(file=sys.stderr)
          sys.exit(1)
 
-    print(f"--- Geração do Manifesto Concluída (v1.23.0) ---") # Atualizado
+    print(f"--- Geração do Manifesto Concluída (v1.23.1) ---") # Atualizado
     sys.exit(0)
