@@ -4,12 +4,13 @@
 import os
 import re
 import sys
-from pathlib import Path # Usar pathlib para manipulação de caminhos mais robusta
+from pathlib import Path  # Usar pathlib para manipulação de caminhos mais robusta
 import traceback
 
 # --- Constante Chave ---
 # Calcula o diretório raiz do projeto (assumindo que este script está em /scripts)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 def update_files_from_source(source_file_name="source_code_string.txt"):
     """
@@ -30,12 +31,16 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
 
     try:
         # Usa o caminho completo para ler o arquivo fonte
-        with open(source_file_path, 'r', encoding='utf-8') as f:
+        with open(source_file_path, "r", encoding="utf-8") as f:
             content = f.read()
-        print(f"Successfully read source file: '{source_file_path.relative_to(PROJECT_ROOT)}'")
+        print(
+            f"Successfully read source file: '{source_file_path.relative_to(PROJECT_ROOT)}'"
+        )
     except FileNotFoundError:
         print(f"Error: Source file not found at '{source_file_path}'")
-        print(f"Ensure the file '{source_file_name}' exists in the project root directory ('{PROJECT_ROOT}').")
+        print(
+            f"Ensure the file '{source_file_name}' exists in the project root directory ('{PROJECT_ROOT}')."
+        )
         sys.exit(1)
     except IOError as e:
         print(f"Error reading source file '{source_file_path}': {e}")
@@ -45,17 +50,18 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
         traceback.print_exc()
         sys.exit(1)
 
-
     # Regex (sem alterações, mas revisado para clareza)
     pattern = re.compile(
-        r'^--- START OF FILE (.*?) ---\n(.*?)\n^--- END OF FILE \1 ---',
-        re.MULTILINE | re.DOTALL
+        r"^--- START OF FILE (.*?) ---\n(.*?)\n^--- END OF FILE \1 ---",
+        re.MULTILINE | re.DOTALL,
     )
 
     matches = pattern.findall(content)
 
     if not matches:
-        print("Warning: No file blocks found in the source file matching the expected format.")
+        print(
+            "Warning: No file blocks found in the source file matching the expected format."
+        )
         print("Format: --- START OF FILE path/file ---")
         print("        <content>")
         print("        --- END OF FILE path/file ---")
@@ -83,10 +89,11 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
             # Garante que o caminho resolvido ainda está dentro do diretório raiz do projeto
             output_path.relative_to(PROJECT_ROOT)
         except ValueError:
-            print(f"  Error: Attempted to write outside the project directory: '{output_path}'. Skipping.")
+            print(
+                f"  Error: Attempted to write outside the project directory: '{output_path}'. Skipping."
+            )
             errors_occurred += 1
             continue
-
 
         print(f"\nProcessing file: '{output_path.relative_to(PROJECT_ROOT)}'...")
 
@@ -96,27 +103,34 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
 
             # Cria o diretório pai se ele não existir
             if directory:
-                print(f"  Ensuring directory exists: '{directory.relative_to(PROJECT_ROOT)}'")
+                print(
+                    f"  Ensuring directory exists: '{directory.relative_to(PROJECT_ROOT)}'"
+                )
                 # Usa pathlib para criar diretórios
                 directory.mkdir(parents=True, exist_ok=True)
 
             # Escreve o arquivo (sobrescreve se existir) usando o caminho completo
             print(f"  Writing content to '{output_path.relative_to(PROJECT_ROOT)}'...")
-            with open(output_path, 'w', encoding='utf-8') as outfile:
+            with open(output_path, "w", encoding="utf-8") as outfile:
                 outfile.write(file_content)
 
             print(f"  Successfully updated: '{output_path.relative_to(PROJECT_ROOT)}'")
             files_updated += 1
 
         except OSError as e:
-            print(f"  Error creating directory or writing file '{output_path.relative_to(PROJECT_ROOT)}': {e}")
+            print(
+                f"  Error creating directory or writing file '{output_path.relative_to(PROJECT_ROOT)}': {e}"
+            )
             errors_occurred += 1
         except Exception as e:
-            print(f"  An unexpected error occurred while processing '{output_path.relative_to(PROJECT_ROOT)}': {e}")
+            print(
+                f"  An unexpected error occurred while processing '{output_path.relative_to(PROJECT_ROOT)}': {e}"
+            )
             errors_occurred += 1
 
     print("\n--- File update process finished ---")
     print(f"Summary: {files_updated} files updated, {errors_occurred} errors.")
+
 
 if __name__ == "__main__":
     # Permite passar um nome de arquivo fonte diferente como argumento
