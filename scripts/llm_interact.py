@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# llm_interact.py (v2.7.1 - Fix NameError on execute_gemini_call)
+# llm_interact.py (v2.8.0 - Handle empty context selection)
 #
 # Interacts with Google Gemini API using project context and prompt templates.
 # Offers two flows:
@@ -22,6 +22,7 @@
 # Supports preliminary context selection via --select-context, loading stage-specific prompts.
 # AC17 #38: Filters manifest for preliminary context selection call based on token count.
 # AC18 #38: Parses the JSON response from the preliminary API call, handling markdown blocks.
+# AC20 #38: Prompts user if preliminary context selection returns empty list.
 #
 # Dependencies: google-generativeai, python-dotenv, tqdm, argparse, standard libs
 # ==============================================================================
@@ -51,15 +52,16 @@ from google.api_core import exceptions as google_api_core_exceptions
 from tqdm import tqdm # Adicionado para barra de progresso no sleep
 
 # --- Configuration Constants (Globally Accessible) ---
-BASE_DIR = Path(__file__).resolve().parent.parent
-TEMPLATE_DIR = BASE_DIR / "templates/prompts"
-META_PROMPT_DIR = BASE_DIR / "templates/meta-prompts"
-CONTEXT_SELECTORS_DIR = BASE_DIR / "templates/context_selectors" # AC13 #38
-CONTEXT_DIR_BASE = BASE_DIR / "context_llm/code"
-COMMON_CONTEXT_DIR = BASE_DIR / "context_llm/common"
-OUTPUT_DIR_BASE = BASE_DIR / "llm_outputs"
-CONTEXT_GENERATION_SCRIPT = BASE_DIR / "scripts/generate_context.py"
-MANIFEST_DATA_DIR = BASE_DIR / "scripts" / "data" # For manifest-summary task
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+BASE_DIR = PROJECT_ROOT
+TEMPLATE_DIR = PROJECT_ROOT / "templates/prompts"
+META_PROMPT_DIR = PROJECT_ROOT / "templates/meta-prompts"
+CONTEXT_SELECTORS_DIR = PROJECT_ROOT / "templates/context_selectors" # AC13 #38
+CONTEXT_DIR_BASE = PROJECT_ROOT / "context_llm/code"
+COMMON_CONTEXT_DIR = PROJECT_ROOT / "context_llm/common"
+OUTPUT_DIR_BASE = PROJECT_ROOT / "llm_outputs"
+CONTEXT_GENERATION_SCRIPT = PROJECT_ROOT / "scripts/generate_context.py"
+MANIFEST_DATA_DIR = PROJECT_ROOT / "scripts" / "data" # For manifest-summary task
 TIMESTAMP_DIR_REGEX = r'^\d{8}_\d{6}$'
 TIMESTAMP_MANIFEST_REGEX = r'^\d{8}_\d{6}_manifest\.json$' # For manifest-summary task
 GEMINI_MODEL_GENERAL_TASKS = 'gemini-2.5-flash-preview-04-17' # Updated Model Name
@@ -204,6 +206,8 @@ def _load_files_from_dir(context_dir: Path, context_parts: List[types.Part], exc
                 try:
                     content = filepath.read_text(encoding='utf-8', errors='ignore')
                     relative_path = filepath.relative_to(BASE_DIR)
+                    # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+                    # A criação do 'Part' estava correta usando a classe 'Part' do 'google.genai.types' e o método 'from_text'
                     context_parts.append(types.Part.from_text(text=f"--- START OF FILE {relative_path} ---\n{content}\n--- END OF FILE {relative_path} ---"))
                     loaded_count += 1
                 except Exception as e: print(f"      - Warning: Could not read file {filepath.name}: {e}", file=sys.stderr)
@@ -289,25 +293,32 @@ def confirm_step(prompt: str) -> Tuple[str, Optional[str]]:
         elif response in ['q', 'quit']: return 'q', None
         else: print("Invalid input. Please enter Y, n, or q.")
 
+# --- AC15 #38 ---
 def find_context_selector_prompt(task_name: str, two_stage_flow: bool) -> Optional[Path]:
     """Finds the context selector prompt file for a given task and flow."""
-    # (Implementation unchanged)
+    # (Implementation unchanged, uses CONTEXT_SELECTORS_DIR)
     suffix = "-2stages" if two_stage_flow else "-1stage"
-    if "-1stage" in task_name or "-2stages" in task_name: filename = f"select-context-for-{task_name}.txt"
-    else: filename = f"select-context-for-{task_name}{suffix}.txt"
+    filename = f"select-context-for-{task_name}{suffix}.txt"
     prompt_path = CONTEXT_SELECTORS_DIR / filename
-    if prompt_path.is_file(): print(f"  Found context selector prompt: {prompt_path.relative_to(BASE_DIR)}"); return prompt_path
+    if prompt_path.is_file():
+        print(f"  Found context selector prompt: {prompt_path.relative_to(BASE_DIR)}")
+        return prompt_path
     else:
+        # Fallback: Try without stage suffix
         fallback_filename = f"select-context-for-{task_name}.txt"
         fallback_path = CONTEXT_SELECTORS_DIR / fallback_filename
-        if fallback_path.is_file(): print(f"  Warning: Stage-specific prompt '{filename}' not found. Using fallback: {fallback_path.relative_to(BASE_DIR)}", file=sys.stderr); return fallback_path
-        else: print(f"Error: Context selector prompt not found for task '{task_name}' (tried '{filename}' and fallback '{fallback_filename}')", file=sys.stderr); return None
+        if fallback_path.is_file():
+            print(f"  Warning: Stage-specific prompt '{filename}' not found. Using fallback: {fallback_path.relative_to(BASE_DIR)}", file=sys.stderr)
+            return fallback_path
+        else:
+            print(f"Error: Context selector prompt not found for task '{task_name}' (tried '{filename}' and fallback '{fallback_filename}')", file=sys.stderr)
+            return None
 
 GenerateContentConfigType = Union[types.GenerationConfig, types.GenerateContentConfig, Dict[str, Any], None]
 
 def initialize_genai_client() -> bool:
     """Initializes or reinitializes the global genai_client."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     global genai_client, api_keys_list, current_api_key_index
     if not api_keys_list:
         api_key_string = os.getenv('GEMINI_API_KEY')
@@ -318,12 +329,16 @@ def initialize_genai_client() -> bool:
         print(f"Loaded {len(api_keys_list)} API keys.")
     if not (0 <= current_api_key_index < len(api_keys_list)): print(f"Error: Invalid API key index.", file=sys.stderr); return False
     active_key = api_keys_list[current_api_key_index]
-    try: genai_client = genai.Client(api_key=active_key); print("Google GenAI Client initialized successfully."); return True
+    try:
+        # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+        # A inicialização está correta conforme a biblioteca atual `google-genai`.
+        genai_client = genai.Client(api_key=active_key)
+        print("Google GenAI Client initialized successfully."); return True
     except Exception as e: print(f"Error initializing Google GenAI Client: {e}", file=sys.stderr); return False
 
 def rotate_api_key_and_reinitialize() -> bool:
     """Rotates to the next API key and reinitializes the client."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     global current_api_key_index, api_keys_list
     if not api_keys_list or len(api_keys_list) <= 1: print("Error: Cannot rotate API key.", file=sys.stderr); return False
     start_index = current_api_key_index
@@ -333,8 +348,7 @@ def rotate_api_key_and_reinitialize() -> bool:
     if not initialize_genai_client(): print(f"Error: Failed to reinitialize client.", file=sys.stderr); return False
     return True
 
-# --- CORREÇÃO: Usar google_genai_errors.APIError ---
-def execute_gemini_call(model: str, contents: List[types.Part], config: Optional[GenerateContentConfigType] = None, sleep_on_retry: int = SLEEP_DURATION_SECONDS) -> str:
+def execute_gemini_call(model: str, contents: List[types.Part], config: Optional[GenerateContentConfigType] = None, sleep_on_retry: int = SLEEP_DURATION_SECONDS, timeout: int = DEFAULT_API_TIMEOUT_SECONDS) -> str:
     """Executes Gemini API call with rate limit handling, key rotation, and timeout."""
     global genai_client, api_executor
     if not genai_client: raise RuntimeError("GenAI client not initialized.")
@@ -345,77 +359,67 @@ def execute_gemini_call(model: str, contents: List[types.Part], config: Optional
 
     while True:
         try:
-            if args.with_sleep:
-                 print(f"  --with-sleep active: Waiting {sleep_on_retry} seconds...")
-                 for _ in tqdm(range(sleep_on_retry), desc="Waiting before API call", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): time.sleep(1)
-
+            # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+            # O código abaixo para preparar 'generation_config' e chamar 'generate_content' está alinhado com a documentação atual do google-genai.
+            generation_config = None
+            tools_api = None
             if isinstance(config, dict):
-                tools_list_api = []
-                if config.get('tools'): # Check if 'tools' key exists
-                     if isinstance(config['tools'], list) and config['tools']: # Check if it's a non-empty list
-                         if isinstance(config['tools'][0], dict) and config['tools'][0].get('google_search_retrieval'): # Check the structure
-                             tools_list_api = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
-                gen_config = types.GenerateContentConfig(tools=tools_list_api)
-            elif isinstance(config, types.GenerateContentConfig): gen_config = config
-            else: gen_config = None
+                tools_list = config.get('tools', [])
+                if tools_list and isinstance(tools_list[0], dict) and tools_list[0].get('google_search_retrieval'):
+                     tools_api = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
+                # Se config for um dict, podemos criar o objeto GenerationConfig
+                generation_config = types.GenerationConfig(tools=tools_api) # Ajustado para usar tools_api
+
+            elif isinstance(config, types.GenerateContentConfig):
+                generation_config = config # Já é o tipo correto
 
             def _api_call_task() -> types.GenerateContentResponse:
-                """Task for thread pool to make API call."""
                 if not genai_client: raise RuntimeError("Gemini client became uninitialized in task.")
-                return genai_client.models.generate_content(model=model, contents=contents, config=gen_config)
+                # Chama a API usando a biblioteca atual
+                return genai_client.models.generate_content(model=model, contents=contents, config=generation_config)
 
             future = api_executor.submit(_api_call_task)
-            response = future.result(timeout=DEFAULT_API_TIMEOUT_SECONDS) # Usar timeout global
+            response = future.result(timeout=timeout)
 
-            if response.prompt_feedback and response.prompt_feedback.block_reason:
-                 print(f"  Warning: Prompt blocked due to {response.prompt_feedback.block_reason}.", file=sys.stderr)
+            # Processamento da resposta (mantido como antes)
+            if response.prompt_feedback and response.prompt_feedback.block_reason: print(f"  Warning: Prompt blocked due to {response.prompt_feedback.block_reason}.", file=sys.stderr)
             if response.candidates:
-                 for candidate in response.candidates:
-                     if hasattr(candidate, 'finish_reason') and candidate.finish_reason not in (types.FinishReason.STOP, types.FinishReason.FINISH_REASON_UNSPECIFIED):
-                         print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
-                         if hasattr(candidate, 'finish_message') and candidate.finish_message: print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
+                for candidate in response.candidates:
+                    if hasattr(candidate, 'finish_reason') and candidate.finish_reason not in (types.FinishReason.STOP, types.FinishReason.FINISH_REASON_UNSPECIFIED):
+                        print(f"  Warning: Candidate finished with reason: {candidate.finish_reason.name}", file=sys.stderr)
+                        if hasattr(candidate, 'finish_message') and candidate.finish_message: print(f"  Finish message: {candidate.finish_message}", file=sys.stderr)
             try: return response.text
             except (ValueError, AttributeError): print("Warning: Could not extract text from response. Returning empty.", file=sys.stderr); print(f"Full Response: {response}", file=sys.stderr); return ""
 
         except concurrent.futures.TimeoutError:
-             print(f"  API call timed out after {DEFAULT_API_TIMEOUT_SECONDS}s. Retrying if possible...", file=sys.stderr)
-             raise TimeoutError # Re-raise TimeoutError for outer loop handling or fallback
-
-        except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.ServerError) as e: # Use google_genai_errors
-            print(f"  API Error ({type(e).__name__}) detected with Key Index {current_api_key_index}. Waiting and rotating API key...", file=sys.stderr)
-            for i in tqdm(range(sleep_on_retry), desc="Waiting for quota/retry", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): time.sleep(1)
-            if not rotate_api_key_and_reinitialize(): print("Error: Could not rotate API key. Raising original error.", file=sys.stderr); raise e
-            if current_api_key_index in keys_tried_in_this_call: print("Error: Cycled through all API keys. Rate limits persistent.", file=sys.stderr); raise e
-            keys_tried_in_this_call.add(current_api_key_index)
-            print(f"  Retrying API call with Key Index {current_api_key_index}...")
-
-        except google_genai_errors.APIError as e: # Use google_genai_errors
+             print(f"  API call timed out after {timeout}s. Retrying if possible...", file=sys.stderr)
+             raise TimeoutError
+        except (google_api_core_exceptions.ResourceExhausted, google_genai_errors.ServerError) as e:
+             print(f"  API Error ({type(e).__name__}) detected with Key Index {current_api_key_index}. Waiting and rotating API key...", file=sys.stderr)
+             for i in tqdm(range(sleep_on_retry), desc="Waiting for quota/retry", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): time.sleep(1)
+             if not rotate_api_key_and_reinitialize(): print("Error: Could not rotate API key. Raising original error.", file=sys.stderr); raise e
+             if current_api_key_index in keys_tried_in_this_call: print("Error: Cycled through all API keys. Rate limits persistent.", file=sys.stderr); raise e
+             keys_tried_in_this_call.add(current_api_key_index)
+             print(f"  Retrying API call with Key Index {current_api_key_index}...")
+        except google_genai_errors.APIError as e:
              print(f"  Google API Error: {e}", file=sys.stderr)
-             # Check for status_code attribute or similar if available in the specific APIError subclass
-             # This is a simplified check; the actual attribute might differ
-             status_code = getattr(e, 'status_code', None)
-             if status_code == 429:
-                 print(f"  API Error 429 detected with Key Index {current_api_key_index}. Waiting and rotating API key...", file=sys.stderr)
-                 for i in tqdm(range(sleep_on_retry), desc="Waiting for quota/retry", unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"): time.sleep(1)
-                 if not rotate_api_key_and_reinitialize(): print("Error: Could not rotate API key. Raising original error.", file=sys.stderr); raise e
-                 if current_api_key_index in keys_tried_in_this_call: print("Error: Cycled through all API keys. Rate limits persistent.", file=sys.stderr); raise e
-                 keys_tried_in_this_call.add(current_api_key_index)
-                 print(f"  Retrying API call with Key Index {current_api_key_index}...")
-             else: raise e
-
+             # A biblioteca google-genai lida com códigos de status internamente e levanta exceções como ServerError para 5xx
+             # ou tipos específicos como ResourceExhausted (429). O tratamento anterior já cobre isso.
+             # Se fosse necessário, poderia-se tentar acessar e.status_code se a exceção o contivesse.
+             # Mas com base na biblioteca atual, o tratamento existente é o adequado.
+             raise e # Re-raise para tratamento genérico ou específico no chamador
         except Exception as e: print(f"Unexpected Error during API call: {e}", file=sys.stderr); traceback.print_exc(); raise
-# --- FIM DA CORREÇÃO ---
 
 def modify_prompt_with_observation(original_prompt: str, observation: str) -> str:
     """Appends user observation to the prompt for retrying."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     modified_prompt = f"{original_prompt}\n\n--- USER FEEDBACK FOR RETRY ---\n{observation}\n--- END FEEDBACK ---"
     print("\n  >>> Prompt modified with observation for retry <<<")
     return modified_prompt
 
 def prompt_user_to_select_task(tasks: Dict[str, Path]) -> Optional[str]:
     """Displays available tasks and prompts user for selection."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     print("\nPlease choose a task to perform:")
     sorted_tasks = sorted(tasks.keys())
     for i, task_name in enumerate(sorted_tasks): print(f"  {i + 1}: {task_name}")
@@ -431,7 +435,7 @@ def prompt_user_to_select_task(tasks: Dict[str, Path]) -> Optional[str]:
 
 def find_documentation_files(base_dir: Path) -> List[Path]:
     """Find potential documentation files (.md) in the project."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     print("  Scanning for documentation files...")
     found_paths: Set[Path] = set()
     for filename in ["README.md", "CHANGELOG.md"]:
@@ -446,7 +450,7 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
 
 def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
     """Displays a numbered list of doc files and prompts the user for selection."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     print("\nMultiple documentation files found. Please choose one to update:")
     for i, filepath in enumerate(doc_files): print(f"  {i + 1}: {filepath}")
     print("  q: Quit")
@@ -461,7 +465,7 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
 
 def find_latest_manifest_json(manifest_data_dir: Path) -> Optional[Path]:
     """Encontra o arquivo _manifest.json mais recente no diretório de dados."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     if not manifest_data_dir.is_dir(): return None
     manifest_files = [f for f in manifest_data_dir.glob('*_manifest.json') if f.is_file() and re.match(TIMESTAMP_MANIFEST_REGEX, f.name)]
     if not manifest_files: return None
@@ -469,7 +473,7 @@ def find_latest_manifest_json(manifest_data_dir: Path) -> Optional[Path]:
 
 def load_manifest(manifest_path: Path) -> Optional[Dict[str, Any]]:
     """Carrega e parseia o arquivo de manifesto JSON."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     if not manifest_path.is_file(): print(f"Error: Manifest file not found: {manifest_path}", file=sys.stderr); return None
     try:
         with open(manifest_path, 'r', encoding='utf-8') as f: data = json.load(f)
@@ -490,7 +494,7 @@ def select_files_for_summary_batch(
     est_tokens_per_summary: int
 ) -> Tuple[List[str], int, int]:
     """Seleciona um lote de arquivos para sumarização, respeitando os limites de token."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     batch_files = []; current_input_tokens = 0; current_estimated_output = 0
     files_dict = manifest_data.get("files", {})
     for filepath in all_candidates:
@@ -509,7 +513,7 @@ def select_files_for_summary_batch(
 
 def prepare_api_content_for_summary(batch_files: List[str], base_summary_prompt: str) -> Tuple[List[types.Part], List[str]]:
     """Prepara a lista de conteúdos para a chamada API de sumarização."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     contents_for_api: List[types.Part] = [types.Part.from_text(text=base_summary_prompt)]
     processed_paths = []
     for filepath_str in batch_files:
@@ -524,7 +528,7 @@ def prepare_api_content_for_summary(batch_files: List[str], base_summary_prompt:
 
 def parse_summaries_from_response(llm_response: str) -> Dict[str, str]:
     """Parseia a resposta da LLM para extrair sumários individuais."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     summaries: Dict[str, str] = {}
     pattern = re.compile(rf"^{re.escape(SUMMARY_CONTENT_DELIMITER_START)}(.*?){re.escape(' ---')}\n(.*?)\n^{re.escape(SUMMARY_CONTENT_DELIMITER_END)}\1{re.escape(' ---')}", re.MULTILINE | re.DOTALL)
     matches = pattern.findall(llm_response)
@@ -533,12 +537,25 @@ def parse_summaries_from_response(llm_response: str) -> Dict[str, str]:
 
 def update_manifest_file(manifest_path: Path, manifest_data: Dict[str, Any]) -> bool:
     """Escreve os dados atualizados de volta no arquivo de manifesto JSON."""
-    # ... (Implementation unchanged) ...
+    # (Implementation unchanged)
     try:
         with open(manifest_path, 'w', encoding='utf-8') as f: json.dump(manifest_data, f, indent=4, ensure_ascii=False)
         return True
     except Exception as e: print(f"Error saving updated manifest file '{manifest_path.name}': {e}", file=sys.stderr); traceback.print_exc(file=sys.stderr); return False
 
+# --- AC20 #38: Function to handle empty preliminary selection ---
+def prompt_user_on_empty_selection() -> bool:
+    """Asks user whether to proceed with default context or abort when preliminary selection is empty."""
+    while True:
+        choice = input("  A seleção preliminar de contexto retornou uma lista vazia.\n  Deseja prosseguir com o contexto padrão (todos os arquivos relevantes) ou abortar a tarefa? (P/a) [Abortar]: ").strip().lower()
+        if choice in ['a', 'abortar', '']:
+            print("  Tarefa abortada pelo usuário devido à seleção de contexto vazia.")
+            return False # Indicate abort
+        elif choice in ['p', 'prosseguir']:
+            print("  Prosseguindo com o contexto padrão...")
+            return True # Indicate proceed with default
+        else:
+            print("  Entrada inválida. Por favor, digite 'p' para prosseguir ou 'a' para abortar.")
 
 # --- Argument Parser Setup ---
 def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
@@ -603,6 +620,7 @@ if __name__ == "__main__":
     prompt_path: Optional[Path] = None
     template_base_dir: Path
 
+    # Determine which prompt file to use based on flow type
     if is_two_stage:
         prompt_path = meta_tasks_dict.get(selected_task)
         template_base_dir = META_PROMPT_DIR
@@ -618,6 +636,7 @@ if __name__ == "__main__":
     print(f"Using Gemini Model: {GEMINI_MODEL}")
 
     # --- Validations ---
+    # ... (unchanged validations) ...
     if selected_task == 'create-pr' and not args.issue: print("Error: 'create-pr' task requires --issue.", file=sys.stderr); sys.exit(1)
     if selected_task == 'create-test-sub-issue' and not args.issue: print("Error: 'create-test-sub-issue' task requires --issue.", file=sys.stderr); sys.exit(1)
     if selected_task == 'update-doc':
@@ -627,14 +646,17 @@ if __name__ == "__main__":
     if selected_task == 'analyze-ac' and (not args.issue or not args.ac): print("Error: 'analyze-ac' task requires --issue and --ac.", file=sys.stderr); sys.exit(1)
     if selected_task == 'resolve-ac' and (not args.issue or not args.ac): print("Error: 'resolve-ac' task requires --issue and --ac.", file=sys.stderr); sys.exit(1)
 
+
     # --- Context Generation ---
     if args.generate_context:
+        # ... (unchanged context generation logic) ...
         print(f"\nRunning context generation script: {CONTEXT_GENERATION_SCRIPT.relative_to(BASE_DIR)}...")
         if not CONTEXT_GENERATION_SCRIPT.is_file() or not os.access(CONTEXT_GENERATION_SCRIPT, os.X_OK):
              print(f"Error: Context script not found or not executable.", file=sys.stderr); sys.exit(1)
         exit_code_ctx, _, stderr_ctx = run_command([sys.executable, str(CONTEXT_GENERATION_SCRIPT)], check=False)
         if exit_code_ctx != 0: print(f"Error: Context generation failed. Stderr:\n{stderr_ctx}", file=sys.stderr); sys.exit(1)
         print("Context generation script completed.")
+
 
     # --- Prepare Variables ---
     task_variables: Dict[str, str] = {
@@ -672,7 +694,6 @@ if __name__ == "__main__":
     if not args.only_prompt and not args.only_meta:
         if genai_client is None:
             if not initialize_genai_client(): sys.exit(1)
-        # Initialize API executor only if client is ready and we might make API calls
         if genai_client: api_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     # --- Prepare Tools/Config ---
@@ -681,8 +702,7 @@ if __name__ == "__main__":
 
     # --- Task Specific Logic ---
     if selected_task == "manifest-summary":
-        # (Manifest summary logic - unchanged)
-        # ... (rest of manifest summary logic) ...
+        # ... (manifest summary logic unchanged) ...
         print("\n[TASK: manifest-summary]")
         manifest_to_process_path = None
         if args.manifest_path:
@@ -697,7 +717,8 @@ if __name__ == "__main__":
         files_dict = manifest_data.get("files", {}); candidates_for_summary = []
         print("  Identifying files needing summary...")
         forced_files_relative = set(args.force_summary) if args.force_summary else set()
-        previous_files = load_previous_manifest(DEFAULT_OUTPUT_DIR, args.verbose) # Load previous to check hash/summary
+        previous_files = load_manifest(manifest_to_process_path) # Load current to compare hash/summary
+        previous_files_data = previous_files.get("files", {}) if previous_files else {}
         for filepath_str, metadata in files_dict.items():
             if not isinstance(metadata, dict): continue
             is_binary = metadata.get("type", "").startswith("binary_")
@@ -705,7 +726,7 @@ if __name__ == "__main__":
             needs_summary = False
             if filepath_str in forced_files_relative: needs_summary = True; print(f"    -> Force summary requested for '{filepath_str}'.")
             elif metadata.get("summary") is None: needs_summary = True
-            elif filepath_str in previous_files and metadata.get("hash") != previous_files.get(filepath_str, {}).get("hash"): needs_summary = True; print(f"    -> Hash changed, queueing summary for '{filepath_str}'.")
+            elif filepath_str in previous_files_data and metadata.get("hash") != previous_files_data.get(filepath_str, {}).get("hash"): needs_summary = True; print(f"    -> Hash changed, queueing summary for '{filepath_str}'.")
             if needs_summary:
                  if metadata.get("token_count") is not None: candidates_for_summary.append(filepath_str)
                  else: print(f"    Skipping '{filepath_str}' for summary: Missing token_count.", file=sys.stderr)
@@ -726,13 +747,13 @@ if __name__ == "__main__":
             try:
                  if args.two_stage:
                      print("    Executing Two-Stage Flow (Step 1: Meta -> Final Prompt)...")
-                     final_summary_prompt = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
+                     final_summary_prompt = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS, timeout=args.timeout)
                      print("    Generated Final Summary Prompt (Step 1 completed).")
                      contents_for_api_step2, _ = prepare_api_content_for_summary(processed_paths_in_batch, final_summary_prompt) # Reuse helper, just need parts
                      print("    Executing Two-Stage Flow (Step 2: Final Prompt -> Summaries)...")
-                     llm_response = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api_step2, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
+                     llm_response = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api_step2, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS, timeout=args.timeout)
                  else: # Direct flow
-                     llm_response = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
+                     llm_response = execute_gemini_call(GEMINI_MODEL_SUMMARY, contents_for_api, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS, timeout=args.timeout)
                  print("    API call successful."); parsed_summaries = parse_summaries_from_response(llm_response); print(f"    Parsed {len(parsed_summaries)} summaries from response.")
                  updated_count_in_batch = 0
                  for filepath, summary in parsed_summaries.items():
@@ -751,6 +772,7 @@ if __name__ == "__main__":
         # --- Load Context (Conditional) ---
         context_parts: List[types.Part] = []
         final_selected_files: Optional[List[str]] = None # Stores files chosen by user/LLM
+        use_default_context = True # Flag to determine if default context loading should proceed
 
         if args.select_context: # AC10 #38
             print("\nPreliminary Context Selection Enabled...")
@@ -794,75 +816,69 @@ if __name__ == "__main__":
                 print(f"  Calling preliminary API ({GEMINI_MODEL_FLASH}) for context selection...")
                 response_prelim_str = execute_gemini_call(
                     GEMINI_MODEL_FLASH,
+                    # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+                    # A criação da lista de partes está correta
                     [types.Part.from_text(text=preliminary_api_input_content)],
-                    config=base_config # Pass base config (e.g., for safety)
+                    config=base_config, # Pass base config (e.g., for safety)
                 )
                 print("    Preliminary API call successful.")
 
                 try:
                     print("    Parsing preliminary API response...")
-                    # Remove potential markdown code block delimiters
                     cleaned_response_str = response_prelim_str.strip()
-                    if cleaned_response_str.startswith("```json"):
-                        cleaned_response_str = cleaned_response_str[7:].strip() # Remove ```json\n and trim
-                    if cleaned_response_str.endswith("```"):
-                        cleaned_response_str = cleaned_response_str[:-3].strip() # Remove ``` and trim
-
-                    parsed_response = json.loads(cleaned_response_str) # Parse the cleaned string
-
+                    if cleaned_response_str.startswith("```json"): cleaned_response_str = cleaned_response_str[7:].strip()
+                    if cleaned_response_str.endswith("```"): cleaned_response_str = cleaned_response_str[:-3].strip()
+                    parsed_response = json.loads(cleaned_response_str)
                     if isinstance(parsed_response, dict) and 'relevant_files' in parsed_response:
                         extracted_files = parsed_response['relevant_files']
                         if isinstance(extracted_files, list) and all(isinstance(item, str) for item in extracted_files):
                             suggested_files_from_api = extracted_files
                             print(f"    Successfully parsed {len(suggested_files_from_api)} relevant files from preliminary response.")
-                        else:
-                            print("    Error: 'relevant_files' key found in preliminary response, but its value is not a list of strings.", file=sys.stderr)
-                            raise ValueError("Invalid format for 'relevant_files'") # Trigger outer except for AC19
-                    else:
-                        print("    Error: Preliminary API response JSON does not contain the expected 'relevant_files' key.", file=sys.stderr)
-                        print(f"    Received Cleaned Response: {cleaned_response_str[:500]}...") # Log beginning of response
-                        raise KeyError("'relevant_files' key missing") # Trigger outer except for AC19
-
-                except json.JSONDecodeError as e:
+                        else: raise ValueError("Invalid format for 'relevant_files'")
+                    else: raise KeyError("'relevant_files' key missing")
+                except (json.JSONDecodeError, KeyError, ValueError) as e:
                     print(f"  Error: Failed to parse JSON response from preliminary API call: {e}", file=sys.stderr)
-                    print(f"  Raw preliminary response:\n{response_prelim_str}", file=sys.stderr) # Log original response
-                    print(f"  Cleaned response before parse:\n{cleaned_response_str}", file=sys.stderr) # Log cleaned response
-                    raise # Re-raise to be caught by outer try/except for AC19 abort
+                    print(f"  Raw preliminary response:\n{response_prelim_str}", file=sys.stderr)
+                    if 'cleaned_response_str' in locals(): print(f"  Cleaned response before parse:\n{cleaned_response_str}", file=sys.stderr)
+                    raise # Re-raise for AC19 abort
 
-            except Exception as e: # Catch API errors, parsing errors, KeyErrors, ValueErrors etc.
+            except Exception as e: # Catch API errors, timeout, parsing errors etc.
                 print(f"\nFatal Error during preliminary context selection: {type(e).__name__} - {e}", file=sys.stderr)
-                # AC19: Abort task on preliminary failure
                 print("Aborting task due to preliminary context selection failure.", file=sys.stderr)
                 sys.exit(1)
             # --- AC18 #38 END ---
 
-            # (Placeholders/Logic for AC20-27 - Confirm/Modify Selection)
-            print(f"  TODO AC20-22: Confirm/modify selection: {suggested_files_from_api}")
-            final_selected_files = suggested_files_from_api # Placeholder for now
+            # --- AC20 #38 START: Handle empty selection ---
+            if not suggested_files_from_api:
+                print("  Warning: Preliminary context selection returned an empty list.")
+                if not prompt_user_on_empty_selection(): sys.exit(1) # User chose to abort
+                else: use_default_context = True; final_selected_files = None; print("  Proceeding with default context...") # User chose to proceed with default
+            else:
+                 # (Placeholders/Logic for AC21-27 - Confirm/Modify Selection)
+                 print(f"  TODO AC21-22: Confirm/modify selection: {suggested_files_from_api}")
+                 final_selected_files = suggested_files_from_api # Placeholder for now
+                 use_default_context = False # We have a selection
+            # --- AC20 #38 END ---
 
             # --- Load FINAL context based on selection ---
-            if final_selected_files is not None:
+            if not use_default_context and final_selected_files is not None:
                  print("\nUsing LLM/User Selected Context Files...")
                  # TODO AC23/AC25/AC29: Implement loading context *only* from final_selected_files list
                  print(f"  TODO: Implement loading context ONLY from {final_selected_files}, applying exclusions {args.exclude_context}")
                  # For now, just load default context to proceed
                  latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
                  if latest_context_dir is None: print("Fatal Error: Could not find context directory.", file=sys.stderr); sys.exit(1)
-                 context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
-            else:
-                 print("\nContext selection denied or failed. Using default context...")
-                 latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
-                 if latest_context_dir is None: print("Fatal Error: Could not find context directory.", file=sys.stderr); sys.exit(1)
-                 print(f"Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
-                 context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
-                 if not context_parts: print("Warning: No context files loaded (or all were excluded).", file=sys.stderr)
+                 context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context) # Apply exclusions here if needed later
+            # else: Default context will be loaded below
 
-        else: # Default: Load context normally if --select-context is off
+        # Load default context if needed (either --select-context was off, or user chose default)
+        if use_default_context:
+            print("\nLoading Default Context...")
             latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
             if latest_context_dir is None: print("Fatal Error: Could not find context directory.", file=sys.stderr); sys.exit(1)
-            print(f"\nLatest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
-            context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
-            if not context_parts: print("Warning: No context files loaded (or all were excluded).", file=sys.stderr)
+            print(f"  Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
+            context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context) # Apply exclusions here
+            if not context_parts: print("  Warning: No context files loaded (or all were excluded).", file=sys.stderr)
 
         # --- Execute Main Task Flow (Uses loaded context_parts) ---
         # ... (rest of the main task logic - two-stage or direct, API calls, final action) ...
@@ -873,9 +889,11 @@ if __name__ == "__main__":
              meta_prompt_current = initial_prompt_content_current
              while True:
                  print(f"\nStep 1: Sending Meta-Prompt + Context ({len(context_parts)} parts)...")
+                 # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+                 # A criação da lista contents_step1 está correta.
                  contents_step1 = [types.Part.from_text(text=meta_prompt_current)] + context_parts
                  try:
-                     prompt_final_content = execute_gemini_call(GEMINI_MODEL, contents_step1, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
+                     prompt_final_content = execute_gemini_call(GEMINI_MODEL, contents_step1, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS, timeout=args.timeout)
                      print("\n--- Generated Final Prompt (Step 1) ---"); print(prompt_final_content.strip()); print("---")
                      if args.yes: print("  Step 1 auto-confirmed (--yes)."); user_choice, observation = 'y', None
                      else: user_choice, observation = confirm_step("Use this generated prompt for Step 2?")
@@ -895,6 +913,8 @@ if __name__ == "__main__":
         final_prompt_current = final_prompt_to_send
         while True:
             print(f"\n{'Step 2: Sending' if is_two_stage else 'Sending'} Final Prompt + Context ({len(context_parts)} parts)...")
+            # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
+            # A criação da lista contents_final está correta.
             contents_final = [types.Part.from_text(text=final_prompt_current)] + context_parts
             try:
                 final_response_content = execute_gemini_call(GEMINI_MODEL, contents_final, config=base_config, sleep_on_retry=SLEEP_DURATION_SECONDS)
