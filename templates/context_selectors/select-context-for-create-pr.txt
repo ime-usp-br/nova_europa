@@ -1,0 +1,40 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+
+**Tarefa Principal:** Gerar o TÍTULO e o CORPO para um Pull Request (PR) do GitHub que implementa as mudanças relacionadas à Issue `__NUMERO_DA_ISSUE__`. O título e corpo devem ser claros, concisos, seguir padrões do projeto e incluir a vinculação `Closes #__NUMERO_DA_ISSUE__`.
+
+**Manifesto JSON Fornecido:**
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+
+**Seu Processo de Seleção:**
+1.  Entenda profundamente o objetivo da **Tarefa Principal**: gerar Título e Corpo para um PR da Issue `__NUMERO_DA_ISSUE__`.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
+3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
+    *   Os diffs das alterações incluídas no PR (`git_diff_cached.txt`, `git_diff_unstaged.txt` - ou o diff relevante para o branch).
+    *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`).
+    *   O histórico de commits do branch (`git_log.txt`) para entender o trabalho realizado.
+    *   A lista de PRs anteriores (`gh_pr_list.txt`) para referência de estilo de título/corpo.
+    *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem as regras para PRs.
+4.  **Priorize:** Diffs, detalhes da issue e log de commits são essenciais. Lista de PRs e guias são importantes para formato e estilo.
+5.  **Exclua:** Código fonte não modificado, testes não relacionados diretamente às mudanças, arquivos de configuração gerais, dependências, e outros arquivos de contexto não diretamente necessários para *descrever o propósito e o conteúdo* do PR, a menos que o `summary` indique relevância direta.
+
+**Formato de Saída OBRIGATÓRIO E ESTRITO:**
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+
+**Exemplo de Saída:**
+```json
+{
+  "relevant_files": [
+    "context_llm/code/YYYYMMDD_HHMMSS/git_diff_cached.txt",
+    "context_llm/code/YYYYMMDD_HHMMSS/git_log.txt",
+    "context_llm/code/YYYYMMDD_HHMMSS/github_issue___NUMERO_DA_ISSUE___details.json",
+    "context_llm/code/YYYYMMDD_HHMMSS/gh_pr_list.txt",
+    "docs/guia_de_desenvolvimento.md"
+  ]
+}
+```
+
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo for considerado relevante (improvável), retorne `{"relevant_files": []}`.

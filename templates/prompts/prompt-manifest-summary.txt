@@ -1,0 +1,28 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:** Para **CADA** arquivo especificado no trecho do `manifest.json` fornecido como input, você **DEVE** gerar um resumo conciso (100-150 palavras) do seu conteúdo (que também será fornecido no contexto). Sua saída **DEVE** seguir **OBRIGATORIAMENTE** o formato de blocos demarcados especificado abaixo.
+
+**REGRAS DE EXECUÇÃO IMPERATIVAS (SEM EXCEÇÕES):**
+
+1.  **ANÁLISE DE INPUT:** O input conterá um trecho do `manifest.json` listando arquivos e seus metadados, e o conteúdo textual desses arquivos estará disponível no contexto geral fornecido a você. Você **DEVE** analisar **AMBOS** (metadados do manifesto e conteúdo real do arquivo) para gerar cada resumo.
+2.  **FOCO DO RESUMO (REGRA CONDICIONAL OBRIGATÓRIA):**
+    *   **SE** o `path` do arquivo no manifesto começar com `context_llm/code/`: Seu resumo **DEVE OBRIGATORIAMENTE** descrever qual comando ou processo gerou este arquivo de contexto (inferindo do nome do arquivo, ex: `artisan_route_list.json` veio de `php artisan route:list --json`) e indicar explicitamente para qual tipo de análise de desenvolvimento ele é mais útil (ex: "útil para entender endpoints", "essencial para analisar histórico de commits", "fundamental para requisitos da issue X"). A utilidade para a IA é o foco.
+    *   **PARA TODOS OS OUTROS ARQUIVOS** (código fonte, config, docs, etc.): Seu resumo **DEVE OBRIGATORIAMENTE** descrever o propósito principal do arquivo, seus componentes chave (ex: classes, métodos importantes, configurações principais, tópicos abordados) e sua função geral dentro da arquitetura do projeto.
+3.  **TAMANHO E IDIOMA:** Cada resumo individual **DEVE OBRIGATORIAMENTE** ter entre 100 e 150 palavras. O idioma **DEVE SER** Português do Brasil.
+4.  **PROIBIÇÃO DE REFERÊNCIAS EXTERNAS:** Dentro de um resumo de arquivo, é **ABSOLUTAMENTE PROIBIDO** mencionar nomes de outros arquivos de contexto não versionados que não sejam o próprio arquivo sendo resumido. Mantenha o foco no arquivo em questão.
+5.  **FORMATO DE SAÍDA (ESTRITO E MANDATÓRIO):** Sua resposta completa **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial dos resumos gerados para **CADA ARQUIVO** especificado no input do manifesto, utilizando **ESTRITAMENTE** o formato de blocos abaixo. **NENHUM CARACTERE ADICIONAL** (introdução, explicação, comentário, saudação, metadados extras) antes do primeiro `--- START ---` ou depois do último `--- END ---` é permitido.
+    ```
+    --- START OF FILE path/relativo/do/arquivo1.ext ---
+    Resumo conciso do arquivo 1 (100-150 palavras, seguindo a regra condicional)...
+    --- END OF FILE path/relativo/do/arquivo1.ext ---
+    --- START OF FILE path/relativo/do/arquivo2.ext ---
+    Resumo conciso do arquivo 2 (100-150 palavras, seguindo a regra condicional)...
+    --- END OF FILE path/relativo/do/arquivo2.ext ---
+    ```
+    *   **CAMINHO:** O `path/relativo/do/arquivo.ext` no marcador de saída **DEVE** ser **exatamente o mesmo** caminho fornecido para aquele arquivo no input do manifesto.
+    *   **CONTEÚDO:** O conteúdo entre os marcadores **DEVE** ser **APENAS** o resumo gerado, nada mais.
+6.  **SEQUÊNCIA:** A ordem dos blocos na saída **DEVE** corresponder à ordem dos arquivos no input do manifesto.
+7.  **FALHA GRACIOSA:** Se, por algum motivo excepcional, você não conseguir gerar um resumo para um arquivo específico, você **DEVE** ainda assim gerar o bloco `--- START/END ---` para ele, mas com um texto indicando a falha (ex: "[ERRO: Não foi possível gerar o resumo para este arquivo.]"). **NÃO OMITE BLOCOS**.
+
+**OBSERVAÇÃO ADICIONAL PRIORITÁRIA:**
+__OBSERVACAO_ADICIONAL__
+
+Execute a tarefa seguindo **TODAS** estas regras com **MÁXIMA FIDELIDADE**. Sua saída **DEVE** começar imediatamente com `--- START OF FILE ...` e terminar imediatamente após o último `--- END OF FILE ...`.
