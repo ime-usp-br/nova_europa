@@ -20,6 +20,7 @@
 # Supports updating documentation via 'update-doc'.
 # Supports generating file summaries and updating the manifest via 'manifest-summary'.
 # Supports preliminary context selection via --select-context, loading stage-specific prompts.
+# AC17 #38: Filters manifest for preliminary context selection call based on token count.
 #
 # Dependencies: google-generativeai, python-dotenv, tqdm, argparse, standard libs
 # ==============================================================================
@@ -313,12 +314,6 @@ def find_context_selector_prompt(task_name: str, two_stage_flow: bool) -> Option
              return None
 # --- End AC15 #38 ---
 
-# (Rest of the helper functions: initialize_genai_client, rotate_api_key_and_reinitialize,
-# execute_gemini_call, modify_prompt_with_observation, prompt_user_to_select_task,
-# find_documentation_files, prompt_user_to_select_doc, find_latest_manifest_json,
-# load_manifest, select_files_for_summary_batch, prepare_api_content_for_summary,
-# parse_summaries_from_response, update_manifest_file, parse_arguments
-# - remain unchanged from previous version v2.4 - OMITTED FOR BREVITY)
 GenerateContentConfigType = Union[types.GenerationConfig, types.GenerateContentConfig, Dict[str, Any], None]
 
 def initialize_genai_client() -> bool:
@@ -744,6 +739,7 @@ if __name__ == "__main__":
         # --- Load Context (Now conditional based on --select-context) ---
         context_parts: List[types.Part] = []
         final_selected_files: Optional[List[str]] = None # Stores files chosen by user/LLM
+        preliminary_api_input_content: Optional[str] = None # For AC17
 
         if args.select_context and selected_task != "manifest-summary":
             print("\nPreliminary Context Selection Enabled...")
@@ -752,26 +748,59 @@ if __name__ == "__main__":
             if not latest_manifest_path: print("Error: Could not find manifest for context selection.", file=sys.stderr); sys.exit(1)
             manifest_data = load_manifest(latest_manifest_path)
             if not manifest_data or "files" not in manifest_data: print("Error: Invalid manifest for context selection.", file=sys.stderr); sys.exit(1)
+            print(f"  Loaded manifest: {latest_manifest_path.relative_to(BASE_DIR)}")
 
             # 2. Load Selector Prompt (AC15 #38 - Updated)
             context_selector_prompt_path = find_context_selector_prompt(selected_task, args.two_stage) # Pass two_stage flag
             if not context_selector_prompt_path: sys.exit(1) # Error printed inside function
-            selector_prompt_content_original = load_and_fill_template(context_selector_prompt_path, task_variables) # Fill issue/ac nums
-            if not selector_prompt_content_original: print(f"Error loading context selector prompt.", file=sys.stderr); sys.exit(1)
-
-            # (Placeholders for AC16-AC27 - Prepare Input, Call Prelim API, Confirm Selection)
+            selector_prompt_content = load_and_fill_template(context_selector_prompt_path, task_variables) # Fill issue/ac nums
+            if not selector_prompt_content: print(f"Error loading context selector prompt.", file=sys.stderr); sys.exit(1)
             print(f"  Using Selector Prompt: {context_selector_prompt_path.relative_to(BASE_DIR)}")
-            print(f"  TODO: Implement Preliminary API Call (AC16-AC19)")
-            print(f"  TODO: Implement User Confirmation/Modification (AC20-AC22)")
-            # For now, assume it returns a list of files or None
-            suggested_files_from_api = [] # Placeholder: In real impl, this comes from API call
-            final_selected_files = suggested_files_from_api # Placeholder: In real impl, this comes from user confirmation
 
+            # --- AC17 #38 START: Filter manifest for preliminary call ---
+            print(f"  Filtering manifest files (max {MANIFEST_MAX_TOKEN_FILTER} tokens)...")
+            all_manifest_files = manifest_data.get('files', {})
+            filtered_manifest_files: Dict[str, Any] = {}
+            excluded_count = 0
+            for path, metadata in all_manifest_files.items():
+                if not isinstance(metadata, dict): continue
+                token_count = metadata.get('token_count')
+                if isinstance(token_count, int) and token_count <= MANIFEST_MAX_TOKEN_FILTER:
+                    filtered_manifest_files[path] = metadata
+                else:
+                    excluded_count += 1
+            print(f"    Excluded {excluded_count} files exceeding token limit.")
+            # Combine prompt and filtered manifest JSON for the preliminary call payload
+            try:
+                filtered_manifest_json = json.dumps({"files": filtered_manifest_files}, indent=2, ensure_ascii=False)
+                preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
+                print(f"    Prepared preliminary API input payload (Prompt + Filtered Manifest JSON).")
+            except Exception as e:
+                print(f"Error serializing filtered manifest for preliminary call: {e}", file=sys.stderr)
+                sys.exit(1)
+            # --- AC17 #38 END ---
+
+            # (Placeholders for AC16-AC27 - Call Prelim API, Confirm Selection)
+            print(f"  TODO AC16/18/19: Call preliminary API using GEMINI_MODEL_FLASH and '{preliminary_api_input_content[:100]}...'")
+            # response_prelim = execute_gemini_call(GEMINI_MODEL_FLASH, [types.Part.from_text(text=preliminary_api_input_content)], ...)
+            # parsed_response = json.loads(response_prelim)
+            # suggested_files_from_api = parsed_response.get('relevant_files', [])
+            suggested_files_from_api = [] # Placeholder
+            print(f"  TODO AC20-22: Confirm/modify selection: {suggested_files_from_api}")
+            final_selected_files = suggested_files_from_api # Placeholder
+
+
+            # --- Load FINAL context based on selection ---
             if final_selected_files is not None:
                  print("\nUsing LLM/User Selected Context Files...")
-                 # TODO AC23/AC25: Load context *only* from final_selected_files, applying exclude_context
-                 print(f"  TODO: Implement loading context ONLY from {final_selected_files}")
+                 # TODO AC23/AC25/AC29: Implement loading context *only* from final_selected_files list
+                 # Remember to apply args.exclude_context *after* selection
+                 print(f"  TODO: Implement loading context ONLY from {final_selected_files}, applying exclusions {args.exclude_context}")
                  # context_parts = prepare_context_parts_from_list(final_selected_files, args.exclude_context) # Need new helper
+                 # For now, just load default context to proceed
+                 latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
+                 if latest_context_dir is None: print("Fatal Error: Could not find context directory.", file=sys.stderr); sys.exit(1)
+                 context_parts = prepare_context_parts(latest_context_dir, COMMON_CONTEXT_DIR, args.exclude_context)
             else:
                  print("\nContext selection denied or failed. Using default context...")
                  latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE)
