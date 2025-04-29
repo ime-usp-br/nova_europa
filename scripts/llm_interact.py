@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# llm_interact.py (v2.9.1 - Fix ValueError in context loading with include_list)
+# llm_interact.py (v2.10.0 - Fix context loading with include_list)
 #
 # Interacts with Google Gemini API using project context and prompt templates.
 # Offers two flows:
@@ -24,8 +24,8 @@
 # Parses the JSON response from the preliminary API call.
 # Prompts user if preliminary context selection returns empty list.
 # Displays suggested file list and prompts user for confirmation (Y/n).
-# AC22: Allows interactive modification (add/remove) of the suggested context list.
-# FIX (v2.9.1): Corrected ValueError when loading context with --select-context enabled.
+# Allows interactive modification (add/remove) of the suggested context list.
+# FIX (v2.10.0): Corrected context loading logic when --select-context is used (AC23).
 #
 # Dependencies: google-generativeai, python-dotenv, tqdm, argparse, standard libs
 # ==============================================================================
@@ -194,93 +194,57 @@ def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> st
     except FileNotFoundError: print(f"Error: Template file not found: {template_path}", file=sys.stderr); return ""
     except Exception as e: print(f"Error reading/processing template {template_path}: {e}", file=sys.stderr); return ""
 
+# --- CONTEXT LOADING FUNCTIONS (REVISED for AC23/AC24/AC25/AC29) ---
 def _load_files_from_dir(
     context_dir: Path,
     context_parts: List[types.Part],
     exclude_list: Optional[List[str]] = None,
     manifest_data: Optional[Dict[str, Any]] = None,
-    include_list: Optional[List[str]] = None # List of relative paths to include
 ) -> None:
     """
-    Helper to load files from a specific directory (.txt, .json, .md),
-    optionally filtering by include_list or excluding by exclude_list.
+    Helper to load files from a specific directory (.txt, .json, .md) for the default context loading.
+    This function is ONLY used when `include_list` is NOT provided to `prepare_context_parts`.
     """
-    file_patterns = ["*.txt", "*.json", "*.md"] # Add more patterns if needed
+    file_patterns = ["*.txt", "*.json", "*.md"]
     loaded_count = 0
     excluded_count = 0
-    skipped_include_count = 0
     exclude_set = set(exclude_list) if exclude_list else set()
-    include_set = set(include_list) if include_list else None
 
     if not context_dir or not context_dir.is_dir(): return
 
     files_to_consider: Set[Path] = set()
+    for pattern in file_patterns: files_to_consider.update(context_dir.glob(pattern))
 
-    if include_set is not None:
-        # If an include list is provided, only consider files from that list
-        # that reside within the current context_dir.
-        for include_path_str in include_set:
-            # Construct the absolute path from BASE_DIR and the relative include path
-            absolute_path_to_check = (BASE_DIR / include_path_str).resolve(strict=False)
-            # Check if this absolute path is within the context_dir being processed currently
-            if absolute_path_to_check.is_file() and absolute_path_to_check.is_relative_to(context_dir.resolve()):
-                 files_to_consider.add(absolute_path_to_check)
-            # else: The file from include_list is not in this specific context_dir (e.g., it's in common_context_dir)
-    else:
-        # If no include list, glob for patterns within the current context_dir
-        for pattern in file_patterns:
-            files_to_consider.update(context_dir.glob(pattern))
-
-    # Process the final list of files for this directory
     for filepath in files_to_consider:
-        if not filepath.is_file(): continue # Skip if somehow a dir slipped through
+        if not filepath.is_file(): continue
 
         try:
-            # Use resolve() before relative_to() for robustness and consistency
-            resolved_filepath = filepath.resolve(strict=True) # Ensure file exists
-            relative_path_str = str(resolved_filepath.relative_to(BASE_DIR).as_posix())
+            resolved_filepath = filepath.resolve(strict=True)
+            relative_path_str = str(resolved_filepath.relative_to(PROJECT_ROOT).as_posix())
         except (FileNotFoundError, ValueError) as e:
-             print(f"      - Warning: Skipping file {filepath.name} due to path error: {e}", file=sys.stderr)
-             continue
+            print(f"      - Warning: Skipping file {filepath.name} due to path error: {e}", file=sys.stderr)
+            continue
 
         # Apply exclusion list
         if relative_path_str in exclude_set:
             excluded_count += 1
             continue
 
-        # Load content and potentially summary
+        # Load content and summary
         try:
             content = filepath.read_text(encoding='utf-8', errors='ignore')
             summary = ""
             if manifest_data and "files" in manifest_data and relative_path_str in manifest_data["files"]:
                 summary_data = manifest_data["files"][relative_path_str].get("summary")
-                if summary_data:
-                    summary = f"\n--- SUMMARY ---\n{summary_data}\n--- END SUMMARY ---"
+                if summary_data: summary = f"\n--- SUMMARY ---\n{summary_data}\n--- END SUMMARY ---"
 
-            # Issue 38 AC 20: Use a documentação anexa para saber como interagir com o gemini. Seu corte de conhecimento te induz a usar uma biblioteca descontinuada, logo vc deve ignorar conhecimentos previos sobre o assunto. evite modificar qualquer coisas desnecessaria no script.
             context_parts.append(types.Part.from_text(text=f"--- START OF FILE {relative_path_str} ---{summary}\n{content}\n--- END OF FILE {relative_path_str} ---"))
             loaded_count += 1
         except Exception as e:
-            print(f"      - Warning: Could not read file {filepath.name}: {e}", file=sys.stderr)
+            print(f"      - Warning: Could not read file {relative_path_str}: {e}", file=sys.stderr)
 
-    # Reporting counts
-    if include_set is not None:
-        # Calculate how many included files were *expected* to be in *this specific directory*
-        expected_in_this_dir = 0
-        for include_path_str in include_set:
-             absolute_path_to_check = (BASE_DIR / include_path_str).resolve(strict=False)
-             # Check if path is inside the context_dir being processed
-             # Using is_relative_to might be too strict if context_dir itself is a symlink target etc.
-             # Safer check: see if the resolved path *starts with* the resolved context_dir path
-             if str(absolute_path_to_check).startswith(str(context_dir.resolve())):
-                 expected_in_this_dir += 1
-
-        skipped_include_count = expected_in_this_dir - loaded_count - excluded_count
-        if skipped_include_count > 0:
-             print(f"      - Info: {skipped_include_count} included files not found or readable in {context_dir.relative_to(BASE_DIR)}.")
-
-    print(f"      - Loaded {loaded_count} file(s) from {context_dir.relative_to(BASE_DIR)}.")
-    if exclude_list: print(f"      - Excluded {excluded_count} file(s) based on --exclude-context.")
+    print(f"      - Loaded {loaded_count} file(s) from {context_dir.relative_to(PROJECT_ROOT)} (default load).")
+    if exclude_list: print(f"      - Excluded {excluded_count} file(s) based on --exclude-context (default load).")
 
 
 def prepare_context_parts(
@@ -290,19 +254,76 @@ def prepare_context_parts(
     manifest_data: Optional[Dict[str, Any]] = None,
     include_list: Optional[List[str]] = None # List of relative paths to include
 ) -> List[types.Part]:
-    """Prepare context files as types.Part, supporting include/exclude lists."""
+    """
+    Prepare context files as types.Part.
+    If include_list is provided (AC23), load ONLY those files.
+    Otherwise (AC24), load from primary and common dirs using _load_files_from_dir.
+    Always apply exclude_list (AC25).
+    """
     context_parts: List[types.Part] = []
+    exclude_set = set(exclude_list) if exclude_list else set()
+    loaded_count = 0
+    excluded_by_arg_count = 0
+    skipped_not_found = 0
+
     print("  Loading context files...")
 
-    # Call _load_files_from_dir for both primary and common directories.
-    # The helper function itself will now filter based on include_list if provided.
-    if primary_context_dir:
-        _load_files_from_dir(primary_context_dir, context_parts, exclude_list, manifest_data, include_list)
-    if common_context_dir and common_context_dir.exists() and common_context_dir.is_dir():
-        _load_files_from_dir(common_context_dir, context_parts, exclude_list, manifest_data, include_list)
+    if include_list is not None:
+        print(f"    Loading based on include list ({len(include_list)} files)...")
+        include_set = set(include_list) # Ensure uniqueness
 
-    print(f"  Total context files loaded: {len(context_parts)}.")
+        for relative_path_str in include_set:
+            # Apply exclusion list first (AC25 applied before loading)
+            if relative_path_str in exclude_set:
+                excluded_by_arg_count += 1
+                print(f"      - Excluding '{relative_path_str}' due to --exclude-context.")
+                continue
+
+            filepath_absolute = (PROJECT_ROOT / relative_path_str).resolve(strict=False)
+
+            if not filepath_absolute.is_file():
+                print(f"      - Warning: Included file not found or is not a file: {relative_path_str}", file=sys.stderr)
+                skipped_not_found += 1
+                continue
+
+            # Security check: Ensure it's within the project root
+            try:
+                 filepath_absolute.relative_to(PROJECT_ROOT)
+            except ValueError:
+                 print(f"      - Warning: Skipping file outside project root: {relative_path_str}", file=sys.stderr)
+                 skipped_not_found += 1
+                 continue
+
+            # Load content and summary (AC23 loading selected file)
+            try:
+                content = filepath_absolute.read_text(encoding='utf-8', errors='ignore')
+                summary = ""
+                # AC29: Common context files are handled like any other if included in include_list
+                if manifest_data and "files" in manifest_data and relative_path_str in manifest_data["files"]:
+                    summary_data = manifest_data["files"][relative_path_str].get("summary")
+                    if summary_data: summary = f"\n--- SUMMARY ---\n{summary_data}\n--- END SUMMARY ---"
+
+                context_parts.append(types.Part.from_text(text=f"--- START OF FILE {relative_path_str} ---{summary}\n{content}\n--- END OF FILE {relative_path_str} ---"))
+                loaded_count += 1
+            except Exception as e:
+                print(f"      - Warning: Could not read file {relative_path_str}: {e}", file=sys.stderr)
+                skipped_not_found += 1
+        print(f"    Loaded {loaded_count} files from include list.")
+        if exclude_list: print(f"    Excluded {excluded_by_arg_count} files based on --exclude-context.")
+        if skipped_not_found > 0: print(f"    Skipped {skipped_not_found} included files (not found/readable/outside project).")
+
+    else: # Default loading (AC24: no include list)
+        print("    Loading from default directories (latest context + common)...")
+        if primary_context_dir:
+            _load_files_from_dir(primary_context_dir, context_parts, exclude_list, manifest_data) # Pass exclude_list
+        if common_context_dir and common_context_dir.exists() and common_context_dir.is_dir():
+            _load_files_from_dir(common_context_dir, context_parts, exclude_list, manifest_data) # Pass exclude_list
+
+    print(f"  Total context parts prepared: {len(context_parts)}.")
     return context_parts
+
+# --- End of Revised Context Loading ---
+
 
 def save_llm_response(task_name: str, response_content: str) -> None:
     """Saves the LLM's final response."""
@@ -993,35 +1014,40 @@ if __name__ == "__main__":
         latest_context_dir = find_latest_context_dir(CONTEXT_DIR_BASE) # Still need this for default case
         if latest_context_dir is None: print("Fatal Error: Could not find context directory.", file=sys.stderr); sys.exit(1)
 
+        # --- AC23: Load context based on user confirmation ---
+        # --- AC24: Handled by the 'else' condition ---
         if not use_default_context and final_selected_files is not None:
             print("\nLoading User/LLM Selected Context Files...")
-            # AC23: Load context ONLY from the final list
             # AC25: Apply exclusions AFTER selection
             # AC29: Common context files are implicitly handled if they are in final_selected_files
             context_parts = prepare_context_parts(
-                latest_context_dir, # Still needed to check for files within latest
-                COMMON_CONTEXT_DIR, # Still needed to check for files within common
+                latest_context_dir, # Pass for potential lookups within manifest
+                COMMON_CONTEXT_DIR, # Pass for potential lookups within manifest
                 args.exclude_context, # Apply exclusion list
                 manifest_data_for_context, # Pass manifest for summaries
-                final_selected_files # The list of files to actually include
+                final_selected_files # *Only* include files from this list
             )
             if not context_parts: print("  Warning: No context files loaded after selection/exclusion.", file=sys.stderr)
-        else: # Default case (no selection or user chose default)
+        else: # Default case (no --select-context or user chose default/quit)
             print("\nLoading Default Context...")
             print(f"  Latest Context Directory: {latest_context_dir.relative_to(BASE_DIR)}")
-            # Load all relevant context, applying exclusions
+            # AC25: Apply exclusions here too for the default case
             context_parts = prepare_context_parts(
                 latest_context_dir,
                 COMMON_CONTEXT_DIR,
-                args.exclude_context,
+                args.exclude_context, # Apply exclusion list
                 manifest_data_for_context # Pass manifest for summaries if available
+                # No include_list needed, load all relevant files from dirs
             )
             if not context_parts: print("  Warning: No context files loaded (or all were excluded).", file=sys.stderr)
+        # --- End of AC23/AC24 implementation ---
+
 
         # --- Execute Main Task Flow (Uses loaded context_parts) ---
         # ... (rest of the main task logic - two-stage or direct, API calls, final action) ...
         final_prompt_to_send: Optional[str] = None
-        if is_two_stage: # AC26: Check if context selection is needed for both stages
+        # AC26: The selected context (context_parts) will be used here for both stages if needed
+        if is_two_stage:
              print("\nExecuting Two-Stage Flow (Step 1: Meta -> Final Prompt)...")
              prompt_final_content: Optional[str] = None
              meta_prompt_current = initial_prompt_content_current
@@ -1040,6 +1066,9 @@ if __name__ == "__main__":
                      elif user_choice == 'q': print("Exiting after Step 1."); sys.exit(0)
                      elif user_choice == 'n': meta_prompt_current = modify_prompt_with_observation(meta_prompt_current, observation)
                      else: print("Internal error. Exiting.", file=sys.stderr); sys.exit(1)
+                 except RuntimeError as e: # Catch block reason (AC27)
+                      if "Prompt blocked" in str(e): print(f"  Error: {e}", file=sys.stderr); print("Aborting task due to prompt blocking in Step 1."); sys.exit(1)
+                      else: raise
                  except Exception as e:
                       print(f"  Error during Step 1 API call: {e}", file=sys.stderr)
                       retry_choice, _ = confirm_step("API call failed in Step 1. Retry?")
@@ -1067,9 +1096,9 @@ if __name__ == "__main__":
                 elif user_choice == 'q': print("Exiting."); sys.exit(0)
                 elif user_choice == 'n': final_prompt_current = modify_prompt_with_observation(final_prompt_current, observation)
                 else: print("Internal error. Exiting.", file=sys.stderr); sys.exit(1)
-            except RuntimeError as e: # Catch specific block reason error from execute_gemini_call (AC27)
-                 if "Prompt blocked" in str(e): print(f"  Error: {e}", file=sys.stderr); print("Aborting task due to prompt blocking."); sys.exit(1)
-                 else: raise # Re-raise other runtime errors
+            except RuntimeError as e: # Catch block reason (AC27)
+                 if "Prompt blocked" in str(e): print(f"  Error: {e}", file=sys.stderr); print("Aborting task due to prompt blocking in final step."); sys.exit(1)
+                 else: raise
             except Exception as e:
                  print(f"  Error during final API call: {e}", file=sys.stderr)
                  retry_choice, _ = confirm_step("Final API call failed. Retry?")
