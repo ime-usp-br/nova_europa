@@ -15,6 +15,7 @@ new #[Layout('layouts.guest')] class extends Component
     public string $password = '';
     public string $password_confirmation = '';
     public bool $isUspUser = false; // Property to track the checkbox state
+    public string $codpes = ''; // Add property for 'Número USP (codpes)' field
 
     /**
      * Handle an incoming registration request.
@@ -26,11 +27,26 @@ new #[Layout('layouts.guest')] class extends Component
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
             // Add validation for 'codpes' here later based on 'isUspUser' or email domain
+            // Example (future AC):
+            // 'codpes' => [
+            //      Rule::requiredIf($this->isUspUser || str_ends_with($this->email, '@usp.br')),
+            //      'nullable', // Allow null if not required
+            //      'numeric',
+            //      'digits_between:6,8', // Example length
+            //      // Rule::exists('replicado_table', 'codpes') // Future validation if needed
+            // ],
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
 
         // Add logic to handle 'codpes' field saving later
+        // Example (future AC):
+        // if (isset($validated['codpes'])) {
+        //     // Save codpes if provided and validated
+        // } else {
+        //     $validated['codpes'] = null; // Ensure it's null if not provided/required
+        // }
+        // unset($validated['isUspUser']); // Assuming isUspUser is not a DB column
 
         event(new Registered($user = User::create($validated)));
 
@@ -65,14 +81,19 @@ new #[Layout('layouts.guest')] class extends Component
             <x-input-error :messages="$errors->get('isUspUser')" class="mt-2" />
         </div>
 
-        <!-- Número USP (codpes) - To be added and made conditional later -->
-        {{--
-        <div class="mt-4" x-data="{ showCodpes: @entangle('isUspUser').live || $wire.email.endsWith('@usp.br') }" x-show="showCodpes" x-cloak>
-             <x-input-label for="codpes" :value="__('Número USP (codpes)')" />
-             <x-text-input wire:model="codpes" id="codpes" class="block mt-1 w-full" type="text" name="codpes" :required="$wire.isUspUser || str_ends_with($wire.email, '@usp.br')" autocomplete="off" dusk="codpes-input" />
+        <!-- Número USP (codpes) - AC4: Present but initially hidden -->
+        {{-- This block will be uncommented and made conditional in future ACs (AC5, AC6, AC7, AC8) --}}
+        <div class="mt-4"
+             x-data="{ showCodpes: @entangle('isUspUser').live || $wire.email.endsWith('usp.br') }"
+             x-show="showCodpes"
+             x-cloak
+             x-transition>
+             <x-input-label for="codpes" :value="__('USP Number (codpes)')" />
+             <x-text-input wire:model.live="codpes" id="codpes" class="block mt-1 w-full" type="text" name="codpes"
+                           x-bind:required="showCodpes" {{-- AC8: Conditional required --}}
+                           autocomplete="off" dusk="codpes-input" />
              <x-input-error :messages="$errors->get('codpes')" class="mt-2" />
         </div>
-        --}}
 
 
         <!-- Password -->
