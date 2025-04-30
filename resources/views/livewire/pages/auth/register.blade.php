@@ -14,6 +14,7 @@ new #[Layout('layouts.guest')] class extends Component
     public string $email = '';
     public string $password = '';
     public string $password_confirmation = '';
+    public bool $isUspUser = false; // Property to track the checkbox state
 
     /**
      * Handle an incoming registration request.
@@ -24,9 +25,12 @@ new #[Layout('layouts.guest')] class extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
+            // Add validation for 'codpes' here later based on 'isUspUser' or email domain
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
+
+        // Add logic to handle 'codpes' field saving later
 
         event(new Registered($user = User::create($validated)));
 
@@ -51,6 +55,25 @@ new #[Layout('layouts.guest')] class extends Component
             <x-text-input wire:model="email" id="email" class="block mt-1 w-full" type="email" name="email" required autocomplete="username" dusk="email-input" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
+
+        <!-- I'm from USP Checkbox -->
+        <div class="block mt-4">
+            <label for="is_usp_user" class="inline-flex items-center">
+                <input id="is_usp_user" type="checkbox" class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800" name="is_usp_user" wire:model.live="isUspUser" dusk="is-usp-user-checkbox">
+                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('I\'m from USP') }}</span>
+            </label>
+            <x-input-error :messages="$errors->get('isUspUser')" class="mt-2" />
+        </div>
+
+        <!-- Número USP (codpes) - To be added and made conditional later -->
+        {{--
+        <div class="mt-4" x-data="{ showCodpes: @entangle('isUspUser').live || $wire.email.endsWith('@usp.br') }" x-show="showCodpes" x-cloak>
+             <x-input-label for="codpes" :value="__('Número USP (codpes)')" />
+             <x-text-input wire:model="codpes" id="codpes" class="block mt-1 w-full" type="text" name="codpes" :required="$wire.isUspUser || str_ends_with($wire.email, '@usp.br')" autocomplete="off" dusk="codpes-input" />
+             <x-input-error :messages="$errors->get('codpes')" class="mt-2" />
+        </div>
+        --}}
+
 
         <!-- Password -->
         <div class="mt-4">

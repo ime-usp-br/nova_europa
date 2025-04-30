@@ -25,14 +25,14 @@ __OBSERVACAO_ADICIONAL__
 
 *   **PROIBIDO:** **NUNCA** mencione nomes de arquivos de contexto não versionados (`.txt`, `.json`, `.md`, etc.).
 *   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados/modificados para este AC, no formato **ESTRITO**:
-    ```
+
     --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
     Código completo do arquivo...
     --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
     --- START OF FILE path/relativo/ao/projeto/arquivo2.ext ---
     Código completo do arquivo2...
     --- END OF FILE path/relativo/ao/projeto/arquivo2.ext ---
-    ```
+
     *   **Deduza** o `path/relativo/ao/projeto/arquivo.ext` correto.
     *   **NENHUM** texto extra (introdução, explicação, comentários fora do código) fora dos blocos `--- START/END ---`.
     *   Comece a resposta diretamente com o primeiro `--- START OF FILE ...`. Termine imediatamente após o último `--- END OF FILE ...`.
