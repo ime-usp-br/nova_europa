@@ -52,6 +52,7 @@ new #[Layout('layouts.guest')] class extends Component
             'codpes' => [
                 // Only require codpes if the sou_da_usp checkbox is checked
                 // (which is automatically checked if email ends with @usp.br)
+                // This handles the conditional requirement on the backend (AC8 logic moved here).
                 Rule::requiredIf($this->sou_da_usp),
                 'nullable', // Allows it to be null if not required
                 'numeric', // Basic numeric check
@@ -98,18 +99,17 @@ new #[Layout('layouts.guest')] class extends Component
     <form wire:submit="register">
         <!-- Name -->
         <div>
-            <x-input-label for="name" :value="__('Name')" />
-            <x-text-input wire:model="name" id="name" class="block mt-1 w-full" type="text" name="name" required autofocus autocomplete="name" />
-            <x-input-error :messages="$errors->get('name')" class="mt-2" />
+            <x-input-label for="name" :value="__('Name')" dusk="name-label" />
+            <x-text-input wire:model="name" id="name" class="block mt-1 w-full" type="text" name="name" required autofocus autocomplete="name" dusk="name-input" />
+            <x-input-error :messages="$errors->get('name')" class="mt-2" dusk="name-error" />
         </div>
 
         <!-- Email Address -->
         <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
-            {{-- Use wire:model.defer.blur to update Livewire state less frequently --}}
-            {{-- Or use wire:model.live if you need instant backend reaction beyond the hook --}}
-            <x-text-input wire:model.blur="email" id="email" class="block mt-1 w-full" type="email" name="email" required autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-input-label for="email" :value="__('Email')" dusk="email-label" />
+            {{-- Use wire:model.blur to update Livewire state less frequently --}}
+            <x-text-input wire:model.blur="email" id="email" class="block mt-1 w-full" type="email" name="email" required autocomplete="username" dusk="email-input" />
+            <x-input-error :messages="$errors->get('email')" class="mt-2" dusk="email-error" />
         </div>
 
         {{-- --- ADDED USP FIELDS --- --}}
@@ -122,52 +122,56 @@ new #[Layout('layouts.guest')] class extends Component
                        {{-- Disable checkbox if email is already a USP email --}}
                        :disabled="$wire.email.toLowerCase().endsWith('usp.br')"
                        class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                       name="sou_da_usp">
-                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Sou da USP') }}</span>
+                       name="sou_da_usp"
+                       dusk="is-usp-user-checkbox">
+                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('I\'m from USP') }}</span>
             </label>
-             <x-input-error :messages="$errors->get('sou_da_usp')" class="mt-2" />
+             <x-input-error :messages="$errors->get('sou_da_usp')" class="mt-2" dusk="sou_da_usp-error" />
         </div>
 
         <!-- Número USP (codpes) Field - Conditional -->
         {{-- Show if email ends with @usp.br OR the checkbox is checked --}}
         <div x-show="$wire.email.toLowerCase().endsWith('usp.br') || $wire.sou_da_usp"
+             x-cloak {{-- Prevent flash of unstyled content --}}
              x-transition
              class="mt-4">
-            <x-input-label for="codpes" :value="__('Número USP (codpes)')" />
+            <x-input-label for="codpes" :value="__('USP Number (codpes)')" dusk="codpes-label" />
             <x-text-input wire:model="codpes" id="codpes" class="block mt-1 w-full"
                           type="text" {{-- Use text, validation handles numeric --}}
                           inputmode="numeric" {{-- Hint for mobile keyboards --}}
                           name="codpes"
-                          autocomplete="off" />
-            <x-input-error :messages="$errors->get('codpes')" class="mt-2" />
+                          autocomplete="off"
+                          x-bind:required="$wire.email.toLowerCase().endsWith('usp.br') || $wire.sou_da_usp"
+                          dusk="codpes-input" />
+            <x-input-error :messages="$errors->get('codpes')" class="mt-2" dusk="codpes-error" />
         </div>
         {{-- --- END ADDED USP FIELDS --- --}}
 
 
         <!-- Password -->
         <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+            <x-input-label for="password" :value="__('Password')" dusk="password-label" />
             <x-text-input wire:model="password" id="password" class="block mt-1 w-full"
                             type="password"
                             name="password"
-                            required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                            required autocomplete="new-password" dusk="password-input" />
+            <x-input-error :messages="$errors->get('password')" class="mt-2" dusk="password-error" />
         </div>
 
         <!-- Confirm Password -->
         <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+            <x-input-label for="password_confirmation" :value="__('Confirm Password')" dusk="password-confirmation-label" />
             <x-text-input wire:model="password_confirmation" id="password_confirmation" class="block mt-1 w-full"
                             type="password"
-                            name="password_confirmation" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+                            name="password_confirmation" required autocomplete="new-password" dusk="password-confirmation-input" />
+            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" dusk="password-confirmation-error" />
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('login.local') }}" wire:navigate>
+            <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('login.local') }}" wire:navigate dusk="already-registered-link">
                 {{ __('Already registered?') }}
             </a>
-            <x-primary-button class="ms-4">
+            <x-primary-button class="ms-4" dusk="register-button">
                 {{ __('Register') }}
             </x-primary-button>
         </div>
