@@ -123,6 +123,7 @@ new #[Layout('layouts.guest')] class extends Component
         <!-- "Sou da USP" Checkbox -->
         <div class="block mt-4">
             <label for="sou_da_usp" class="inline-flex items-center">
+                {{-- AC13: Uses existing dusk selector 'is-usp-user-checkbox' from previous commit --}}
                 <input wire:model="sou_da_usp"
                        id="sou_da_usp"
                        type="checkbox"
@@ -138,11 +139,14 @@ new #[Layout('layouts.guest')] class extends Component
 
         <!-- Número USP (codpes) Field - Conditional -->
         {{-- Show if email ends with @usp.br OR the checkbox is checked --}}
+        {{-- AC13: Added dusk="codpes-container" to the surrounding div --}}
         <div x-show="$wire.email.toLowerCase().endsWith('usp.br') || $wire.sou_da_usp"
              x-cloak {{-- Prevent flash of unstyled content --}}
              x-transition
-             class="mt-4">
+             class="mt-4"
+             dusk="codpes-container">
             <x-input-label for="codpes" :value="__('USP Number (codpes)')" dusk="codpes-label" />
+             {{-- AC13: Uses existing dusk selector 'codpes-input' from previous commit --}}
             <x-text-input wire:model="codpes" id="codpes" class="block mt-1 w-full"
                           type="text" {{-- Use text, validation handles numeric --}}
                           inputmode="numeric" {{-- Hint for mobile keyboards --}}
