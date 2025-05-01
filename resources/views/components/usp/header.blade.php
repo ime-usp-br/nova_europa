@@ -46,13 +46,6 @@
         <div class="w-full bg-usp-blue-sec" style="height: {{ $faixaHeightPx }}px;"></div> {{-- Usando style --}}
         {{-- Faixa 3 (Inferior) - Azul Primário (Mais alta) --}}
         <div class="w-full bg-usp-blue-pri" style="height: {{ $faixaInferiorHeightPx }}px;"></div> {{-- Usando style --}}
-
-        {{-- Nome da Aplicação Posicionado Absolutamente --}}
-        <div class="absolute bottom-0 right-4 sm:right-6 lg:right-8">
-             <span class="font-sans text-xs text-white">
-                 {{ config('app.name', 'Laravel') }}
-             </span>
-        </div>
+        
     </div>
-
 </header>

@@ -27,18 +27,12 @@ new #[Layout('layouts.guest')] class extends Component // Garante que usa o layo
 }; ?>
 
 <div>
-    {{-- *** INÍCIO DA MODIFICAÇÃO: Adiciona container e logos IME *** --}}
-    <div class="flex justify-center mb-4"> {{-- Container para centralizar o logo --}}
+    <div class="flex justify-center mb-4">
         <a href="/" wire:navigate>
-            {{-- Logo IME - Padrão (Modo Claro) --}}
-            {{-- AC8: Adicionado seletor dusk --}}
             <img src="{{ Vite::asset('resources/images/ime/logo-vertical-simplificada-padrao.png') }}" alt="Logo IME-USP" class="w-20 h-auto block dark:hidden" dusk="ime-logo-light">
-            {{-- Logo IME - Branca (Modo Escuro) --}}
-            {{-- AC8: Adicionado seletor dusk --}}
             <img src="{{ Vite::asset('resources/images/ime/logo-vertical-simplificada-branca.png') }}" alt="Logo IME-USP" class="w-20 h-auto hidden dark:block" dusk="ime-logo-dark">
         </a>
     </div>
-    {{-- *** FIM DA MODIFICAÇÃO *** --}}
 
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
