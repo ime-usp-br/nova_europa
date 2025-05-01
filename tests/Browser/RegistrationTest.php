@@ -4,9 +4,9 @@ namespace Tests\Browser;
 
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
-use Tests\DuskTestCase;
-use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\DuskTestCase;
 
 class RegistrationTest extends DuskTestCase
 {
@@ -47,7 +47,6 @@ class RegistrationTest extends DuskTestCase
                 ->assertMissing('@codpes-container') // AC7
                 ->assertAttributeMissing('@codpes-input', 'required'); // AC8 - Check attribute is missing
 
-
             // Clear email and type USP email -> should appear and be required
             $browser->clear('@email-input')
                 ->type('@email-input', 'test@usp.br')
@@ -58,7 +57,7 @@ class RegistrationTest extends DuskTestCase
                 ->assertAttribute('@codpes-input', 'required', 'true'); // AC8
 
             // Clear email and type non-USP email again -> should hide and not be required
-             $browser->clear('@email-input')
+            $browser->clear('@email-input')
                 ->type('@email-input', 'another@example.com')
                 ->uncheck('@is-usp-user-checkbox')
                 ->pause(150) // Increased pause slightly
