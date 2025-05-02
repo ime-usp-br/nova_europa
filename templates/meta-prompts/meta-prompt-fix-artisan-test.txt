@@ -1,0 +1,48 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Crie **EXCLUSIVAMENTE** o texto de um **prompt final**. Este prompt final instruirá uma IA (a "IA Final") a corrigir erros de testes do Artisan (PHPUnit) reportados no arquivo `phpunit_test_results.txt`, gerando código PHP corrigido, utilizando como base este meta-prompt e os arquivos de contexto anexados. **NÃO** inclua **NADA** além do texto puro e exato deste prompt final. **ZERO** introduções, **ZERO** explicações, **ZERO** comentários pré ou pós-prompt. Sua saída deve começar **IMEDIATAMENTE** com a primeira palavra do prompt final e terminar **IMEDIATAMENTE** com a última palavra dele. Qualquer caractere fora do texto do prompt final é **ESTRITAMENTE PROIBIDO**.
+
+**Instruções para a Construção do Prompt Final (QUE VOCÊ DEVE GERAR E NADA MAIS):**
+
+O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a seguir **OBRIGATORIAMENTE E SEM EXCEÇÕES** as seguintes diretrizes:
+
+1.  **Objetivo Principal:** Instrua a IA Final a analisar o arquivo `phpunit_test_results.txt` fornecido no contexto, identificar os testes que falharam, diagnosticar se o erro está no código do teste ou no código da aplicação, e gerar o código **COMPLETO e CORRIGIDO** para o(s) arquivo(s) PHP relevante(s).
+
+2.  **Análise Mandatória do Contexto:** Exija que a IA Final analise **TODOS** os arquivos de contexto anexados, com **ÊNFASE** em:
+    *   `phpunit_test_results.txt`: Para identificar os testes exatos que falharam, as mensagens de erro e os stack traces.
+    *   Os arquivos de teste (`tests/...Test.php`) mencionados no relatório como falhos.
+    *   Os arquivos de código da aplicação (`app/...`) mencionados nos stack traces ou mensagens de erro.
+    *   `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`: Para garantir que as correções sigam os padrões de código do projeto (PSR-12/Pint, nomenclatura, etc.).
+    *   Outros arquivos `.php` relacionados (se fornecidos): Para entender tipos e assinaturas de métodos/classes referenciadas nos erros ou código afetado.
+
+3.  **Diretrizes de Correção Específicas:**
+    *   **Foco nas Falhas:** A IA Final **DEVE** focar **EXCLUSIVAMENTE** em corrigir as falhas específicas listadas em `phpunit_test_results.txt`. **NÃO DEVE** fazer refatorações não solicitadas, otimizações, ou adicionar novos testes não relacionados diretamente à correção da falha.
+    *   **Diagnóstico da Causa Raiz:** A IA Final **DEVE** tentar determinar se a falha é causada por lógica incorreta no teste ou por um bug no código da aplicação sendo testado.
+    *   **Correção Direcionada:** A IA Final **DEVE** gerar o código corrigido para o arquivo correto (seja o arquivo de teste ou o arquivo da aplicação). Se a correção exigir mudanças em ambos (incomum, mas possível), ambos os arquivos completos e corrigidos devem ser fornecidos.
+    *   **Validade do Código:** O código corrigido **DEVE** ser PHP válido e sintaticamente correto para a versão do projeto (Laravel 12 / PHP 8.2+).
+    *   **Manter Estilo:** As correções **DEVEM** manter o estilo de código e a formatação existentes no arquivo original o máximo possível, aderindo aos padrões PSR-12/Pint definidos nos guias.
+    *   **Impacto Mínimo:** As alterações **DEVEM** ser as mínimas necessárias para fazer o teste passar, resolvendo o erro reportado.
+    *   **Nomenclatura/Traduções:** Manter a nomenclatura existente. Não introduzir texto de usuário.
+
+4.  **Restrições de Saída da IA Final:**
+    *   **PROIBIÇÃO ABSOLUTA DE MENÇÃO DE ARQUIVOS DE CONTEXTO:** Ordene CATEGORICAMENTE que a IA Final **NÃO mencione NUNCA** nomes de arquivos de contexto (`phpunit_test_results.txt`, `.md`, etc.) na saída final ou em comentários.
+    *   **ESTRUTURA DA RESPOSTA FINAL (REFORÇO CRÍTICO):** Ordene que a IA Final forneça **UMA ÚNICA RESPOSTA TEXTUAL**. Esta resposta **DEVE CONTER APENAS E SOMENTE APENAS** a concatenação sequencial do código **COMPLETO e CORRIGIDO** para **CADA ARQUIVO PHP** que foi modificado para corrigir as falhas. O bloco total de código de arquivo **DEVE** seguir **ESTRITAMENTE** o formato:
+        ```
+        --- START OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+        <?php // Código PHP completo e corrigido do arquivo... ?>
+        --- END OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+        --- START OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+        <?php // Código PHP completo e corrigido do outro arquivo... ?>
+        --- END OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+        ```
+        *   A IA Final **DEVE** incluir o código **COMPLETO** do arquivo modificado, não apenas os trechos alterados.
+        *   O `path/relativo/ao/projeto/arquivo_corrigido.php` **DEVE** ser o caminho exato do arquivo que continha o erro original ou que precisou ser corrigido.
+        *   A resposta completa da IA Final **NÃO DEVE conter NENHUM prefixo, NENHUM sufixo, NENHUMA explicação, NENHUM comentário fora do código, NENHUMA saudação ou qualquer outro texto FORA** da sequência direta desses blocos `--- START/END ---`.
+        *   A resposta inteira deve começar com o primeiro `--- START OF FILE ...`. Termine imediatamente após o último `--- END OF FILE ...`.
+    *   **SE NENHUMA CORREÇÃO DE CÓDIGO FOR POSSÍVEL/NECESSÁRIA:** Se, após análise, a IA concluir que os erros reportados no `phpunit_test_results.txt` são devidos a problemas de ambiente, configuração, ou não podem ser resolvidos com alterações nos arquivos de código fornecidos, sua resposta **DEVE ser ABSOLUTAMENTE VAZIA**. Retorne uma string vazia, sem nenhum texto.
+
+5.  **Observação Adicional:** O prompt final **DEVE** incluir a seguinte observação como uma diretriz adicional a ser considerada pela IA Final:
+    ```
+    __OBSERVACAO_ADICIONAL__
+    ```
+
+**REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final que instruirá a IA Final a gerar o código corrigido para as falhas de teste, seguindo as diretrizes de formato de saída revisadas e utilizando os valores específicos que já estarão presentes neste meta-prompt quando você o processar. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**
