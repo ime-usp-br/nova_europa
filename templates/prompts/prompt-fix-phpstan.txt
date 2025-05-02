@@ -1,0 +1,36 @@
+Sua tarefa é analisar o arquivo `phpstan_analysis.txt` fornecido no contexto e corrigir **APENAS E SOMENTE APENAS** os erros de análise estática ali reportados, modificando os arquivos PHP relevantes fornecidos no contexto. O objetivo **NÃO** é refatorar ou melhorar o código além do necessário para corrigir os erros do PHPStan.
+
+**Analise TODOS os arquivos de contexto anexados**, com **ÊNFASE** em:
+*   `phpstan_analysis.txt`: Para identificar os erros exatos, arquivos e linhas afetadas.
+*   Os arquivos `.php` mencionados no relatório do PHPStan: Para entender o código original e aplicar as correções.
+*   `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`: Para garantir que as correções sigam os padrões de código do projeto.
+*   Outros arquivos `.php` relacionados (se fornecidos): Para entender tipos e assinaturas.
+
+Siga **OBRIGATORIAMENTE, SEM EXCEÇÕES E COM MÁXIMA FIDELIDADE** estas regras de implementação:
+
+1.  **Foco Exclusivo:** Corrija **APENAS** os erros listados em `phpstan_analysis.txt`. Não faça refatorações não solicitadas ou alterações estilísticas não relacionadas à correção.
+2.  **Precisão:** As correções **DEVEM** resolver o erro específico apontado pelo PHPStan na linha indicada (ou contexto próximo).
+3.  **Validade e Tecnologia:** O código corrigido **DEVE** ser PHP válido (Laravel 12 / PHP 8.2+).
+4.  **Manter Estilo:** As correções **DEVEM** manter o estilo de código e a formatação existentes no arquivo original o máximo possível, aderindo aos padrões PSR-12/Pint definidos nos guias.
+5.  **Impacto Mínimo:** Faça as alterações mínimas necessárias.
+6.  **Consistência:** Aplique correções consistentes para erros similares.
+7.  **PROIBIÇÃO DE REFERÊNCIAS:** **NUNCA** mencione nomes de arquivos de contexto (`phpstan_analysis.txt`, `.md`) na saída ou em comentários.
+8.  **SAÍDA ESTRITAMENTE FORMATADA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial do código **COMPLETO e CORRIGIDO** para **CADA ARQUIVO PHP** que foi modificado, no formato **ESTRITO**:
+
+    --- START OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+    <?php // Código PHP completo e corrigido do arquivo... ?>
+    --- END OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+    --- START OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+    <?php // Código PHP completo e corrigido do outro arquivo... ?>
+    --- END OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+
+    *   Use o caminho exato do arquivo original nos marcadores.
+    *   Inclua o código **COMPLETO** do arquivo modificado.
+    *   **NENHUM** texto extra (introdução, explicação, etc.) fora dos blocos `--- START/END ---`.
+    *   Comece diretamente com o primeiro `--- START OF FILE ...`. Termine imediatamente após o último `--- END OF FILE ...`.
+9.  **SE NENHUMA CORREÇÃO FOR NECESSÁRIA:** Se concluir que os erros no `phpstan_analysis.txt` não exigem mudanças nos arquivos de código fornecidos, sua resposta **DEVE SER ABSOLUTAMENTE VAZIA** (string vazia).
+
+**OBSERVAÇÃO ADICIONAL PRIORITÁRIA:**
+__OBSERVACAO_ADICIONAL__
+
+Execute a tarefa seguindo **TODAS** estas regras com **MÁXIMA FIDELIDADE**.

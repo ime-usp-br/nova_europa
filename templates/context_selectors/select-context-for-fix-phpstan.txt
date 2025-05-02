@@ -1,0 +1,39 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+
+**Tarefa Principal:** Corrigir os erros de análise estática reportados no arquivo `phpstan_analysis.txt`, gerando o código PHP corrigido para os arquivos afetados, seguindo os padrões do projeto.
+
+**Manifesto JSON Fornecido:**
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+
+**Seu Processo de Seleção:**
+1.  Entenda profundamente o objetivo da **Tarefa Principal**: corrigir erros do PHPStan listados em `phpstan_analysis.txt`.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
+3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
+    *   **OBRIGATÓRIO:** O relatório de erros do PHPStan (`phpstan_analysis.txt`). Este é o arquivo mais importante.
+    *   **OBRIGATÓRIO:** Os arquivos `.php` específicos mencionados no relatório `phpstan_analysis.txt` como contendo erros. Você DEVE identificar esses caminhos no manifesto.
+    *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões de código a serem seguidos.
+    *   (Opcional, se o erro indicar problemas de tipo entre classes) Outros arquivos `.php` (Models, Services, Interfaces, Traits) que sejam diretamente referenciados nos erros ou no código dos arquivos afetados, para que a IA entenda os tipos e assinaturas corretos. Use o `summary` para ajudar a decidir.
+4.  **Priorize:** O `phpstan_analysis.txt` e os arquivos PHP diretamente afetados são essenciais. Os guias de padrões são muito importantes. Arquivos PHP relacionados são contextuais.
+5.  **Exclua:** Diffs de Git, logs de commit, detalhes de issues, arquivos de teste (a menos que o erro esteja *no* teste), arquivos de configuração não relevantes, dependências, views Blade, assets, e outros arquivos de contexto não diretamente necessários para *entender e corrigir os erros específicos* reportados pelo PHPStan.
+
+**Formato de Saída OBRIGATÓRIO E ESTRITO:**
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+
+**Exemplo de Saída:**
+```json
+{
+  "relevant_files": [
+    "context_llm/code/YYYYMMDD_HHMMSS/phpstan_analysis.txt",
+    "app/Http/Controllers/AffectedController.php",
+    "app/Services/SomeService.php",
+    "app/Models/UserModel.php",
+    "docs/padroes_codigo_boas_praticas.md"
+  ]
+}
+```
+
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo for considerado relevante (altamente improvável para esta tarefa, pois o `phpstan_analysis.txt` sempre será), retorne `{"relevant_files": []}`.

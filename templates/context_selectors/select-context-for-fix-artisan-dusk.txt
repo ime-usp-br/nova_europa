@@ -1,0 +1,41 @@
+**Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+
+**Tarefa Principal:** Analisar a saída do comando `php artisan dusk` (contida em `dusk_test_results.txt`), identificar os testes que falharam, determinar se o erro está no código do teste Dusk ou no código da aplicação (Blade/Livewire/JS), e gerar o código corrigido para o(s) arquivo(s) apropriado(s). Considerar também os artefatos de falha (screenshots, console logs) que estariam disponíveis em `tests/Browser/screenshots` e `tests/Browser/console`.
+
+**Manifesto JSON Fornecido:**
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+
+**Seu Processo de Seleção:**
+1.  Entenda profundamente o objetivo da **Tarefa Principal**: corrigir falhas reportadas em `dusk_test_results.txt`.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
+3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
+    *   **OBRIGATÓRIO:** O resultado da execução dos testes Dusk (`dusk_test_results.txt`).
+    *   **OBRIGATÓRIO:** O(s) arquivo(s) de teste Dusk (`tests/Browser/...Test.php`) específico(s) mencionado(s) como falho(s) no relatório.
+    *   **ALTAMENTE RELEVANTE:** O(s) arquivo(s) de View Blade (`resources/views/...blade.php`) ou Componente Livewire (`resources/views/livewire/...blade.php`) que o teste Dusk falho estava interagindo (inferir do nome do teste, seletores usados no teste ou mensagem de erro).
+    *   **Relevante (se aplicável):** Arquivos JavaScript (`resources/js/...`) se o erro indicar falha de JS no console.
+    *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) para padrões gerais.
+    *   (Opcional) Arquivos base do Dusk (`tests/DuskTestCase.php`, `tests/Browser/Pages/Page.php`) se o erro parecer relacionado à configuração do teste ou Page Objects.
+4.  **Priorize:** O `dusk_test_results.txt`, o teste falho, e a view/componente interagido são essenciais. Guias e JS são importantes para contexto.
+5.  **Exclua:** Testes PHPUnit/PHPStan, código PHP backend não diretamente relacionado à renderização da UI ou lógica Livewire do componente testado, Git logs/diffs, detalhes de issues genéricas, arquivos de configuração não relevantes, dependências, e outros arquivos não diretamente necessários para *diagnosticar e corrigir a falha específica do teste Dusk*.
+
+**Formato de Saída OBRIGATÓRIO E ESTRITO:**
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+
+**Exemplo de Saída:**
+```json
+{
+  "relevant_files": [
+    "context_llm/code/YYYYMMDD_HHMMSS/dusk_test_results.txt",
+    "tests/Browser/LoginTest.php",
+    "resources/views/livewire/pages/auth/login.blade.php",
+    "resources/js/app.js",
+    "docs/padroes_codigo_boas_praticas.md"
+  ]
+}
+```
+
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo for considerado relevante (altamente improvável), retorne `{"relevant_files": []}`.

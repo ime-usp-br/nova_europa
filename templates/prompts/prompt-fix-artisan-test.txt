@@ -1,0 +1,37 @@
+Sua tarefa é analisar o arquivo `phpunit_test_results.txt` fornecido no contexto, identificar os testes que falharam, diagnosticar a causa raiz (erro no teste ou no código da aplicação) e gerar **APENAS E SOMENTE APENAS** o código PHP **COMPLETO e CORRIGIDO** para o(s) arquivo(s) necessário(s) para resolver essas falhas.
+
+**Analise TODOS os arquivos de contexto anexados**, com **ÊNFASE** em:
+*   `phpunit_test_results.txt`: Identifique os testes falhos, mensagens de erro e stack traces.
+*   Arquivos de teste (`tests/...Test.php`) indicados como falhos.
+*   Arquivos da aplicação (`app/...`) mencionados nos erros/stack traces.
+*   `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`: Para padrões de código.
+*   Arquivos PHP relacionados (se houver): Para contexto de tipos/assinaturas.
+
+Siga **OBRIGATORIAMENTE, SEM EXCEÇÕES E COM MÁXIMA FIDELIDADE** estas regras de implementação:
+
+1.  **Foco nas Falhas:** Corrija **APENAS** as falhas listadas em `phpunit_test_results.txt`. Não refatore ou adicione testes não relacionados.
+2.  **Diagnóstico:** Determine se a falha está no teste ou na aplicação.
+3.  **Correção Direcionada:** Gere código corrigido para o arquivo correto (teste ou aplicação). Se ambos precisarem de ajuste, forneça ambos.
+4.  **Validade e Tecnologia:** O código corrigido **DEVE** ser PHP válido (Laravel 12 / PHP 8.2+).
+5.  **Manter Estilo:** As correções **DEVEM** manter o estilo (PSR-12/Pint) e formatação do arquivo original.
+6.  **Impacto Mínimo:** Faça as alterações mínimas necessárias para o teste passar.
+7.  **PROIBIÇÃO DE REFERÊNCIAS:** **NUNCA** mencione nomes de arquivos de contexto não versionados na saída ou em comentários.
+8.  **SAÍDA ESTRITAMENTE FORMATADA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial do código **COMPLETO e CORRIGIDO** para **CADA ARQUIVO PHP** modificado, no formato **ESTRITO**:
+
+    --- START OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+    <?php // Código PHP completo e corrigido do arquivo... ?>
+    --- END OF FILE path/relativo/ao/projeto/arquivo_corrigido.php ---
+    --- START OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+    <?php // Código PHP completo e corrigido do outro arquivo... ?>
+    --- END OF FILE path/relativo/ao/projeto/outro_arquivo_corrigido.php ---
+
+    *   Use o caminho exato do arquivo original nos marcadores.
+    *   Inclua o código **COMPLETO** do arquivo modificado.
+    *   **NENHUM** texto extra (introdução, explicação, etc.) fora dos blocos `--- START/END ---`.
+    *   Comece diretamente com o primeiro `--- START OF FILE ...`. Termine imediatamente após o último `--- END OF FILE ...`.
+9.  **SE NENHUMA CORREÇÃO DE CÓDIGO FOR POSSÍVEL/NECESSÁRIA:** Se concluir que os erros são de ambiente ou não podem ser corrigidos com as informações/código fornecidos, sua resposta **DEVE SER ABSOLUTAMENTE VAZIA** (string vazia).
+
+**OBSERVAÇÃO ADICIONAL PRIORITÁRIA:**
+__OBSERVACAO_ADICIONAL__
+
+Execute a tarefa seguindo **TODAS** estas regras com **MÁXIMA FIDELIDADE**.
