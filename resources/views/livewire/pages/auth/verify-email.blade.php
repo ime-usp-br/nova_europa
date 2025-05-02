@@ -13,14 +13,20 @@ new #[Layout('layouts.guest')] class extends Component
      */
     public function sendVerification(): void
     {
+        // Verifica se o usuário já está verificado para evitar reenvios desnecessários
         if (Auth::user()->hasVerifiedEmail()) {
+            // Redireciona para o dashboard ou página principal se já verificado
+            // O 'navigate: true' usa o SPA mode do Livewire/Turbolinks
             $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
 
-            return;
+            return; // Termina a execução aqui
         }
 
+        // Envia a notificação de verificação de email
         Auth::user()->sendEmailVerificationNotification();
 
+        // Define uma mensagem flash na sessão para indicar que o link foi enviado
+        // Esta mensagem será exibida pelo componente <x-auth-session-status> ou similar (AC6)
         Session::flash('status', 'verification-link-sent');
     }
 
@@ -42,18 +48,20 @@ new #[Layout('layouts.guest')] class extends Component
             <img src="{{ Vite::asset('resources/images/ime/logo-vertical-simplificada-branca.png') }}" alt="Logo IME-USP" class="w-20 h-auto hidden dark:block" dusk="ime-logo-dark">
         </a>
     </div>
-    
+
     <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
         {{ __('Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you? If you didn\'t receive the email, we will gladly send you another.') }}
     </div>
 
-    @if (session('status') == 'verification-link-sent')
-        <div class="mb-4 font-medium text-sm text-green-600 dark:text-green-400">
-            {{ __('A new verification link has been sent to the email address you provided during registration.') }}
-        </div>
+    {{-- AC6: Exibe a mensagem de status flash usando o componente <x-auth-session-status /> --}}
+    {{-- Verifica se a chave 'status' na sessão tem o valor esperado e passa a mensagem traduzida para o componente --}}
+    @if (session('status') === 'verification-link-sent')
+        <x-auth-session-status class="mb-4" :status="__('A new verification link has been sent to the email address you provided during registration.')" dusk="auth-session-status" />
     @endif
 
+
     <div class="mt-4 flex items-center justify-between">
+        {{-- AC3: Botão que dispara a ação Livewire sendVerification (AC4) --}}
         <x-primary-button wire:click="sendVerification">
             {{ __('Resend Verification Email') }}
         </x-primary-button>
