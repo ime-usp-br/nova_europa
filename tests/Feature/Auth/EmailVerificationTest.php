@@ -62,8 +62,8 @@ class EmailVerificationTest extends TestCase
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
-    // Novo teste para AC5 e AC9 (parte do reenvio)
-    public function test_verification_link_can_be_resent(): void
+    // Teste para AC5 e AC6 (parte do reenvio e exibição de mensagem)
+    public function test_verification_link_can_be_resent_and_status_is_shown(): void
     {
         $user = User::factory()->unverified()->create();
 
@@ -71,18 +71,19 @@ class EmailVerificationTest extends TestCase
         Notification::fake();
 
         // Monta o componente Livewire/Volt e atua como o usuário não verificado
-        Livewire::actingAs($user)
+        $response = Livewire::actingAs($user)
             ->test('pages.auth.verify-email') // Referencia o componente Volt pelo nome da view
-            ->call('sendVerification') // Chama a ação de reenviar
-            ->assertSee(__('A new verification link has been sent to the email address you provided during registration.'));
-
-    
+            ->call('sendVerification'); // Chama a ação de reenviar
 
         // Verifica se a notificação de verificação foi enviada para o usuário correto
         Notification::assertSentTo(
             $user,
             VerifyEmailNotification::class
         );
+
+        // AC6: Verifica se a mensagem de status (agora renderizada pelo componente) está presente na resposta do Livewire
+        // A chave de tradução é resolvida para o idioma padrão (en) durante o teste.
+        $response->assertSeeHtml(__('A new verification link has been sent to the email address you provided during registration.'));
     }
 
     // Novo teste de cenário: usuário já verificado tentando reenviar
