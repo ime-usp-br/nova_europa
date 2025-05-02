@@ -84,8 +84,8 @@ SUMMARY_CONTENT_DELIMITER_END = "--- END OF FILE "
 SUMMARY_TOKEN_LIMIT_PER_CALL = 200000
 ESTIMATED_TOKENS_PER_SUMMARY = 200
 MAX_OUTPUT_TOKENS_ESTIMATE = 50000
-SLEEP_DURATION_SECONDS = 70  # Default sleep duration for rate limiting
-DEFAULT_API_TIMEOUT_SECONDS = 180  # Default timeout for Gemini API calls
+SLEEP_DURATION_SECONDS = 1  # Default sleep duration for rate limiting
+DEFAULT_API_TIMEOUT_SECONDS = 240  # Default timeout for Gemini API calls
 MANIFEST_MAX_TOKEN_FILTER = (
     200000  # Filter files larger than this for context selection #AC17 #38
 )
