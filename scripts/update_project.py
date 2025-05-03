@@ -6,10 +6,39 @@ import re
 import sys
 from pathlib import Path  # Usar pathlib para manipulação de caminhos mais robusta
 import traceback
+from typing import List, Tuple
 
 # --- Constante Chave ---
 # Calcula o diretório raiz do projeto (assumindo que este script está em /scripts)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Regex compiled once for efficiency
+# Using MULTILINE to match ^ at the beginning of lines,
+# and DOTALL so that . matches newlines in the file content.
+# Group 1: File path (non-greedy)
+# Group 2: File content
+PARSE_PATTERN = re.compile(
+    r"^--- START OF FILE ?(.*?) *---\n(.*?)\n^--- END OF FILE ?\1 *---",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def parse_source_content(content: str) -> List[Tuple[str, str]]:
+    """
+    Parses the input string to find file blocks demarcated by
+    '--- START OF FILE path ---' and '--- END OF FILE path ---'.
+
+    Args:
+        content: The string content to parse.
+
+    Returns:
+        A list of tuples, where each tuple contains:
+        (relative_filepath_str, file_content)
+    """
+    matches = PARSE_PATTERN.findall(content)
+    # Clean whitespace from captured path and return
+    # Content is kept as is (including leading/trailing whitespace within the block)
+    return [(path.strip(), file_content) for path, file_content in matches]
 
 
 def update_files_from_source(source_file_name="source_code_string.txt"):
@@ -32,7 +61,7 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
     try:
         # Usa o caminho completo para ler o arquivo fonte
         with open(source_file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+            source_text = f.read()
         print(
             f"Successfully read source file: '{source_file_path.relative_to(PROJECT_ROOT)}'"
         )
@@ -50,15 +79,10 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
         traceback.print_exc()
         sys.exit(1)
 
-    # Regex (sem alterações, mas revisado para clareza)
-    pattern = re.compile(
-        r"^--- START OF FILE (.*?) ---\n(.*?)\n^--- END OF FILE \1 ---",
-        re.MULTILINE | re.DOTALL,
-    )
+    # Parse the content using the dedicated function
+    parsed_blocks = parse_source_content(source_text)
 
-    matches = pattern.findall(content)
-
-    if not matches:
+    if not parsed_blocks:
         print(
             "Warning: No file blocks found in the source file matching the expected format."
         )
@@ -67,13 +91,13 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
         print("        --- END OF FILE path/file ---")
         return
 
-    print(f"Found {len(matches)} file blocks to process.")
+    print(f"Found {len(parsed_blocks)} file blocks to process.")
     files_updated = 0
     errors_occurred = 0
 
-    for relative_filepath_str, file_content in matches:
-        # Limpa o caminho relativo extraído
-        relative_filepath_str = relative_filepath_str.strip()
+    # Process parsed blocks instead of raw matches
+    for relative_filepath_str, file_content in parsed_blocks:
+        # Path should already be stripped by parse_source_content, but check for empty
         if not relative_filepath_str:
             print("  Warning: Found a block with an empty file path. Skipping.")
             errors_occurred += 1
@@ -82,7 +106,14 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
         # Constrói o caminho completo de SAÍDA usando PROJECT_ROOT
         output_path = PROJECT_ROOT / relative_filepath_str
         # Normaliza o caminho (remove './', lida com .. se houver, ajusta barras)
-        output_path = output_path.resolve()
+        # Use try-except block for resolve() in case of invalid paths on specific OS
+        try:
+            output_path = output_path.resolve()
+        except Exception as e:
+            print(f"  Error resolving path '{relative_filepath_str}': {e}. Skipping.")
+            errors_occurred += 1
+            continue
+
 
         # Verificação de segurança básica: impedir escrita fora do diretório do projeto
         try:
@@ -126,6 +157,7 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
             print(
                 f"  An unexpected error occurred while processing '{output_path.relative_to(PROJECT_ROOT)}': {e}"
             )
+            traceback.print_exc() # Print traceback for unexpected errors
             errors_occurred += 1
 
     print("\n--- File update process finished ---")
