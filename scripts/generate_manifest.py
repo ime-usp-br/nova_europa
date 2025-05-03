@@ -1235,9 +1235,39 @@ if __name__ == "__main__":
 
             token_count: Optional[int] = None
             should_count_tokens_or_estimate = not is_binary
-            previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
+
+            previous_file_data = {} # Começa vazio
+            relative_path_str = file_path_relative.as_posix() # Caminho relativo atual
+
+            if file_type.startswith("context_code_"):
+                # Busca especial para arquivos de contexto: ignora o timestamp no path
+                current_filename = file_path_relative.name
+                found_previous_path_str = None
+                # Itera pelas chaves do manifesto anterior
+                for prev_path_str in previous_manifest_files_data.keys():
+                    # Verifica se é um arquivo de contexto com o mesmo nome de arquivo
+                    if prev_path_str.startswith("context_llm/code/") and prev_path_str.endswith(f"/{current_filename}"):
+                        # Garante que não estamos pegando o mesmo timestamp (caso de rerodagem sem novo contexto)
+                        if Path(prev_path_str).parent.name != file_path_relative.parent.name:
+                             found_previous_path_str = prev_path_str
+                             break # Pega o primeiro encontrado (provavelmente o mais recente anterior)
+
+                if found_previous_path_str:
+                    previous_file_data = previous_manifest_files_data.get(found_previous_path_str, {})
+                    if args.verbose and previous_file_data:
+                        print(f"      -> Found previous manifest data for '{current_filename}' using path '{found_previous_path_str}'")
+                elif args.verbose:
+                     print(f"      -> No corresponding previous manifest data found for context file '{current_filename}'.")
+
+            else:
+                # Lógica original para arquivos não-contexto: busca pelo path exato
+                previous_file_data = previous_manifest_files_data.get(relative_path_str, {})
+            # --- Fim da Lógica MODIFICADA ---
+
+            # Agora recupera os dados do dicionário `previous_file_data` (que pode ou não ter sido encontrado)
             previous_hash = previous_file_data.get("hash")
             previous_count = previous_file_data.get("token_count")
+            previous_summary = previous_file_data.get("summary")
 
             if should_count_tokens_or_estimate:
                 token_count_result = count_tokens_for_file(
@@ -1264,59 +1294,51 @@ if __name__ == "__main__":
                     f"      -> Token Count: Skipping count ({reason}). Setting to null."
                 )
 
-            # --- Lógica de Preservação/Persistência do Sumário (v1.23.1) ---
+            # --- Lógica REVISADA para Preservação do Sumário (v1.23.1) ---
+            # Esta lógica agora funcionará corretamente porque previous_summary será
+            # populado corretamente para context_code* devido à busca acima.
             preserved_summary: Optional[str] = None
-            previous_summary = previous_file_data.get(
-                "summary"
-            )  # Get previous summary regardless of hash
 
-            if file_type.startswith("context_code_"):
-                # For context code files, always try to preserve the summary if it existed previously
+            if file_type.startswith("context_code"):
                 if previous_summary is not None:
                     preserved_summary = previous_summary
                     if args.verbose:
-                        print(
-                            f"      -> Summary: Preserving previous summary for context file (regardless of hash)."
-                        )
+                        print(f"      -> Summary: Preserving previous summary for context file (regardless of hash).")
                 elif args.verbose:
-                    print(
-                        f"      -> Summary: Setting to null (new context file or no previous summary)."
-                    )
+                     print(f"      -> Summary: Setting to null (new context file or no previous summary).")
 
             elif calculated_hash and previous_hash and calculated_hash == previous_hash:
-                # For NON-context files, preserve summary ONLY if hash matches
-                if previous_summary is not None:
-                    preserved_summary = previous_summary
-                    if args.verbose:
-                        print(
-                            f"      -> Summary: Reusing previous summary (hash unchanged)."
-                        )
-                elif args.verbose:
-                    print(
-                        f"      -> Summary: Setting to null (hash matches, but no previous summary found)."
-                    )
+                 # Para TODOS OS OUTROS arquivos, preserva o sumário APENAS se o hash não mudou.
+                 if previous_summary is not None:
+                     preserved_summary = previous_summary
+                     if args.verbose:
+                         print(f"      -> Summary: Reusing previous summary (hash unchanged).")
+                 elif args.verbose:
+                      print(f"      -> Summary: Setting to null (hash matches, but no previous summary found).")
 
-            elif (
-                args.verbose
-            ):  # Handle case where hash changed for non-context file or file is new/binary/env
-                print(
-                    f"      -> Summary: Setting to null (hash changed or file is new/binary/env/context-without-prev-summary)."
-                )
-            # ------------------------------------------------------------------
+            elif args.verbose: # Hash mudou (e não é context_code) ou arquivo novo/binário/env
+                 print(f"      -> Summary: Setting to null (hash changed or file is new/binary/env/context-without-prev-summary).")
+            # --- Fim da Lógica REVISADA ---
+
+            # ... (cálculo de token_count) ...
 
             metadata: Dict[str, Any] = {
                 "type": file_type,
                 "versioned": is_versioned,
                 "hash": calculated_hash,
-                "token_count": token_count,
+                "token_count": token_count, # Valor calculado/reusado
                 "dependencies": dependencies,
                 "dependents": dependents,
-                "summary": preserved_summary,  # Use the determined value (preserved or None)
+                "summary": preserved_summary, # Usa o valor determinado pela NOVA lógica
             }
+
+            # Garante que binários SEMPRE tenham summary null (AC6), mesmo se a lógica acima
+            # acidentalmente preservar algo (improvável, mas seguro).
             if is_binary:
-                metadata["summary"] = (
-                    None  # Double ensure binary files have null summary
-                )
+                 metadata["summary"] = None
+                 if args.verbose and preserved_summary is not None and not file_type.startswith("context_code_") :
+                     print(f"      -> Summary: Overriding previous summary with null because file is binary.")
+
 
             current_manifest_files_data[relative_path_str] = metadata
 
