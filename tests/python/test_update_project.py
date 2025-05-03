@@ -7,10 +7,11 @@ Ensures the script correctly parses demarcated file blocks,
 handles file paths securely, creates necessary directories,
 and writes content to the target files within the project structure.
 """
-
-import pytest  # noqa: F401 - pytest is the test runner
-# Import the function to be tested directly from the script
-from scripts.update_project import parse_source_content
+import pytest
+import sys
+from pathlib import Path
+# Import the function and potentially constants to be tested/mocked
+from scripts.update_project import parse_source_content, update_files_from_source
 
 
 # AC 1: Configure pytest (dependencies, basic fixtures)
@@ -18,15 +19,10 @@ from scripts.update_project import parse_source_content
 # fulfills the initial setup requirement. The tmp_path fixture needed
 # for subsequent ACs is provided by pytest automatically.
 
-def test_placeholder_for_setup():
-    """
-    Placeholder test to confirm pytest setup is working.
-    This test will be replaced by actual tests for AC 3 and onwards.
-    """
-    assert True
+# Removed the placeholder test as actual tests are now present.
 
 # --- AC 2: Unit Tests for Parsing Logic ---
-# Tests now use the imported `parse_source_content` function
+# Existing unit tests for parse_source_content remain unchanged.
 
 def test_parse_single_valid_block():
     """Verify parsing of a single, standard file block."""
@@ -40,10 +36,8 @@ Line 2.
 
 Some text after the block.
 """
-    # Call the actual parsing function from the script
     matches = parse_source_content(test_content)
     assert len(matches) == 1
-    # The function returns a list of (path, content) tuples
     assert matches[0][0] == "path/to/file.txt"
     assert matches[0][1] == "File content line 1.\nLine 2."
 
@@ -69,7 +63,6 @@ def test_parse_block_with_empty_content():
     """Verify parsing works correctly when the content is empty."""
     test_content = """
 --- START OF FILE empty.txt ---
-
 --- END OF FILE empty.txt ---
 """
     matches = parse_source_content(test_content)
@@ -88,7 +81,6 @@ def test_parse_block_with_only_whitespace_content():
     matches = parse_source_content(test_content)
     assert len(matches) == 1
     assert matches[0][0] == "whitespace.log"
-    # The parser captures exactly what's between delimiters
     assert matches[0][1] == "  \t\n  \n"
 
 def test_parse_no_blocks_present():
@@ -100,11 +92,20 @@ def test_parse_no_blocks_present():
 def test_parse_malformed_start_delimiter():
     """Verify malformed start delimiter prevents matching."""
     test_content = """
+--- STARTT OF FILE path/to/file.txt ---
+Content here.
+--- END OF FILE path/to/file.txt ---
+"""
+    matches = parse_source_content(test_content)
+    assert len(matches) == 0
+
+def test_parse_malformed_end_delimiter():
+    """Verify malformed end delimiter prevents matching."""
+    test_content = """
 --- START OF FILE path/to/file.txt ---
 Content here.
 --- WRONG END OF FILE path/to/file.txt ---
 """
-    # The regex requires exact "END OF FILE" structure with the correct path
     matches = parse_source_content(test_content)
     assert len(matches) == 0
 
@@ -115,7 +116,6 @@ def test_parse_malformed_end_delimiter_mismatched_path():
 Content here.
 --- END OF FILE path/incorrect.txt ---
 """
-    # The \1 backreference in the regex enforces matching paths
     matches = parse_source_content(test_content)
     assert len(matches) == 0
 
@@ -138,7 +138,7 @@ Content.
 """
     matches = parse_source_content(test_content)
     assert len(matches) == 1
-    assert matches[0][0] == test_path # Path captured correctly
+    assert matches[0][0] == test_path
     assert matches[0][1] == "Content."
 
 def test_parse_block_with_empty_path():
@@ -150,7 +150,7 @@ Content for empty path.
 """
     matches = parse_source_content(test_content)
     assert len(matches) == 1
-    assert matches[0][0] == "" # Path is captured as empty string
+    assert matches[0][0] == ""
     assert matches[0][1] == "Content for empty path."
 
 def test_parse_delimiters_must_be_at_line_start():
@@ -164,9 +164,8 @@ Content
 More Content
 --- END OF FILE correct.txt ---
 """
-    # The ^ anchor in the regex requires delimiters to be at the absolute start of a line.
     matches = parse_source_content(test_content)
-    assert len(matches) == 1 # Only the 'correct.txt' block should match
+    assert len(matches) == 1
     assert matches[0][0] == "correct.txt"
     assert matches[0][1] == "More Content"
 
@@ -179,26 +178,238 @@ Content.
 """
     matches = parse_source_content(test_content)
     assert len(matches) == 1
-    # parse_source_content is responsible for stripping the path
     assert matches[0][0] == "path/needs/trimming.txt"
     assert matches[0][1] == "Content."
 
 # --- End of AC 2 Tests ---
 
 
-# Future tests for AC 3 (File Writing & Integration with tmp_path) will go here.
-# Example:
-# def test_write_single_file(tmp_path):
-#     # Setup source file in tmp_path
-#     # Run update_project.py (perhaps via subprocess or by importing/calling main)
-#     # Assert file exists in tmp_path with correct content
-#     ...
+# --- AC 3: Integration Tests for File Writing ---
 
-# Future tests for AC 4 (Edge Cases) will go here.
-# Example:
-# def test_invalid_path_outside_root(tmp_path, capsys): # Example for AC3/4
-#     # Setup source file with path like ../../outside.txt
-#     # Run update_project.py
-#     # Assert file was NOT created outside tmp_path
-#     # Assert warning/error message was printed (using capsys fixture)
-#     ...
+SOURCE_FILE_NAME = "test_source_code.txt"
+
+@pytest.fixture(autouse=True)
+def change_project_root(monkeypatch, tmp_path):
+    """
+    Fixture to automatically redirect PROJECT_ROOT to tmp_path for all tests
+    in this module that use tmp_path.
+    """
+    # Use the actual script's module path for setattr
+    monkeypatch.setattr('scripts.update_project.PROJECT_ROOT', tmp_path)
+
+
+def test_integration_single_file(tmp_path, capsys):
+    """Verify writing a single file from a source block."""
+    source_content = """
+--- START OF FILE single.txt ---
+This is the content.
+--- END OF FILE single.txt ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    # Run the main function of the script
+    update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+    # Assertions
+    output_file = tmp_path / "single.txt"
+    assert output_file.exists()
+    assert output_file.read_text(encoding='utf-8') == "This is the content."
+
+    captured = capsys.readouterr()
+    assert "Successfully updated: 'single.txt'" in captured.out
+    assert "Summary: 1 files updated, 0 errors." in captured.out
+
+def test_integration_multiple_files(tmp_path, capsys):
+    """Verify writing multiple files from source blocks."""
+    source_content = """
+--- START OF FILE file1.py ---
+print("File 1")
+--- END OF FILE file1.py ---
+
+--- START OF FILE file2.log ---
+Log entry.
+--- END OF FILE file2.log ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+    # Assertions
+    file1 = tmp_path / "file1.py"
+    file2 = tmp_path / "file2.log"
+    assert file1.exists()
+    assert file1.read_text(encoding='utf-8') == 'print("File 1")'
+    assert file2.exists()
+    assert file2.read_text(encoding='utf-8') == "Log entry."
+
+    captured = capsys.readouterr()
+    assert "Successfully updated: 'file1.py'" in captured.out
+    assert "Successfully updated: 'file2.log'" in captured.out
+    assert "Summary: 2 files updated, 0 errors." in captured.out
+
+def test_integration_subdirectory_creation(tmp_path, capsys):
+    """Verify creation of necessary subdirectories."""
+    source_content = """
+--- START OF FILE nested/path/to/deep_file.js ---
+console.log('Deep');
+--- END OF FILE nested/path/to/deep_file.js ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+    # Assertions
+    output_file = tmp_path / "nested/path/to/deep_file.js"
+    output_dir = tmp_path / "nested/path/to"
+    assert output_dir.exists()
+    assert output_dir.is_dir()
+    assert output_file.exists()
+    assert output_file.read_text(encoding='utf-8') == "console.log('Deep');"
+
+    captured = capsys.readouterr()
+    assert "Ensuring directory exists: 'nested/path/to'" in captured.out
+    assert "Successfully updated: 'nested/path/to/deep_file.js'" in captured.out
+    assert "Summary: 1 files updated, 0 errors." in captured.out
+
+def test_integration_overwrite_existing_file(tmp_path, capsys):
+    """Verify that existing files are overwritten."""
+    target_file = tmp_path / "existing.txt"
+    target_file.write_text("Old content", encoding='utf-8')
+
+    source_content = """
+--- START OF FILE existing.txt ---
+New content.
+--- END OF FILE existing.txt ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+    # Assertions
+    assert target_file.exists()
+    assert target_file.read_text(encoding='utf-8') == "New content."
+
+    captured = capsys.readouterr()
+    assert "Successfully updated: 'existing.txt'" in captured.out
+    assert "Summary: 1 files updated, 0 errors." in captured.out
+
+def test_integration_relative_paths_handled(tmp_path, capsys):
+    """Verify that relative paths like '..' are resolved correctly within root."""
+    source_content = """
+--- START OF FILE dir1/../dir2/final.txt ---
+Relative path test.
+--- END OF FILE dir1/../dir2/final.txt ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+    # Assertions
+    output_file = tmp_path / "dir2/final.txt" # dir1/../dir2 becomes dir2
+    output_dir = tmp_path / "dir2"
+    assert output_dir.exists() and output_dir.is_dir()
+    assert output_file.exists()
+    assert output_file.read_text(encoding='utf-8') == "Relative path test."
+
+    captured = capsys.readouterr()
+    assert "Successfully updated: 'dir2/final.txt'" in captured.out # Script logs the normalized relative path
+    assert "Summary: 1 files updated, 0 errors." in captured.out
+
+def test_integration_source_file_not_found(tmp_path, capsys):
+    """Verify graceful exit if the source file does not exist."""
+    non_existent_source = "this_file_does_not_exist.txt"
+
+    # Expect SystemExit with code 1
+    with pytest.raises(SystemExit) as excinfo:
+        update_files_from_source(source_file_name=non_existent_source)
+
+    assert excinfo.value.code == 1
+
+    # Check stderr/stdout for the error message
+    captured = capsys.readouterr()
+    # The script prints to stdout in this case
+    expected_path = tmp_path / non_existent_source
+    assert f"Error: Source file not found at '{expected_path}'" in captured.out
+
+
+def test_integration_path_traversal_attempt(tmp_path, capsys):
+    """Verify prevention of writing outside the project root."""
+    # Create a directory outside the mocked project root (tmp_path)
+    # This shouldn't happen in real usage but simulates the check
+    outside_dir = tmp_path.parent / "outside_test_dir"
+    outside_dir.mkdir(exist_ok=True) # Ensure it exists for cleanup
+    outside_file_target = outside_dir / "malicious.txt"
+
+    source_content = f"""
+--- START OF FILE ../{outside_dir.name}/malicious.txt ---
+Attempting path traversal.
+--- END OF FILE ../{outside_dir.name}/malicious.txt ---
+
+--- START OF FILE safe_insider.txt ---
+This should be written.
+--- END OF FILE safe_insider.txt ---
+"""
+    source_file = tmp_path / SOURCE_FILE_NAME
+    source_file.write_text(source_content, encoding='utf-8')
+
+    try:
+        update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+
+        # Assertions
+        assert not outside_file_target.exists() # Critical: File outside root MUST NOT be created
+        safe_file = tmp_path / "safe_insider.txt"
+        assert safe_file.exists() # Safe file should be created
+        assert safe_file.read_text(encoding='utf-8') == "This should be written."
+
+        captured = capsys.readouterr()
+        assert "Error: Attempted to write outside the project directory:" in captured.out
+        # Check relative path shown in error message - .resolve() makes it absolute
+        # Check if the absolute path of the *intended* illegal write is mentioned
+        assert str(outside_file_target.resolve()) in captured.out
+        assert "Skipping." in captured.out
+        assert "Successfully updated: 'safe_insider.txt'" in captured.out # Safe file success message
+        assert "Summary: 1 files updated, 1 errors." in captured.out # Ensure error was counted
+
+    finally:
+        # Clean up the directory created outside tmp_path
+        if outside_file_target.exists():
+            outside_file_target.unlink() # Should not exist, but clean up if it does
+        if outside_dir.exists():
+            outside_dir.rmdir()
+
+
+# --- End of AC 3 Tests ---
+
+
+# --- AC 4: Edge Case Tests ---
+# Future tests for edge cases like empty content blocks writing empty files,
+# handling of malformed blocks during the writing phase (if different from parsing checks),
+# etc., will go here.
+
+# Example (can be implemented when AC 4 is addressed):
+# def test_integration_empty_content_block_writes_empty_file(tmp_path, capsys):
+#     """Verify that a block with empty content creates an empty file."""
+#     source_content = """
+# --- START OF FILE completely_empty.txt ---
+# --- END OF FILE completely_empty.txt ---
+# """
+#     source_file = tmp_path / SOURCE_FILE_NAME
+#     source_file.write_text(source_content, encoding='utf-8')
+#
+#     update_files_from_source(source_file_name=SOURCE_FILE_NAME)
+#
+#     # Assertions
+#     output_file = tmp_path / "completely_empty.txt"
+#     assert output_file.exists()
+#     assert output_file.read_text(encoding='utf-8') == ""
+#
+#     captured = capsys.readouterr()
+#     assert "Successfully updated: 'completely_empty.txt'" in captured.out
+#     assert "Summary: 1 files updated, 0 errors." in captured.out
+
+# --- End of AC 4 Tests ---

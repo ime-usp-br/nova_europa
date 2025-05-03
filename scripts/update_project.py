@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Group 1: File path (non-greedy)
 # Group 2: File content
 PARSE_PATTERN = re.compile(
-    r"^--- START OF FILE ?(.*?) *---\n(.*?)\n^--- END OF FILE ?\1 *---",
+    r"^--- START OF FILE ?(.*?) *---\n(.*?)\n?^--- END OF FILE ?\1 *---",
     re.MULTILINE | re.DOTALL,
 )
 
