@@ -89,7 +89,6 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
         print("Format: --- START OF FILE path/file ---")
         print("        <content>")
         print("        --- END OF FILE path/file ---")
-        return
 
     print(f"Found {len(parsed_blocks)} file blocks to process.")
     files_updated = 0
@@ -113,7 +112,6 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
             print(f"  Error resolving path '{relative_filepath_str}': {e}. Skipping.")
             errors_occurred += 1
             continue
-
 
         # Verificação de segurança básica: impedir escrita fora do diretório do projeto
         try:
@@ -157,7 +155,7 @@ def update_files_from_source(source_file_name="source_code_string.txt"):
             print(
                 f"  An unexpected error occurred while processing '{output_path.relative_to(PROJECT_ROOT)}': {e}"
             )
-            traceback.print_exc() # Print traceback for unexpected errors
+            traceback.print_exc()  # Print traceback for unexpected errors
             errors_occurred += 1
 
     print("\n--- File update process finished ---")
