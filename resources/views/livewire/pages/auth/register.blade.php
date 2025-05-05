@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\ReplicadoService; // Import ReplicadoService
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -48,16 +49,36 @@ new #[Layout('layouts.guest')] class extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             // --- ADDED/MODIFIED VALIDATION ---
-            //'sou_da_usp' => ['boolean'], // Validate the checkbox value itself
+            'sou_da_usp' => ['boolean'], // Validate the checkbox value itself
             'codpes' => [
                 // Only require codpes if the sou_da_usp checkbox is checked
-                // (which is automatically checked if email ends with @usp.br)
-                // This handles the conditional requirement on the backend (AC8 logic moved here).
                 Rule::requiredIf($this->sou_da_usp),
                 'nullable', // Allows it to be null if not required
                 'numeric', // Basic numeric check
                 'digits_between:6,8', // Adjust digits as needed for Nº USP format
-                // Add custom validation rule or Replicado check later if needed
+                // --- AC3: Custom validation using ReplicadoService ---
+                function (string $attribute, mixed $value, Closure $fail) {
+                    // Only run this validation if 'sou_da_usp' is true AND codpes has a value
+                    if ($this->sou_da_usp && !empty($value)) {
+                        // Resolve the service from the container
+                        $replicadoService = app(ReplicadoService::class);
+                        try {
+                            if (!$replicadoService->validarNuspEmail((int)$value, $this->email)) {
+                                // AC4 preparation: Use a specific key for the failure message
+                                $fail('validation.custom.replicado_validation_failed');
+                            }
+                        } catch (\Exception $e) {
+                            // AC5 preparation: Handle potential exceptions from the service
+                            // Log the error (implement proper logging later)
+                            // Option 1: Fail validation with a generic message
+                             $fail('validation.custom.replicado_service_unavailable');
+                            // Option 2: Throw a 500 error (less user-friendly for validation context)
+                            // report($e); // Report the exception
+                            // abort(500, __('An error occurred while validating USP credentials.'));
+                        }
+                    }
+                },
+                // --- END AC3 ---
             ],
             // --- END ADDED/MODIFIED ---
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
@@ -81,14 +102,29 @@ new #[Layout('layouts.guest')] class extends Component
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'codpes' => $this->sou_da_usp ? $validated['codpes'] : null, // Only save if marked as USP
+            // Conditionally set 'codpes' only if it was validated (meaning sou_da_usp was true)
+            'codpes' => ($this->sou_da_usp && isset($validated['codpes'])) ? $validated['codpes'] : null,
         ];
         // --- END MODIFIED ---
 
-        event(new Registered($user = User::create($userData))); // Use modified data
+        $user = User::create($userData);
 
+        // AC7 / AC8 - Role assignment logic will go here later
+        if ($this->sou_da_usp && isset($validated['codpes'])) {
+             // Assign 'usp_user' role (using spatie/laravel-permission)
+             // $user->assignRole('usp_user');
+        } else {
+             // Assign 'external_user' role
+             // $user->assignRole('external_user');
+        }
+
+        // AC9 - Event dispatching
+        event(new Registered($user));
+
+        // AC10 - Login
         Auth::login($user);
 
+        // AC11 - Redirect
         $this->redirect(route('dashboard', absolute: false), navigate: true);
     }
 }; ?>
@@ -102,7 +138,7 @@ new #[Layout('layouts.guest')] class extends Component
             <img src="{{ Vite::asset('resources/images/ime/logo-vertical-simplificada-branca.png') }}" alt="Logo IME-USP" class="w-20 h-auto hidden dark:block" dusk="ime-logo-dark">
         </a>
     </div>
-    
+
     <form wire:submit="register">
         <!-- Name -->
         <div>
@@ -124,7 +160,7 @@ new #[Layout('layouts.guest')] class extends Component
         <div class="block mt-4">
             <label for="sou_da_usp" class="inline-flex items-center">
                 {{-- AC13: Uses existing dusk selector 'is-usp-user-checkbox' from previous commit --}}
-                <input wire:model="sou_da_usp"
+                <input wire:model.live="sou_da_usp" {{-- Use .live for immediate conditional logic --}}
                        id="sou_da_usp"
                        type="checkbox"
                        {{-- Disable checkbox if email is already a USP email --}}

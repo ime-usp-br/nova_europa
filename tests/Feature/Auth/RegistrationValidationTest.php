@@ -3,21 +3,39 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Services\ReplicadoService; // Import the actual service
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator; // Mantenha para o teste de regras padrão
-use Illuminate\Validation\Rules\Password;  // Mantenha para o teste de regras padrão
-use Livewire\Volt\Volt; // Importe Volt
+use Illuminate\Validation\Rule;  // Mantenha para o teste de regras padrão
+use Illuminate\Validation\Rules\Password; // Importe Volt
+use Livewire\Volt\Volt; // Import the fake service
+use PHPUnit\Framework\Attributes\Test;
+use Tests\Fakes\FakeReplicadoService; // Importe Rule para o teste de codpes
 use Tests\TestCase;
-use Illuminate\Validation\Rule; // Importe Rule para o teste de codpes
 
 class RegistrationValidationTest extends TestCase
 {
     use RefreshDatabase;
 
-    // Método para obter um email único para evitar falhas de 'unique'
-    private function getUniqueEmail(): string
+    /**
+     * Setup the test environment.
+     *
+     * Bind the fake service to the container for tests in this class.
+     */
+    protected function setUp(): void
     {
-        return 'test' . now()->timestamp . rand(100, 999) . '@example.com';
+        parent::setUp();
+
+        // Bind the fake service instance for ReplicadoService resolution
+        $this->instance(ReplicadoService::class, new FakeReplicadoService);
+    }
+
+    // Método para obter um email único para evitar falhas de 'unique'
+    private function getUniqueEmail(bool $isUsp = false): string
+    {
+        $domain = $isUsp ? '@usp.br' : '@example.com';
+
+        return 'test'.now()->timestamp.rand(100, 999).$domain;
     }
 
     // Método para obter uma senha que passe nas regras padrão
@@ -49,22 +67,33 @@ class RegistrationValidationTest extends TestCase
     }
 
     #[Test]
-    public function test_valid_usp_user_with_codpes_can_register(): void
+    public function test_valid_usp_user_with_codpes_and_successful_replicado_validation_can_register(): void
     {
         $password = $this->getValidPassword();
+        $uspEmail = $this->getUniqueEmail(true);
+        $codpes = '1234567';
 
-        Volt::test('pages.auth.register')
-            ->set('name', 'Test USP User')
-            ->set('email', 'test' . now()->timestamp . '@usp.br') // Email USP
+        // Configure FakeReplicadoService to return true (success)
+        $fakeReplicadoService = app(ReplicadoService::class); // Get the bound fake instance
+        $fakeReplicadoService->shouldReturn(true);
+
+        $component = Volt::test('pages.auth.register')
+            ->set('name', 'Test USP User Valid')
+            ->set('email', $uspEmail) // Email USP
+            ->assertSet('sou_da_usp', true) // Check if updatedEmail hook worked
             ->set('password', $password)
             ->set('password_confirmation', $password)
-            // ->set('sou_da_usp', true) // Deveria ser setado automaticamente pelo updatedEmail
-            ->set('codpes', '1234567') // Codpes válido
-            ->call('register')
-            ->assertHasNoErrors() // Espera passar
+            ->set('codpes', $codpes) // Codpes válido
+            ->call('register');
+
+        $component->assertHasNoErrors() // Espera passar
             ->assertRedirect(route('dashboard', absolute: false));
 
-         $this->assertAuthenticated();
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'email' => $uspEmail,
+            'codpes' => $codpes,
+        ]);
     }
 
     #[Test]
@@ -84,13 +113,13 @@ class RegistrationValidationTest extends TestCase
             ->assertHasNoErrors()
             ->assertRedirect(route('dashboard', absolute: false));
 
-         $this->assertAuthenticated();
+        $this->assertAuthenticated();
 
-         // Usa a variável local na asserção
-         $this->assertDatabaseHas('users', [
+        // Usa a variável local na asserção
+        $this->assertDatabaseHas('users', [
             'email' => $generatedEmail, // <-- Usa a variável local
-            'codpes' => null
-         ]);
+            'codpes' => null, // Codpes should be null for non-USP users even if provided
+        ]);
     }
     // --- Testes para Cenários Inválidos (shouldPass = false) ---
 
@@ -122,7 +151,7 @@ class RegistrationValidationTest extends TestCase
             ->assertHasErrors(['email' => 'required']);
     }
 
-     #[Test]
+    #[Test]
     public function test_registration_fails_when_password_is_missing(): void
     {
         Volt::test('pages.auth.register')
@@ -133,18 +162,19 @@ class RegistrationValidationTest extends TestCase
             ->assertHasErrors(['password' => 'required']); // A regra 'confirmed' também falhará, mas 'required' é a raiz
     }
 
-     #[Test]
+    #[Test]
     public function test_registration_fails_when_codpes_is_missing_for_usp_user(): void
     {
         $password = $this->getValidPassword();
 
         Volt::test('pages.auth.register')
             ->set('name', 'Test USP User')
-            ->set('email', 'test' . now()->timestamp . '@usp.br') // Email USP ativa sou_da_usp
+            ->set('email', $this->getUniqueEmail(true)) // Email USP ativa sou_da_usp
+            ->assertSet('sou_da_usp', true) // Check hook
             ->set('password', $password)
             ->set('password_confirmation', $password)
-             ->set('sou_da_usp', true) // Garante que a flag USP está ativa
-            // Não seta 'codpes'
+            // ->set('sou_da_usp', true) // Garante que a flag USP está ativa (já é setada pelo email)
+            ->set('codpes', '') // Explicitamente vazio
             ->call('register')
             ->assertHasErrors(['codpes' => 'required']); // Verifica se a regra condicional falhou
     }
@@ -156,15 +186,15 @@ class RegistrationValidationTest extends TestCase
 
         Volt::test('pages.auth.register')
             ->set('name', 'Test USP User Empty Codpes')
-            ->set('email', 'test' . now()->timestamp . '@usp.br')
+            ->set('email', $this->getUniqueEmail(true))
+            ->assertSet('sou_da_usp', true)
             ->set('password', $password)
             ->set('password_confirmation', $password)
-            ->set('sou_da_usp', true)
+           // ->set('sou_da_usp', true)
             ->set('codpes', '') // Codpes vazio
             ->call('register')
             ->assertHasErrors(['codpes' => 'required']);
     }
-
 
     #[Test]
     public function test_registration_fails_for_invalid_email_format(): void
@@ -213,7 +243,8 @@ class RegistrationValidationTest extends TestCase
     public function test_registration_fails_when_password_is_too_short(): void
     {
         Volt::test('pages.auth.register')
-            // ... (sets for name, email) ...
+            ->set('name', 'Test Name')
+            ->set('email', $this->getUniqueEmail())
             ->set('password', 'short')
             ->set('password_confirmation', 'short')
             ->call('register')
@@ -228,26 +259,28 @@ class RegistrationValidationTest extends TestCase
 
         Volt::test('pages.auth.register')
             ->set('name', 'Test USP User NonNumeric')
-            ->set('email', 'test' . now()->timestamp . '@usp.br')
+            ->set('email', $this->getUniqueEmail(true))
+            ->assertSet('sou_da_usp', true)
             ->set('password', $password)
             ->set('password_confirmation', $password)
-            ->set('sou_da_usp', true)
+           // ->set('sou_da_usp', true)
             ->set('codpes', 'ABCDEFG') // Não numérico
             ->call('register')
             ->assertHasErrors(['codpes' => 'numeric']);
     }
 
-     #[Test]
+    #[Test]
     public function test_registration_fails_when_codpes_is_too_short_for_usp_user(): void
     {
         $password = $this->getValidPassword();
 
         Volt::test('pages.auth.register')
             ->set('name', 'Test USP User Short Codpes')
-            ->set('email', 'test' . now()->timestamp . '@usp.br')
+            ->set('email', $this->getUniqueEmail(true))
+            ->assertSet('sou_da_usp', true)
             ->set('password', $password)
             ->set('password_confirmation', $password)
-            ->set('sou_da_usp', true)
+            // ->set('sou_da_usp', true)
             ->set('codpes', '12345') // Curto demais (definido como 6-8)
             ->call('register')
             ->assertHasErrors(['codpes' => 'digits_between']);
@@ -260,15 +293,68 @@ class RegistrationValidationTest extends TestCase
 
         Volt::test('pages.auth.register')
             ->set('name', 'Test USP User Long Codpes')
-            ->set('email', 'test' . now()->timestamp . '@usp.br')
+            ->set('email', $this->getUniqueEmail(true))
+            ->assertSet('sou_da_usp', true)
             ->set('password', $password)
             ->set('password_confirmation', $password)
-            ->set('sou_da_usp', true)
+            // ->set('sou_da_usp', true)
             ->set('codpes', '123456789') // Longo demais (definido como 6-8)
             ->call('register')
             ->assertHasErrors(['codpes' => 'digits_between']);
     }
 
+    // --- AC3/AC4/AC5 Specific Tests ---
+
+    #[Test]
+    public function test_registration_fails_when_replicado_validation_fails_for_usp_user(): void
+    {
+        $password = $this->getValidPassword();
+        $uspEmail = $this->getUniqueEmail(true);
+        $codpes = '1234567'; // Valid format, but Replicado will say it's wrong
+
+        // Configure FakeReplicadoService to return false (validation failure)
+        $fakeReplicadoService = app(ReplicadoService::class);
+        $fakeReplicadoService->shouldReturn(false);
+
+        Volt::test('pages.auth.register')
+            ->set('name', 'Test USP User Invalid Replicado')
+            ->set('email', $uspEmail)
+            ->assertSet('sou_da_usp', true)
+            ->set('password', $password)
+            ->set('password_confirmation', $password)
+            ->set('codpes', $codpes)
+            ->call('register')
+            ->assertHasErrors(['codpes' => 'validation.custom.replicado_validation_failed']); // Check for the specific custom error message key
+
+        $this->assertGuest(); // User should not be authenticated or created
+        $this->assertDatabaseMissing('users', ['email' => $uspEmail]);
+    }
+
+    #[Test]
+    public function test_registration_fails_when_replicado_service_is_unavailable_for_usp_user(): void
+    {
+        $password = $this->getValidPassword();
+        $uspEmail = $this->getUniqueEmail(true);
+        $codpes = '1234567';
+
+        // Configure FakeReplicadoService to throw an exception
+        $fakeReplicadoService = app(ReplicadoService::class);
+        $fakeReplicadoService->shouldFail();
+
+        Volt::test('pages.auth.register')
+            ->set('name', 'Test USP User Replicado Error')
+            ->set('email', $uspEmail)
+            ->assertSet('sou_da_usp', true)
+            ->set('password', $password)
+            ->set('password_confirmation', $password)
+            ->set('codpes', $codpes)
+            ->call('register')
+             // Check for the specific error message key related to service unavailability
+            ->assertHasErrors(['codpes' => 'validation.custom.replicado_service_unavailable']);
+
+        $this->assertGuest(); // User should not be authenticated or created
+        $this->assertDatabaseMissing('users', ['email' => $uspEmail]);
+    }
 
     // Mantém este teste isolado para verificar as regras padrão
     #[Test]
@@ -292,14 +378,14 @@ class RegistrationValidationTest extends TestCase
         $this->assertArrayHasKey('password', $validatorNoNumber->errors()->toArray());
 
         // Verifica Símbolos (deve falhar se símbolos são exigidos)
-         $validatorNoSymbol = Validator::make(['password' => 'Password123'], ['password' => $rule]);
-         $this->assertTrue($validatorNoSymbol->fails(), 'Default password rule should require symbols.');
-         $this->assertArrayHasKey('password', $validatorNoSymbol->errors()->toArray());
+        $validatorNoSymbol = Validator::make(['password' => 'Password123'], ['password' => $rule]);
+        $this->assertTrue($validatorNoSymbol->fails(), 'Default password rule should require symbols.');
+        $this->assertArrayHasKey('password', $validatorNoSymbol->errors()->toArray());
 
-         // Verifica Caixa Mista (deve falhar se exigido)
-         $validatorNoMixedCase = Validator::make(['password' => 'password123!'], ['password' => $rule]);
-         $this->assertTrue($validatorNoMixedCase->fails(), 'Default password rule should require mixed case.');
-         $this->assertArrayHasKey('password', $validatorNoMixedCase->errors()->toArray());
+        // Verifica Caixa Mista (deve falhar se exigido)
+        $validatorNoMixedCase = Validator::make(['password' => 'password123!'], ['password' => $rule]);
+        $this->assertTrue($validatorNoMixedCase->fails(), 'Default password rule should require mixed case.');
+        $this->assertArrayHasKey('password', $validatorNoMixedCase->errors()->toArray());
 
         // Verifica uma senha válida (deve passar)
         $validatorValid = Validator::make(['password' => $this->getValidPassword()], ['password' => $rule]);

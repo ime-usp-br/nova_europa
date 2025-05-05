@@ -21,12 +21,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Password::defaults(function () {
-            $rule = Password::min(8); 
+            $rule = Password::min(8);
 
             return $rule->letters()
-                        ->mixedCase()
-                        ->numbers()
-                        ->symbols();
+                ->mixedCase()
+                ->numbers()
+                ->symbols();
         });
     }
 }
