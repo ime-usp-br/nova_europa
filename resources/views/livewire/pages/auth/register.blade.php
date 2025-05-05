@@ -64,7 +64,7 @@ new #[Layout('layouts.guest')] class extends Component
                         $replicadoService = app(ReplicadoService::class);
                         try {
                             if (!$replicadoService->validarNuspEmail((int)$value, $this->email)) {
-                                // AC4 preparation: Use a specific key for the failure message
+                                // AC4: Fail validation with specific message if Replicado validation fails
                                 $fail('validation.custom.replicado_validation_failed');
                             }
                         } catch (\Exception $e) {

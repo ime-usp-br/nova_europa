@@ -168,10 +168,10 @@ return [
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
-        // --- ADDED FOR AC3/AC4 ---
+        // --- ADDED FOR AC3/AC4/AC5 ---
         'codpes' => [
-            'replicado_validation_failed' => 'The USP Number and Email combination is invalid according to USP records.',
-            'replicado_service_unavailable' => 'Could not verify USP credentials at this time. Please try again later.',
+            'replicado_validation_failed' => 'The USP Number and Email combination is invalid according to USP records.', // AC4 Message
+            'replicado_service_unavailable' => 'Could not verify USP credentials at this time. Please try again later.', // AC5 Message
         ],
         // --- END ADDED ---
     ],

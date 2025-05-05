@@ -303,7 +303,7 @@ class RegistrationValidationTest extends TestCase
             ->assertHasErrors(['codpes' => 'digits_between']);
     }
 
-    // --- AC3/AC4/AC5 Specific Tests ---
+    // --- AC3/AC4 Specific Tests ---
 
     #[Test]
     public function test_registration_fails_when_replicado_validation_fails_for_usp_user(): void
@@ -324,7 +324,7 @@ class RegistrationValidationTest extends TestCase
             ->set('password_confirmation', $password)
             ->set('codpes', $codpes)
             ->call('register')
-            ->assertHasErrors(['codpes' => 'validation.custom.replicado_validation_failed']); // Check for the specific custom error message key
+            ->assertHasErrors(['codpes' => 'validation.custom.replicado_validation_failed']); // AC4: Check for the specific custom error message key
 
         $this->assertGuest(); // User should not be authenticated or created
         $this->assertDatabaseMissing('users', ['email' => $uspEmail]);
