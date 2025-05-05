@@ -278,5 +278,9 @@ return [
         'winner' => 'ganhador',
         'work' => 'trabalho',
         'year' => 'ano',
+        // --- ADDED ---
+        'codpes' => 'Número USP', // Adjusted translation
+        'sou_da_usp' => 'Sou da USP',
+        // --- END ADDED ---
     ],
 ];

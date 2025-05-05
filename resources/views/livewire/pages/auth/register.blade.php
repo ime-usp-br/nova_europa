@@ -48,7 +48,7 @@ new #[Layout('layouts.guest')] class extends Component
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             // --- ADDED/MODIFIED VALIDATION ---
-            'sou_da_usp' => ['boolean'], // Validate the checkbox value itself
+            //'sou_da_usp' => ['boolean'], // Validate the checkbox value itself
             'codpes' => [
                 // Only require codpes if the sou_da_usp checkbox is checked
                 // (which is automatically checked if email ends with @usp.br)

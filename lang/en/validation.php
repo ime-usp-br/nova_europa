@@ -187,7 +187,7 @@ return [
         'display_type' => 'display type',
         'district' => 'district',
         'duration' => 'duration',
-        'email' => 'email',
+        'email' => 'email address', // Adjusted for clarity
         'excerpt' => 'excerpt',
         'filter' => 'filter',
         'finished_at' => 'finished at',
@@ -278,5 +278,9 @@ return [
         'winner' => 'winner',
         'work' => 'work',
         'year' => 'year',
+        // --- ADDED ---
+        'codpes' => 'USP Number (codpes)',
+        'sou_da_usp' => 'I\'m from USP',
+        // --- END ADDED ---
     ],
 ];
