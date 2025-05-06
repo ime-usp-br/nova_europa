@@ -88,12 +88,17 @@ new #[Layout('layouts.guest')] class extends Component
 
         $user = User::create($userData);
 
-        // AC7: Assign 'usp_user' role if USP user and Replicado validation was successful.
-        // The Replicado validation success is implied if we passed the validation rules for 'codpes'.
-        if ($this->sou_da_usp && isset($validated['codpes'])) {
-            $user->assignRole('usp_user');
+        // Assign role based on whether codpes was successfully validated and stored
+        if ($user->codpes !== null) {
+            // This implies $this->sou_da_usp was true, codpes was provided,
+            // and Replicado validation was successful.
+            $user->assignRole('usp_user'); // AC7
+        } else {
+            // This covers:
+            // 1. User is not from USP ($this->sou_da_usp was false).
+            // 2. User claimed to be from USP, but Replicado validation failed (mismatch or service error).
+            $user->assignRole('external_user'); // AC8
         }
-        // AC8 (external_user role assignment) will be implemented here later.
 
         event(new Registered($user));
 

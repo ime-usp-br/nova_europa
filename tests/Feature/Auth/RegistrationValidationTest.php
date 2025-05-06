@@ -65,8 +65,8 @@ class RegistrationValidationTest extends TestCase
         $this->assertNotNull($user);
         $this->assertEquals($name, $user->name);
         $this->assertNull($user->codpes);
-        // $this->assertTrue($user->hasRole('external_user')); // For AC8
-        $this->assertFalse($user->hasRole('usp_user'));
+        $this->assertTrue($user->hasRole('external_user'), "User should have 'external_user' role.");
+        $this->assertFalse($user->hasRole('usp_user'), "User should not have 'usp_user' role.");
     }
 
     #[Test]
@@ -127,8 +127,8 @@ class RegistrationValidationTest extends TestCase
         $this->assertNotNull($user);
         $this->assertEquals($name, $user->name);
         $this->assertNull($user->codpes); // Correctly null because sou_da_usp is false
-        // $this->assertTrue($user->hasRole('external_user')); // For AC8
-        $this->assertFalse($user->hasRole('usp_user'));
+        $this->assertTrue($user->hasRole('external_user'), "User should have 'external_user' role.");
+        $this->assertFalse($user->hasRole('usp_user'), "User should not have 'usp_user' role.");
     }
 
     #[Test]
