@@ -24,9 +24,6 @@ class FakeReplicadoService extends ReplicadoService
     /**
      * Simulates the validation logic.
      *
-     * @param  int  $codpes
-     * @param  string  $email
-     * @return bool
      *
      * @throws \App\Exceptions\ReplicadoServiceException
      */

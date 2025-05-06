@@ -43,19 +43,26 @@ class RegistrationValidationTest extends TestCase
     public function valid_non_usp_user_can_register(): void
     {
         $password = $this->getValidPassword();
+        $email = $this->getUniqueEmail();
+        $name = 'Test Non USP';
 
         Volt::test('pages.auth.register')
-            ->set('name', 'Test Non USP')
-            ->set('email', $this->getUniqueEmail())
+            ->set('name', $name)
+            ->set('email', $email)
             ->set('password', $password)
             ->set('password_confirmation', $password)
             ->set('sou_da_usp', false)
-            ->set('codpes', '')
+            ->set('codpes', '') // Intentionally set as empty, should be ignored and result in null codpes
             ->call('register')
             ->assertHasNoErrors()
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'name' => $name,
+            'email' => $email,
+            'codpes' => null,
+        ]);
     }
 
     #[Test]
@@ -64,12 +71,13 @@ class RegistrationValidationTest extends TestCase
         $password = $this->getValidPassword();
         $uspEmail = $this->getUniqueEmail(true);
         $codpes = '1234567';
+        $name = 'Test USP User Valid';
 
         $fakeReplicadoService = app(ReplicadoService::class);
         $fakeReplicadoService->shouldReturn(true);
 
         $component = Volt::test('pages.auth.register')
-            ->set('name', 'Test USP User Valid')
+            ->set('name', $name)
             ->set('email', $uspEmail)
             ->assertSet('sou_da_usp', true)
             ->set('password', $password)
@@ -82,6 +90,7 @@ class RegistrationValidationTest extends TestCase
 
         $this->assertAuthenticated();
         $this->assertDatabaseHas('users', [
+            'name' => $name,
             'email' => $uspEmail,
             'codpes' => $codpes,
         ]);
@@ -92,22 +101,24 @@ class RegistrationValidationTest extends TestCase
     {
         $password = $this->getValidPassword();
         $generatedEmail = $this->getUniqueEmail();
+        $name = 'Test Non USP Optional Codpes';
 
         Volt::test('pages.auth.register')
-            ->set('name', 'Test Non USP Optional Codpes')
+            ->set('name', $name)
             ->set('email', $generatedEmail)
             ->set('password', $password)
             ->set('password_confirmation', $password)
             ->set('sou_da_usp', false)
-            ->set('codpes', '9876543')
+            ->set('codpes', '9876543') // This codpes should be ignored
             ->call('register')
             ->assertHasNoErrors()
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
         $this->assertDatabaseHas('users', [
+            'name' => $name,
             'email' => $generatedEmail,
-            'codpes' => null,
+            'codpes' => null, // Correctly null because sou_da_usp is false
         ]);
     }
 
