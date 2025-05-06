@@ -168,12 +168,10 @@ return [
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
-        // --- ADDED FOR AC3/AC4/AC5 ---
-        'codpes' => [
-            'replicado_validation_failed' => 'A combinação de Número USP e Email é inválida nos registros da USP.', // AC4 Message
-            'replicado_service_unavailable' => 'Não foi possível verificar as credenciais USP neste momento. Por favor, tente novamente mais tarde.', // AC5 Message
+        'codpes' => [ // Changed to match 'codpes.replicado_validation_failed' structure
+            'replicado_validation_failed' => 'A combinação de Número USP e Email é inválida nos registros da USP.',
+            'replicado_service_unavailable' => 'Não foi possível verificar as credenciais USP neste momento. Por favor, tente novamente mais tarde.',
         ],
-        // --- END ADDED ---
     ],
 
     /*
@@ -313,9 +311,7 @@ return [
         'winner' => 'ganhador',
         'work' => 'trabalho',
         'year' => 'ano',
-        // --- ADDED ---
-        'codpes' => 'Número USP', // Adjusted translation
+        'codpes' => 'Número USP (codpes)',
         'sou_da_usp' => 'Sou da USP',
-        // --- END ADDED ---
     ],
 ];

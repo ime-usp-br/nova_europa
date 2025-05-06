@@ -1,11 +1,13 @@
 <?php
 
+use App\Exceptions\ReplicadoServiceException; // Import custom exception
 use App\Models\User;
-use App\Services\ReplicadoService; // Import ReplicadoService
+use App\Services\ReplicadoService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule; // Import Rule for required_if
+use Illuminate\Support\Facades\Log; // Keep for potential direct logging if needed
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -17,12 +19,9 @@ new #[Layout('layouts.guest')] class extends Component
     public string $password = '';
     public string $password_confirmation = '';
 
-    // --- ADDED LIVEWIRE PROPERTIES ---
     public bool $sou_da_usp = false;
     public string $codpes = '';
-    // --- END ADDED ---
 
-    // --- ADDED LIFECYCLE HOOK ---
     /**
      * Automatically check "Sou da USP" if email ends with usp.br
      */
@@ -31,56 +30,43 @@ new #[Layout('layouts.guest')] class extends Component
         if (str_ends_with(strtolower($value), 'usp.br')) {
             $this->sou_da_usp = true;
         }
-        // Optional: uncheck if email is changed away from @usp.br and wasn't manually checked?
-        // else {
-        //     // Only uncheck if it wasn't manually set? This gets tricky.
-        //     // Maybe it's better to just let the user uncheck it if they change email.
-        // }
     }
-    // --- END ADDED ---
-
 
     /**
      * Validation rules.
      */
-    public function rules(): array // Changed to method to allow dynamic rules
+    public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            // --- ADDED/MODIFIED VALIDATION ---
-            'sou_da_usp' => ['boolean'], // Validate the checkbox value itself
+            'sou_da_usp' => ['boolean'],
             'codpes' => [
-                // Only require codpes if the sou_da_usp checkbox is checked
                 Rule::requiredIf($this->sou_da_usp),
-                'nullable', // Allows it to be null if not required
-                'numeric', // Basic numeric check
-                'digits_between:6,8', // Adjust digits as needed for Nº USP format
-                // --- AC3: Custom validation using ReplicadoService ---
+                'nullable',
+                'numeric',
+                'digits_between:6,8',
                 function (string $attribute, mixed $value, Closure $fail) {
-                    // Only run this validation if 'sou_da_usp' is true AND codpes has a value
                     if ($this->sou_da_usp && !empty($value)) {
-                        // Resolve the service from the container
                         $replicadoService = app(ReplicadoService::class);
                         try {
                             if (!$replicadoService->validarNuspEmail((int)$value, $this->email)) {
-                                // AC4: Fail validation with specific message if Replicado validation fails
-                                $fail('validation.custom.replicado_validation_failed');
+                                // AC4: Fail validation if Replicado validation returns false
+                                $fail('validation.custom.codpes.replicado_validation_failed');
                             }
+                        } catch (ReplicadoServiceException $e) { // Catch specific exception
+                            // AC5: Handle Replicado service communication failure.
+                            // Logging is already done within ReplicadoService.
+                            // Return a generic validation error message to the user.
+                            $fail('validation.custom.codpes.replicado_service_unavailable');
                         } catch (\Exception $e) {
-                            // AC5 preparation: Handle potential exceptions from the service
-                            // Log the error (implement proper logging later)
-                            // Option 1: Fail validation with a generic message
-                             $fail('validation.custom.replicado_service_unavailable');
-                            // Option 2: Throw a 500 error (less user-friendly for validation context)
-                            // report($e); // Report the exception
-                            // abort(500, __('An error occurred while validating USP credentials.'));
+                            // Catch any other unexpected exceptions from the service call
+                            Log::error('Unexpected error during Replicado validation: '.$e->getMessage(), ['exception' => $e]);
+                            $fail('validation.custom.codpes.replicado_service_unavailable'); // Still show a generic error to user
                         }
                     }
                 },
-                // --- END AC3 ---
             ],
-            // --- END ADDED/MODIFIED ---
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
         ];
     }
@@ -91,40 +77,30 @@ new #[Layout('layouts.guest')] class extends Component
      */
     public function register(): void
     {
-        // Validate using the rules() method
         $validated = $this->validate();
 
-        // --- MODIFIED USER CREATION ---
-        // Include sou_da_usp and codpes if needed in the User model's fillable array
-        // (Add 'codpes' to $fillable in App\Models\User.php)
-        // You might store 'sou_da_usp' or derive it later. Let's add codpes for now.
         $userData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            // Conditionally set 'codpes' only if it was validated (meaning sou_da_usp was true)
             'codpes' => ($this->sou_da_usp && isset($validated['codpes'])) ? $validated['codpes'] : null,
         ];
-        // --- END MODIFIED ---
 
         $user = User::create($userData);
 
         // AC7 / AC8 - Role assignment logic will go here later
-        if ($this->sou_da_usp && isset($validated['codpes'])) {
-             // Assign 'usp_user' role (using spatie/laravel-permission)
-             // $user->assignRole('usp_user');
-        } else {
-             // Assign 'external_user' role
-             // $user->assignRole('external_user');
-        }
+        // if ($this->sou_da_usp && isset($validated['codpes'])) {
+        // Assign 'usp_user' role (using spatie/laravel-permission)
+        // $user->assignRole('usp_user');
+        // } else {
+        // Assign 'external_user' role
+        // $user->assignRole('external_user');
+        // }
 
-        // AC9 - Event dispatching
         event(new Registered($user));
 
-        // AC10 - Login
         Auth::login($user);
 
-        // AC11 - Redirect
         $this->redirect(route('dashboard', absolute: false), navigate: true);
     }
 }; ?>
