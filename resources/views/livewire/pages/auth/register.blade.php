@@ -88,14 +88,12 @@ new #[Layout('layouts.guest')] class extends Component
 
         $user = User::create($userData);
 
-        // AC7 / AC8 - Role assignment logic will go here later
-        // if ($this->sou_da_usp && isset($validated['codpes'])) {
-        // Assign 'usp_user' role (using spatie/laravel-permission)
-        // $user->assignRole('usp_user');
-        // } else {
-        // Assign 'external_user' role
-        // $user->assignRole('external_user');
-        // }
+        // AC7: Assign 'usp_user' role if USP user and Replicado validation was successful.
+        // The Replicado validation success is implied if we passed the validation rules for 'codpes'.
+        if ($this->sou_da_usp && isset($validated['codpes'])) {
+            $user->assignRole('usp_user');
+        }
+        // AC8 (external_user role assignment) will be implemented here later.
 
         event(new Registered($user));
 

@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use App\Services\ReplicadoService;
+use Database\Seeders\RoleSeeder; // Import RoleSeeder
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -20,11 +21,13 @@ class RegistrationValidationTest extends TestCase
      * Setup the test environment.
      *
      * Bind the fake service to the container for tests in this class.
+     * Seed roles before each test.
      */
     protected function setUp(): void
     {
         parent::setUp();
         $this->instance(ReplicadoService::class, new FakeReplicadoService);
+        $this->seed(RoleSeeder::class); // Seed roles
     }
 
     private function getUniqueEmail(bool $isUsp = false): string
@@ -58,11 +61,12 @@ class RegistrationValidationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('users', [
-            'name' => $name,
-            'email' => $email,
-            'codpes' => null,
-        ]);
+        $user = User::where('email', $email)->first();
+        $this->assertNotNull($user);
+        $this->assertEquals($name, $user->name);
+        $this->assertNull($user->codpes);
+        // $this->assertTrue($user->hasRole('external_user')); // For AC8
+        $this->assertFalse($user->hasRole('usp_user'));
     }
 
     #[Test]
@@ -89,11 +93,15 @@ class RegistrationValidationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('users', [
-            'name' => $name,
-            'email' => $uspEmail,
-            'codpes' => $codpes,
-        ]);
+        $user = User::where('email', $uspEmail)->first();
+        $this->assertNotNull($user);
+        $this->assertEquals($name, $user->name);
+        $this->assertEquals($uspEmail, $user->email);
+        $this->assertEquals($codpes, $user->codpes);
+
+        // AC7: Assert user has 'usp_user' role
+        $this->assertTrue($user->hasRole('usp_user'), "User should have 'usp_user' role.");
+        $this->assertFalse($user->hasRole('external_user'), "User should not have 'external_user' role.");
     }
 
     #[Test]
@@ -115,11 +123,12 @@ class RegistrationValidationTest extends TestCase
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticated();
-        $this->assertDatabaseHas('users', [
-            'name' => $name,
-            'email' => $generatedEmail,
-            'codpes' => null, // Correctly null because sou_da_usp is false
-        ]);
+        $user = User::where('email', $generatedEmail)->first();
+        $this->assertNotNull($user);
+        $this->assertEquals($name, $user->name);
+        $this->assertNull($user->codpes); // Correctly null because sou_da_usp is false
+        // $this->assertTrue($user->hasRole('external_user')); // For AC8
+        $this->assertFalse($user->hasRole('usp_user'));
     }
 
     #[Test]
