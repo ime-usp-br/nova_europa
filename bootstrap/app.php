@@ -16,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // This is where other global middleware or aliases might be configured.
-        // AC3: Ensure unauthenticated users are redirected to the local login route.
+        // AC3 of Issue #26: Ensure unauthenticated users are redirected to the local login route.
         $middleware->redirectGuestsTo(function (Request $request) {
             // If the request expects JSON, return null to let the default JSON response handler work.
             // Otherwise, redirect to the local login route.
@@ -26,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return route('login.local');
         });
+
+        // AC5 of Issue #26: Ensure authenticated users trying to access guest routes are redirected to dashboard.
+        $middleware->redirectUsersTo(fn (Request $request) => route('dashboard'));
 
         // Example of other common middleware configurations that might exist:
         // $middleware->validateCsrfTokens(except: [

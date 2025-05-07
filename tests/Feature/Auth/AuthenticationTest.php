@@ -249,4 +249,20 @@ class AuthenticationTest extends TestCase
         $response->assertOk();
         $response->assertSee(__('Profile')); // Check for a common profile text
     }
+
+    // Test for AC5 of Issue #26
+    #[Test]
+    #[Group('auth-middleware')]
+    public function authenticated_user_is_redirected_from_guest_routes_to_dashboard(): void
+    {
+        $user = User::factory()->create(); // Could be verified or unverified, doesn't matter for guest middleware
+
+        // Test redirection from /login/local
+        $responseLogin = $this->actingAs($user)->get(route('login.local'));
+        $responseLogin->assertRedirect(route('dashboard', absolute: false));
+
+        // Test redirection from /register
+        $responseRegister = $this->actingAs($user)->get(route('register'));
+        $responseRegister->assertRedirect(route('dashboard', absolute: false));
+    }
 }
