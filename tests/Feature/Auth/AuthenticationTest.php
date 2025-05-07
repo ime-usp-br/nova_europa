@@ -183,4 +183,57 @@ class AuthenticationTest extends TestCase
 
         $this->assertGuest();
     }
+
+    // New tests for AC3 of Issue #26
+    #[Test]
+    #[Group('auth-middleware')]
+    public function unauthenticated_user_is_redirected_from_dashboard_to_local_login(): void
+    {
+        // Ensure no user is authenticated
+        $this->assertGuest();
+
+        // Attempt to access the dashboard route
+        $response = $this->get(route('dashboard'));
+
+        // Assert that the user is redirected to the local login route
+        $response->assertRedirect(route('login.local'));
+    }
+
+    #[Test]
+    #[Group('auth-middleware')]
+    public function unauthenticated_user_is_redirected_from_profile_to_local_login(): void
+    {
+        // Ensure no user is authenticated
+        $this->assertGuest();
+
+        // Attempt to access the profile route
+        $response = $this->get(route('profile'));
+
+        // Assert that the user is redirected to the local login route
+        $response->assertRedirect(route('login.local'));
+    }
+
+    #[Test]
+    #[Group('auth-middleware')]
+    public function authenticated_user_can_access_dashboard(): void
+    {
+        $user = User::factory()->verified()->create(); // Use verified for dashboard access as per AC4
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee(__('Dashboard')); // Check for a common dashboard text
+    }
+
+    #[Test]
+    #[Group('auth-middleware')]
+    public function authenticated_user_can_access_profile(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('profile'));
+
+        $response->assertOk();
+        $response->assertSee(__('Profile')); // Check for a common profile text
+    }
 }
