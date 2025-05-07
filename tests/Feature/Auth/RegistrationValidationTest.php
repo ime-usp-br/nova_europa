@@ -5,7 +5,9 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use App\Services\ReplicadoService;
 use Database\Seeders\RoleSeeder; // Import RoleSeeder
+use Illuminate\Auth\Events\Registered; // Import Registered event
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event; // Import Event facade
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Volt\Volt;
@@ -45,6 +47,8 @@ class RegistrationValidationTest extends TestCase
     #[Test]
     public function valid_non_usp_user_can_register(): void
     {
+        Event::fake(); // AC15: Fake events
+
         $password = $this->getValidPassword();
         $email = $this->getUniqueEmail();
         $name = 'Test Non USP';
@@ -67,11 +71,18 @@ class RegistrationValidationTest extends TestCase
         $this->assertNull($user->codpes);
         $this->assertTrue($user->hasRole('external_user'), "User should have 'external_user' role.");
         $this->assertFalse($user->hasRole('usp_user'), "User should not have 'usp_user' role.");
+
+        // AC15: Assert Registered event was dispatched for the correct user
+        Event::assertDispatched(Registered::class, function ($event) use ($user) {
+            return $event->user->is($user);
+        });
     }
 
     #[Test]
     public function valid_usp_user_with_codpes_and_successful_replicado_validation_can_register(): void
     {
+        Event::fake(); // AC15: Fake events
+
         $password = $this->getValidPassword();
         $uspEmail = $this->getUniqueEmail(true);
         $codpes = '1234567';
@@ -102,11 +113,18 @@ class RegistrationValidationTest extends TestCase
         // AC7: Assert user has 'usp_user' role
         $this->assertTrue($user->hasRole('usp_user'), "User should have 'usp_user' role.");
         $this->assertFalse($user->hasRole('external_user'), "User should not have 'external_user' role.");
+
+        // AC15: Assert Registered event was dispatched for the correct user
+        Event::assertDispatched(Registered::class, function ($event) use ($user) {
+            return $event->user->is($user);
+        });
     }
 
     #[Test]
     public function valid_non_usp_user_with_optional_codpes_can_register(): void
     {
+        Event::fake(); // AC15: Fake events
+
         $password = $this->getValidPassword();
         $generatedEmail = $this->getUniqueEmail();
         $name = 'Test Non USP Optional Codpes';
@@ -129,6 +147,11 @@ class RegistrationValidationTest extends TestCase
         $this->assertNull($user->codpes); // Correctly null because sou_da_usp is false
         $this->assertTrue($user->hasRole('external_user'), "User should have 'external_user' role.");
         $this->assertFalse($user->hasRole('usp_user'), "User should not have 'usp_user' role.");
+
+        // AC15: Assert Registered event was dispatched for the correct user
+        Event::assertDispatched(Registered::class, function ($event) use ($user) {
+            return $event->user->is($user);
+        });
     }
 
     #[Test]
