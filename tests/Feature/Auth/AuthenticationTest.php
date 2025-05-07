@@ -225,6 +225,19 @@ class AuthenticationTest extends TestCase
         $response->assertSee(__('Dashboard')); // Check for a common dashboard text
     }
 
+    // Test for AC4 (Issue #26) and AC10.2 (Issue #26)
+    #[Test]
+    #[Group('auth-middleware')]
+    public function authenticated_unverified_user_is_redirected_from_dashboard_to_verification_notice(): void
+    {
+        $user = User::factory()->unverified()->create(); // Create an unverified user
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        // Assert that the user is redirected to the email verification notice route
+        $response->assertRedirect(route('verification.notice'));
+    }
+
     #[Test]
     #[Group('auth-middleware')]
     public function authenticated_user_can_access_profile(): void
