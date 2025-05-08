@@ -1301,7 +1301,7 @@ def parse_arguments(all_available_tasks: List[str]) -> argparse.Namespace:
         action="store_true",
         help="Enable preliminary context selection by LLM.",
     )  # AC10 #38
-    return parser.parse_args()
+    return parser
 
 
 # --- Ponto de Entrada Principal ---
@@ -1870,19 +1870,24 @@ if __name__ == "__main__":
                         f"  User confirmed using {len(final_selected_files)} selected files (after potential modifications)."
                     )
 
-
         # --- Load FINAL context based on selection ---
         latest_context_dir = find_latest_context_dir(
             CONTEXT_DIR_BASE
-        ) # Find latest dir - potentially needed for path updates
+        )  # Find latest dir - potentially needed for path updates
 
         # Determine if we should proceed with the user/LLM selected list
-        should_use_selected_list = not use_default_context and final_selected_files is not None
+        should_use_selected_list = (
+            not use_default_context and final_selected_files is not None
+        )
 
-        final_list_for_prepare_context: Optional[List[str]] = None # The list we'll pass to prepare_context_parts
+        final_list_for_prepare_context: Optional[List[str]] = (
+            None  # The list we'll pass to prepare_context_parts
+        )
 
         if should_use_selected_list:
-            print("\nProcessing User/LLM Selected Context - Updating paths to latest context directory where applicable...")
+            print(
+                "\nProcessing User/LLM Selected Context - Updating paths to latest context directory where applicable..."
+            )
             # We know final_selected_files is a list here.
             updated_include_list: List[str] = []
             update_count = 0
@@ -1893,41 +1898,66 @@ if __name__ == "__main__":
             code_context_pattern = re.compile(r"^(context_llm/code/\d{8}_\d{6})/(.*)$")
 
             if not latest_context_dir:
-                print("  Warning: Latest context directory not found. Cannot update paths. Using originally selected paths.")
-                updated_include_list = list(final_selected_files) # Use original list as is
+                print(
+                    "  Warning: Latest context directory not found. Cannot update paths. Using originally selected paths."
+                )
+                updated_include_list = list(
+                    final_selected_files
+                )  # Use original list as is
             else:
-                print(f"  Latest context directory: {latest_context_dir.relative_to(PROJECT_ROOT)}")
+                print(
+                    f"  Latest context directory: {latest_context_dir.relative_to(PROJECT_ROOT)}"
+                )
                 # Iterate through the list confirmed by the user
                 for selected_path_str in final_selected_files:
                     match = code_context_pattern.match(selected_path_str)
                     if match:
                         # This file is from *a* code context directory
                         # old_dir_part = match.group(1) # e.g., context_llm/code/20250428_100000
-                        filename = match.group(2)     # e.g., some_file.txt
+                        filename = match.group(2)  # e.g., some_file.txt
 
                         potential_latest_absolute_path = latest_context_dir / filename
 
                         if potential_latest_absolute_path.is_file():
                             try:
                                 # Get the relative path of the *latest* version
-                                latest_relative_path_str = str(potential_latest_absolute_path.resolve().relative_to(PROJECT_ROOT).as_posix())
+                                latest_relative_path_str = str(
+                                    potential_latest_absolute_path.resolve()
+                                    .relative_to(PROJECT_ROOT)
+                                    .as_posix()
+                                )
                                 if latest_relative_path_str != selected_path_str:
-                                     # Only add if it's actually different, avoid noise if latest IS the selected one
-                                     updated_include_list.append(latest_relative_path_str)
-                                     print(f"    ~ Updated: '{selected_path_str}' -> '{latest_relative_path_str}'")
-                                     update_count += 1
+                                    # Only add if it's actually different, avoid noise if latest IS the selected one
+                                    updated_include_list.append(
+                                        latest_relative_path_str
+                                    )
+                                    print(
+                                        f"    ~ Updated: '{selected_path_str}' -> '{latest_relative_path_str}'"
+                                    )
+                                    update_count += 1
                                 else:
-                                     # Selected path was already the latest, add it
-                                     updated_include_list.append(selected_path_str)
-                                     kept_original_count +=1
-                            except (ValueError, FileNotFoundError, Exception) as e_rel_latest:
-                                print(f"    ! Error getting relative path for LATEST version of {filename}: {e_rel_latest}. Keeping original: {selected_path_str}", file=sys.stderr)
-                                updated_include_list.append(selected_path_str) # Fallback to original
-                                kept_original_count +=1
+                                    # Selected path was already the latest, add it
+                                    updated_include_list.append(selected_path_str)
+                                    kept_original_count += 1
+                            except (
+                                ValueError,
+                                FileNotFoundError,
+                                Exception,
+                            ) as e_rel_latest:
+                                print(
+                                    f"    ! Error getting relative path for LATEST version of {filename}: {e_rel_latest}. Keeping original: {selected_path_str}",
+                                    file=sys.stderr,
+                                )
+                                updated_include_list.append(
+                                    selected_path_str
+                                )  # Fallback to original
+                                kept_original_count += 1
 
                         else:
                             # Latest version doesn't exist, keep the originally selected (potentially older) one
-                            print(f"    ! Warning: Latest version of '{filename}' not found in {latest_context_dir.name}. Keeping originally selected: {selected_path_str}")
+                            print(
+                                f"    ! Warning: Latest version of '{filename}' not found in {latest_context_dir.name}. Keeping originally selected: {selected_path_str}"
+                            )
                             updated_include_list.append(selected_path_str)
                             skipped_latest_missing += 1
                     else:
@@ -1935,57 +1965,70 @@ if __name__ == "__main__":
                         updated_include_list.append(selected_path_str)
                         kept_original_count += 1
 
-                print(f"  Path update complete. Updated: {update_count}, Kept original/non-code: {kept_original_count}, Skipped (latest missing): {skipped_latest_missing}")
+                print(
+                    f"  Path update complete. Updated: {update_count}, Kept original/non-code: {kept_original_count}, Skipped (latest missing): {skipped_latest_missing}"
+                )
 
             # Use the list with potentially updated paths
             final_list_for_prepare_context = updated_include_list
 
-        else: # Default case (no -sc, or user chose 'n', or preliminary failed/empty+abort)
-             # In default loading, we don't use an include list, prepare_context_parts handles it.
-             final_list_for_prepare_context = None
-             print("\nLoading Default Context (latest context dir + common)...")
-             if not latest_context_dir: # Check is crucial here
-                  print("Fatal Error: Cannot load default context because the latest context directory was not found.", file=sys.stderr)
-                  sys.exit(1)
-             print(f"  Using latest context directory: {latest_context_dir.relative_to(BASE_DIR)}")
-             if COMMON_CONTEXT_DIR.exists():
-                 print(f"  Using common context directory: {COMMON_CONTEXT_DIR.relative_to(BASE_DIR)}")
-
+        else:  # Default case (no -sc, or user chose 'n', or preliminary failed/empty+abort)
+            # In default loading, we don't use an include list, prepare_context_parts handles it.
+            final_list_for_prepare_context = None
+            print("\nLoading Default Context (latest context dir + common)...")
+            if not latest_context_dir:  # Check is crucial here
+                print(
+                    "Fatal Error: Cannot load default context because the latest context directory was not found.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print(
+                f"  Using latest context directory: {latest_context_dir.relative_to(BASE_DIR)}"
+            )
+            if COMMON_CONTEXT_DIR.exists():
+                print(
+                    f"  Using common context directory: {COMMON_CONTEXT_DIR.relative_to(BASE_DIR)}"
+                )
 
         # --- Now call prepare_context_parts with the right arguments ---
         print(f"\nPreparing final context parts...")
         if final_list_for_prepare_context is not None:
-             # We are using the selected list (potentially with updated paths)
-             print(f"  Loading based on explicit list of {len(final_list_for_prepare_context)} files.")
-             context_parts = prepare_context_parts(
-                 primary_context_dir=None, # MUST be None when include_list is used
-                 common_context_dir=None,  # MUST be None when include_list is used
-                 exclude_list=args.exclude_context,
-                 manifest_data=manifest_data_for_context,
-                 include_list=final_list_for_prepare_context, # Use the updated list
-             )
+            # We are using the selected list (potentially with updated paths)
+            print(
+                f"  Loading based on explicit list of {len(final_list_for_prepare_context)} files."
+            )
+            context_parts = prepare_context_parts(
+                primary_context_dir=None,  # MUST be None when include_list is used
+                common_context_dir=None,  # MUST be None when include_list is used
+                exclude_list=args.exclude_context,
+                manifest_data=manifest_data_for_context,
+                include_list=final_list_for_prepare_context,  # Use the updated list
+            )
         else:
-             # We are using default loading (latest_context_dir + common)
-             # latest_context_dir check happened above in the 'else' block
-             context_parts = prepare_context_parts(
-                 primary_context_dir=latest_context_dir,
-                 common_context_dir=COMMON_CONTEXT_DIR,
-                 exclude_list=args.exclude_context,
-                 manifest_data=manifest_data_for_context,
-                 include_list=None, # MUST be None to trigger default loading
-             )
+            # We are using default loading (latest_context_dir + common)
+            # latest_context_dir check happened above in the 'else' block
+            context_parts = prepare_context_parts(
+                primary_context_dir=latest_context_dir,
+                common_context_dir=COMMON_CONTEXT_DIR,
+                exclude_list=args.exclude_context,
+                manifest_data=manifest_data_for_context,
+                include_list=None,  # MUST be None to trigger default loading
+            )
 
         if not context_parts:
-             print(
-                 "  Warning: No context parts loaded after processing selections/defaults and exclusions.",
-                 file=sys.stderr,
-             )
+            print(
+                "  Warning: No context parts loaded after processing selections/defaults and exclusions.",
+                file=sys.stderr,
+            )
 
         # --- End of Context Loading Logic ---
         # Ensure context_parts is usable downstream
         if context_parts is None:
             context_parts = []
-            print("  Warning: context_parts was unexpectedly None, reset to empty list.", file=sys.stderr)
+            print(
+                "  Warning: context_parts was unexpectedly None, reset to empty list.",
+                file=sys.stderr,
+            )
 
         # --- Execute Main Task Flow (Uses loaded context_parts) ---
         # ... (rest of the main task logic - two-stage or direct, API calls, final action) ...
