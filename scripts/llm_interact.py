@@ -1315,12 +1315,14 @@ if __name__ == "__main__":
     meta_tasks_dict = find_available_meta_tasks(META_PROMPT_DIR)
     all_tasks_dict = {**direct_tasks_dict, **meta_tasks_dict}
     all_task_names = list(all_tasks_dict.keys())
-
+    
+    parser = parse_arguments(all_task_names)
+    
     try:
-        args = parse_arguments(all_task_names)
+        args = parser.parse_args()
     except SystemExit as e:
         sys.exit(e.code)
-
+        
     selected_task = args.task
     if not selected_task:
         if not all_task_names:

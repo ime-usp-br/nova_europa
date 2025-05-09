@@ -5,8 +5,14 @@ Unit tests for argument parsing in the llm_interact.py script.
 
 import pytest
 import sys
-from typing import List, Optional
-from scripts.llm_interact import parse_arguments, DEFAULT_BASE_BRANCH
+from typing import List, Optional, Dict # Adicionado Dict
+from pathlib import Path # Adicionado Path
+from scripts.llm_interact import (
+    parse_arguments,
+    DEFAULT_BASE_BRANCH,
+    find_available_tasks,    # Adicionado
+    find_available_meta_tasks, # Adicionado
+)
 
 # A fixed list of tasks for testing argument parsing in isolation.
 # These would normally be discovered by scanning template directories.
@@ -293,3 +299,136 @@ def test_parse_arguments_empty_tasks_list():
 
     args_task = parser.parse_args(["some-nonexistent-task"])
     assert args_task.task == "some-nonexistent-task"
+
+
+# --- Task Discovery Tests (AC3 #47) ---
+
+
+def test_find_available_tasks_empty_dir(tmp_path: Path):
+    """Test find_available_tasks with an empty directory."""
+    prompt_dir = tmp_path / "prompts"
+    prompt_dir.mkdir()
+    assert find_available_tasks(prompt_dir) == {}
+
+
+def test_find_available_tasks_dir_not_exists(tmp_path: Path):
+    """Test find_available_tasks with a non-existent directory."""
+    prompt_dir = tmp_path / "non_existent_prompts"
+    assert find_available_tasks(prompt_dir) == {}
+
+
+def test_find_available_tasks_single_valid_task(tmp_path: Path):
+    """Test find_available_tasks with one valid task file."""
+    prompt_dir = tmp_path / "prompts"
+    prompt_dir.mkdir()
+    task_file = prompt_dir / "prompt-my-task.txt"
+    task_file.write_text("content")
+    expected = {"my-task": task_file.resolve()}
+    assert find_available_tasks(prompt_dir) == expected
+
+
+def test_find_available_tasks_multiple_valid_tasks(tmp_path: Path):
+    """Test find_available_tasks with multiple valid task files, including underscores in names."""
+    prompt_dir = tmp_path / "prompts"
+    prompt_dir.mkdir()
+    task_file1 = prompt_dir / "prompt-task-one.txt"
+    task_file1.write_text("content1")
+    task_file2 = prompt_dir / "prompt-task_two_is_long.txt"  # with underscore
+    task_file2.write_text("content2")
+    task_file3 = prompt_dir / "prompt-another-task.txt"
+    task_file3.write_text("content3")
+
+    expected = {
+        "task-one": task_file1.resolve(),
+        "task-two-is-long": task_file2.resolve(),
+        "another-task": task_file3.resolve(),
+    }
+    result = find_available_tasks(prompt_dir)
+    assert result == expected
+
+
+def test_find_available_tasks_with_invalid_and_valid_files(tmp_path: Path):
+    """Test find_available_tasks with a mix of valid, invalid, and non-file entries."""
+    prompt_dir = tmp_path / "prompts"
+    prompt_dir.mkdir()
+
+    valid_file = prompt_dir / "prompt-real-deal.txt"
+    valid_file.write_text("valid content")
+
+    # Invalid names or extensions
+    (prompt_dir / "notprompt-task.txt").write_text("invalid prefix")
+    (prompt_dir / "prompt-invalid.md").write_text("invalid extension")
+    (prompt_dir / "prompt-.txt").write_text("stem 'prompt-' results in empty task name")
+    (prompt_dir / "another.txt").write_text("not matching pattern")
+
+    # A directory that matches the pattern (should be ignored by is_file)
+    (prompt_dir / "prompt-a-directory.txt").mkdir()
+
+    expected = {"real-deal": valid_file.resolve()}
+    assert find_available_tasks(prompt_dir) == expected
+
+
+def test_find_available_meta_tasks_empty_dir(tmp_path: Path):
+    """Test find_available_meta_tasks with an empty directory."""
+    meta_prompt_dir = tmp_path / "meta_prompts"
+    meta_prompt_dir.mkdir()
+    assert find_available_meta_tasks(meta_prompt_dir) == {}
+
+
+def test_find_available_meta_tasks_dir_not_exists(tmp_path: Path):
+    """Test find_available_meta_tasks with a non-existent directory."""
+    meta_prompt_dir = tmp_path / "non_existent_meta_prompts"
+    assert find_available_meta_tasks(meta_prompt_dir) == {}
+
+
+def test_find_available_meta_tasks_single_valid_task(tmp_path: Path):
+    """Test find_available_meta_tasks with one valid meta task file."""
+    meta_prompt_dir = tmp_path / "meta_prompts"
+    meta_prompt_dir.mkdir()
+    task_file = meta_prompt_dir / "meta-prompt-my-meta-task.txt"
+    task_file.write_text("content")
+    expected = {"my-meta-task": task_file.resolve()}
+    assert find_available_meta_tasks(meta_prompt_dir) == expected
+
+
+def test_find_available_meta_tasks_multiple_valid_tasks(tmp_path: Path):
+    """Test find_available_meta_tasks with multiple valid meta task files."""
+    meta_prompt_dir = tmp_path / "meta_prompts"
+    meta_prompt_dir.mkdir()
+    task_file1 = meta_prompt_dir / "meta-prompt-meta-one.txt"
+    task_file1.write_text("content1")
+    task_file2 = meta_prompt_dir / "meta-prompt-meta_two_is_also_long.txt"
+    task_file2.write_text("content2")
+    task_file3 = meta_prompt_dir / "meta-prompt-another-meta.txt"
+    task_file3.write_text("content3")
+
+    expected = {
+        "meta-one": task_file1.resolve(),
+        "meta-two-is-also-long": task_file2.resolve(),
+        "another-meta": task_file3.resolve(),
+    }
+    result = find_available_meta_tasks(meta_prompt_dir)
+    assert result == expected
+
+
+def test_find_available_meta_tasks_with_invalid_and_valid_files(tmp_path: Path):
+    """Test find_available_meta_tasks with a mix of valid, invalid, and non-file entries."""
+    meta_prompt_dir = tmp_path / "meta_prompts"
+    meta_prompt_dir.mkdir()
+
+    valid_file = meta_prompt_dir / "meta-prompt-real-meta.txt"
+    valid_file.write_text("valid content")
+
+    # Invalid names or extensions
+    (meta_prompt_dir / "notmetaprompt-task.txt").write_text("invalid prefix")
+    (meta_prompt_dir / "meta-prompt-invalid.md").write_text("invalid extension")
+    (meta_prompt_dir / "meta-prompt-.txt").write_text(
+        "stem 'meta-prompt-' results in empty task name"
+    )
+    (meta_prompt_dir / "another.txt").write_text("not matching pattern")
+
+    # A directory that matches the pattern (should be ignored by is_file)
+    (meta_prompt_dir / "meta-prompt-a-directory.txt").mkdir()
+
+    expected = {"real-meta": valid_file.resolve()}
+    assert find_available_meta_tasks(meta_prompt_dir) == expected
