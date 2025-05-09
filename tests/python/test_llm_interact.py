@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Unit tests for argument parsing in the llm_interact.py script.
+Unit tests for argument parsing and other functionalities in the llm_interact.py script.
 """
 
 import pytest
 import sys
-from typing import List, Optional, Dict # Adicionado Dict
-from pathlib import Path # Adicionado Path
+from typing import List, Optional, Dict, Any # Adicionado Dict e Any
+from pathlib import Path
 from scripts.llm_interact import (
     parse_arguments,
     DEFAULT_BASE_BRANCH,
-    find_available_tasks,    # Adicionado
-    find_available_meta_tasks, # Adicionado
+    find_available_tasks,
+    find_available_meta_tasks,
+    prompt_user_to_select_task, # Added for AC4 #47
 )
 
 # A fixed list of tasks for testing argument parsing in isolation.
@@ -29,6 +30,16 @@ MOCK_AVAILABLE_TASKS = [
     "fix-artisan-test",
     "fix-artisan-dusk",
 ]
+
+# Mock tasks dictionary for testing prompt_user_to_select_task (AC4 #47)
+MOCK_TASKS_DICT_FOR_PROMPT_TESTS: Dict[str, Path] = {
+    "task-echo": Path("dummy/prompts/prompt-task-echo.txt"),
+    "task-bravo": Path("dummy/prompts/prompt-task-bravo.txt"),
+    "task-alpha": Path("dummy/prompts/prompt-task-alpha.txt"), # Intentionally unsorted
+}
+# Expected sorted order for menu display and selection mapping
+SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS = sorted(MOCK_TASKS_DICT_FOR_PROMPT_TESTS.keys())
+# Expected: ["task-alpha", "task-bravo", "task-echo"]
 
 
 def call_parse_arguments(cmd_list: Optional[List[str]] = None):
@@ -297,6 +308,10 @@ def test_parse_arguments_empty_tasks_list():
     assert args_options.two_stage is True
     assert args_options.task is None
 
+    # If choices is empty, argparse still parses the positional argument,
+    # but it won't validate against the (non-existent) choices.
+    # This behavior is fine, as the main script would exit if all_task_names is empty
+    # before getting to a point where an invalid task choice would matter.
     args_task = parser.parse_args(["some-nonexistent-task"])
     assert args_task.task == "some-nonexistent-task"
 
@@ -432,3 +447,132 @@ def test_find_available_meta_tasks_with_invalid_and_valid_files(tmp_path: Path):
 
     expected = {"real-meta": valid_file.resolve()}
     assert find_available_meta_tasks(meta_prompt_dir) == expected
+
+# --- Interactive Task Selection Tests (AC4 #47) ---
+
+def test_prompt_user_to_select_task_valid_choice_first(mocker: Any, capsys: Any):
+    """Test selecting the first task with valid numeric input."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.return_value = "1" # Corresponds to SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task == SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]
+    
+    captured = capsys.readouterr()
+    expected_menu = "\nPlease choose a task to perform:\n"
+    for i, task_name in enumerate(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS):
+        expected_menu += f"  {i + 1}: {task_name}\n"
+    expected_menu += "  q: Quit\n"
+    
+    assert expected_menu in captured.out
+    assert f"  You selected task: {SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]}\n" in captured.out
+    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+
+def test_prompt_user_to_select_task_valid_choice_last(mocker: Any, capsys: Any):
+    """Test selecting the last task with valid numeric input."""
+    mock_input = mocker.patch('builtins.input')
+    last_task_index_str = str(len(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS))
+    mock_input.return_value = last_task_index_str
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[-1]
+    assert selected_task == expected_task_name
+    
+    captured = capsys.readouterr()
+    assert f"  You selected task: {expected_task_name}\n" in captured.out
+    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+
+def test_prompt_user_to_select_task_quit_lower(mocker: Any, capsys: Any):
+    """Test quitting the selection with 'q'."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.return_value = "q"
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task is None
+    
+    captured = capsys.readouterr()
+    assert "You selected task:" not in captured.out # No selection confirmation
+    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+
+def test_prompt_user_to_select_task_quit_upper(mocker: Any, capsys: Any):
+    """Test quitting the selection with 'Q' (case-insensitivity)."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.return_value = "Q"
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    assert selected_task is None
+    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+
+def test_prompt_user_to_select_task_invalid_text_then_valid(mocker: Any, capsys: Any):
+    """Test providing invalid text input, then a valid numeric input."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.side_effect = ["sometext", "2"] # Invalid, then 2nd task
+    
+    valid_selection_index = 1 # 0-indexed for "2"
+    expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task == expected_task_name
+    
+    captured = capsys.readouterr()
+    assert "  Invalid input. Please enter a number or 'q'.\n" in captured.out
+    assert f"  You selected task: {expected_task_name}\n" in captured.out
+    assert mock_input.call_count == 2
+
+def test_prompt_user_to_select_task_number_too_low_then_valid(mocker: Any, capsys: Any):
+    """Test providing an out-of-bounds (too low) number, then a valid one."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.side_effect = ["0", "3"] # Invalid (0), then 3rd task
+    
+    valid_selection_index = 2 # 0-indexed for "3"
+    expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task == expected_task_name
+    
+    captured = capsys.readouterr()
+    assert "  Invalid number. Please try again.\n" in captured.out
+    assert f"  You selected task: {expected_task_name}\n" in captured.out
+    assert mock_input.call_count == 2
+
+def test_prompt_user_to_select_task_number_too_high_then_valid(mocker: Any, capsys: Any):
+    """Test providing an out-of-bounds (too high) number, then a valid one."""
+    mock_input = mocker.patch('builtins.input')
+    num_tasks = len(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS)
+    invalid_high_number = str(num_tasks + 1) # e.g., "4" if 3 tasks
+    mock_input.side_effect = [invalid_high_number, "1"] # Invalid, then 1st task
+
+    valid_selection_index = 0 # 0-indexed for "1"
+    expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
+    
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task == expected_task_name
+    
+    captured = capsys.readouterr()
+    assert "  Invalid number. Please try again.\n" in captured.out
+    assert f"  You selected task: {expected_task_name}\n" in captured.out
+    assert mock_input.call_count == 2
+
+def test_prompt_user_to_select_task_empty_input_then_valid(mocker: Any, capsys: Any):
+    """Test providing empty input (Enter key), then a valid one."""
+    mock_input = mocker.patch('builtins.input')
+    mock_input.side_effect = ["", "2"] # Empty string, then 2nd task
+    
+    valid_selection_index = 1 # 0-indexed for "2"
+    expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
+
+    selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
+    
+    assert selected_task == expected_task_name
+    
+    captured = capsys.readouterr()
+    # Empty input is treated as invalid text
+    assert "  Invalid input. Please enter a number or 'q'.\n" in captured.out
+    assert f"  You selected task: {expected_task_name}\n" in captured.out
+    assert mock_input.call_count == 2
