@@ -5,14 +5,16 @@ Unit tests for argument parsing and other functionalities in the llm_interact.py
 
 import pytest
 import sys
-from typing import List, Optional, Dict, Any # Adicionado Dict e Any
+from typing import List, Optional, Dict, Any  # Adicionado Dict e Any
 from pathlib import Path
+import re  # For load_and_fill_template tests
 from scripts.llm_interact import (
     parse_arguments,
     DEFAULT_BASE_BRANCH,
     find_available_tasks,
     find_available_meta_tasks,
-    prompt_user_to_select_task, # Added for AC4 #47
+    prompt_user_to_select_task,  # Added for AC4 #47
+    load_and_fill_template,  # Added for AC5 #47
 )
 
 # A fixed list of tasks for testing argument parsing in isolation.
@@ -35,10 +37,12 @@ MOCK_AVAILABLE_TASKS = [
 MOCK_TASKS_DICT_FOR_PROMPT_TESTS: Dict[str, Path] = {
     "task-echo": Path("dummy/prompts/prompt-task-echo.txt"),
     "task-bravo": Path("dummy/prompts/prompt-task-bravo.txt"),
-    "task-alpha": Path("dummy/prompts/prompt-task-alpha.txt"), # Intentionally unsorted
+    "task-alpha": Path("dummy/prompts/prompt-task-alpha.txt"),  # Intentionally unsorted
 }
 # Expected sorted order for menu display and selection mapping
-SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS = sorted(MOCK_TASKS_DICT_FOR_PROMPT_TESTS.keys())
+SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS = sorted(
+    MOCK_TASKS_DICT_FOR_PROMPT_TESTS.keys()
+)
 # Expected: ["task-alpha", "task-bravo", "task-echo"]
 
 
@@ -448,131 +452,309 @@ def test_find_available_meta_tasks_with_invalid_and_valid_files(tmp_path: Path):
     expected = {"real-meta": valid_file.resolve()}
     assert find_available_meta_tasks(meta_prompt_dir) == expected
 
+
 # --- Interactive Task Selection Tests (AC4 #47) ---
+
 
 def test_prompt_user_to_select_task_valid_choice_first(mocker: Any, capsys: Any):
     """Test selecting the first task with valid numeric input."""
-    mock_input = mocker.patch('builtins.input')
-    mock_input.return_value = "1" # Corresponds to SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]
+    mock_input = mocker.patch("builtins.input")
+    mock_input.return_value = (
+        "1"  # Corresponds to SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]
+    )
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task == SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]
-    
+
     captured = capsys.readouterr()
     expected_menu = "\nPlease choose a task to perform:\n"
     for i, task_name in enumerate(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS):
         expected_menu += f"  {i + 1}: {task_name}\n"
     expected_menu += "  q: Quit\n"
-    
+
     assert expected_menu in captured.out
-    assert f"  You selected task: {SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]}\n" in captured.out
-    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+    assert (
+        f"  You selected task: {SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[0]}\n"
+        in captured.out
+    )
+    mock_input.assert_called_once_with(
+        "Enter the number of the task (or 'q' to quit): "
+    )
+
 
 def test_prompt_user_to_select_task_valid_choice_last(mocker: Any, capsys: Any):
     """Test selecting the last task with valid numeric input."""
-    mock_input = mocker.patch('builtins.input')
+    mock_input = mocker.patch("builtins.input")
     last_task_index_str = str(len(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS))
     mock_input.return_value = last_task_index_str
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[-1]
     assert selected_task == expected_task_name
-    
+
     captured = capsys.readouterr()
     assert f"  You selected task: {expected_task_name}\n" in captured.out
-    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+    mock_input.assert_called_once_with(
+        "Enter the number of the task (or 'q' to quit): "
+    )
+
 
 def test_prompt_user_to_select_task_quit_lower(mocker: Any, capsys: Any):
     """Test quitting the selection with 'q'."""
-    mock_input = mocker.patch('builtins.input')
+    mock_input = mocker.patch("builtins.input")
     mock_input.return_value = "q"
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task is None
-    
+
     captured = capsys.readouterr()
-    assert "You selected task:" not in captured.out # No selection confirmation
-    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+    assert "You selected task:" not in captured.out  # No selection confirmation
+    mock_input.assert_called_once_with(
+        "Enter the number of the task (or 'q' to quit): "
+    )
+
 
 def test_prompt_user_to_select_task_quit_upper(mocker: Any, capsys: Any):
     """Test quitting the selection with 'Q' (case-insensitivity)."""
-    mock_input = mocker.patch('builtins.input')
+    mock_input = mocker.patch("builtins.input")
     mock_input.return_value = "Q"
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
     assert selected_task is None
-    mock_input.assert_called_once_with("Enter the number of the task (or 'q' to quit): ")
+    mock_input.assert_called_once_with(
+        "Enter the number of the task (or 'q' to quit): "
+    )
+
 
 def test_prompt_user_to_select_task_invalid_text_then_valid(mocker: Any, capsys: Any):
     """Test providing invalid text input, then a valid numeric input."""
-    mock_input = mocker.patch('builtins.input')
-    mock_input.side_effect = ["sometext", "2"] # Invalid, then 2nd task
-    
-    valid_selection_index = 1 # 0-indexed for "2"
+    mock_input = mocker.patch("builtins.input")
+    mock_input.side_effect = ["sometext", "2"]  # Invalid, then 2nd task
+
+    valid_selection_index = 1  # 0-indexed for "2"
     expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task == expected_task_name
-    
+
     captured = capsys.readouterr()
     assert "  Invalid input. Please enter a number or 'q'.\n" in captured.out
     assert f"  You selected task: {expected_task_name}\n" in captured.out
     assert mock_input.call_count == 2
 
+
 def test_prompt_user_to_select_task_number_too_low_then_valid(mocker: Any, capsys: Any):
     """Test providing an out-of-bounds (too low) number, then a valid one."""
-    mock_input = mocker.patch('builtins.input')
-    mock_input.side_effect = ["0", "3"] # Invalid (0), then 3rd task
-    
-    valid_selection_index = 2 # 0-indexed for "3"
+    mock_input = mocker.patch("builtins.input")
+    mock_input.side_effect = ["0", "3"]  # Invalid (0), then 3rd task
+
+    valid_selection_index = 2  # 0-indexed for "3"
     expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task == expected_task_name
-    
+
     captured = capsys.readouterr()
     assert "  Invalid number. Please try again.\n" in captured.out
     assert f"  You selected task: {expected_task_name}\n" in captured.out
     assert mock_input.call_count == 2
 
-def test_prompt_user_to_select_task_number_too_high_then_valid(mocker: Any, capsys: Any):
+
+def test_prompt_user_to_select_task_number_too_high_then_valid(
+    mocker: Any, capsys: Any
+):
     """Test providing an out-of-bounds (too high) number, then a valid one."""
-    mock_input = mocker.patch('builtins.input')
+    mock_input = mocker.patch("builtins.input")
     num_tasks = len(SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS)
-    invalid_high_number = str(num_tasks + 1) # e.g., "4" if 3 tasks
-    mock_input.side_effect = [invalid_high_number, "1"] # Invalid, then 1st task
+    invalid_high_number = str(num_tasks + 1)  # e.g., "4" if 3 tasks
+    mock_input.side_effect = [invalid_high_number, "1"]  # Invalid, then 1st task
 
-    valid_selection_index = 0 # 0-indexed for "1"
+    valid_selection_index = 0  # 0-indexed for "1"
     expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
-    
+
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task == expected_task_name
-    
+
     captured = capsys.readouterr()
     assert "  Invalid number. Please try again.\n" in captured.out
     assert f"  You selected task: {expected_task_name}\n" in captured.out
     assert mock_input.call_count == 2
+
 
 def test_prompt_user_to_select_task_empty_input_then_valid(mocker: Any, capsys: Any):
     """Test providing empty input (Enter key), then a valid one."""
-    mock_input = mocker.patch('builtins.input')
-    mock_input.side_effect = ["", "2"] # Empty string, then 2nd task
-    
-    valid_selection_index = 1 # 0-indexed for "2"
+    mock_input = mocker.patch("builtins.input")
+    mock_input.side_effect = ["", "2"]  # Empty string, then 2nd task
+
+    valid_selection_index = 1  # 0-indexed for "2"
     expected_task_name = SORTED_MOCK_TASK_NAMES_FOR_PROMPT_TESTS[valid_selection_index]
 
     selected_task = prompt_user_to_select_task(MOCK_TASKS_DICT_FOR_PROMPT_TESTS)
-    
+
     assert selected_task == expected_task_name
-    
+
     captured = capsys.readouterr()
     # Empty input is treated as invalid text
     assert "  Invalid input. Please enter a number or 'q'.\n" in captured.out
     assert f"  You selected task: {expected_task_name}\n" in captured.out
     assert mock_input.call_count == 2
+
+
+# --- Template Loading and Filling Tests (AC5 #47) ---
+
+
+def test_load_and_fill_template_basic_replacement(tmp_path: Path):
+    """Test basic placeholder replacement."""
+    template_content = "Hello __NAME__! Version __VERSION__."
+    template_file = tmp_path / "template1.txt"
+    template_file.write_text(template_content)
+    variables = {"NAME": "User", "VERSION": "1.0"}
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == "Hello User! Version 1.0."
+
+
+def test_load_and_fill_template_variable_missing(tmp_path: Path):
+    """Test when a variable in the template is not in the variables dictionary."""
+    template_content = "Data: __REQUIRED_DATA__, Optional: __OPTIONAL_DATA__."
+    template_file = tmp_path / "template2.txt"
+    template_file.write_text(template_content)
+    variables = {"REQUIRED_DATA": "Important"}
+
+
+def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> str:
+    """Load a prompt/meta-prompt template and replace placeholders."""
+    try:
+        content = template_path.read_text(encoding="utf-8")
+
+        def replace_match(match: re.Match[str]) -> str:
+            var_name = match.group(1)
+            return str(variables.get(var_name, ""))
+
+        filled_content = re.sub(r"__([A-Z0-9_]+)__", replace_match, content)
+        return filled_content
+    except FileNotFoundError:
+        print(f"Error: Template file not found: {template_path}", file=sys.stderr)
+        return ""
+    except Exception as e:
+        print(
+            f"Error reading/processing template {template_path}: {e}", file=sys.stderr
+        )
+        return ""
+
+
+def test_load_and_fill_template_no_variables_in_template(tmp_path: Path):
+    """Test a template with no placeholders."""
+    template_content = "This is static text."
+    template_file = tmp_path / "template3.txt"
+    template_file.write_text(template_content)
+    variables = {"UNUSED_VAR": "Value"}
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == "This is static text."
+
+
+def test_load_and_fill_template_empty_variables_dictionary(tmp_path: Path):
+    """Test when the variables dictionary is empty but the template has placeholders."""
+    template_content = "Value: __TOKEN1__, Another: __TOKEN2__."
+    template_file = tmp_path / "template4.txt"
+    template_file.write_text(template_content)
+    variables: Dict[str, str] = {}  # Explicitly typed empty dict
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == "Value: , Another: ."
+
+
+def test_load_and_fill_template_variable_types(tmp_path: Path):
+    """Test if non-string variables are converted to string during replacement."""
+    template_content = "Count: __COUNT__, Flag: __IS_READY__."
+    template_file = tmp_path / "template5.txt"
+    template_file.write_text(template_content)
+    # Type of variables in load_and_fill_template is Dict[str, str],
+    # but the function uses str(variables.get(...)), so we test with non-str values.
+    variables_mixed_types: Dict[str, Any] = {"COUNT": 123, "IS_READY": True}
+
+    # Cast to Dict[str, str] for the function call, simulating how it might be used
+    # if variables were constructed from various sources. The internal str() handles it.
+    result = load_and_fill_template(
+        template_file, {k: str(v) for k, v in variables_mixed_types.items()}
+    )
+    assert result == "Count: 123, Flag: True."
+
+
+def test_load_and_fill_template_placeholder_format_and_case(tmp_path: Path):
+    """Test that only __UPPER_CASE_SNAKE__ placeholders are replaced."""
+    template_content = (
+        "Valid: __VALID_VAR__, Invalid1: __invalid_var__, "
+        "Invalid2: __MixedCase__, Invalid3: _SINGLE_UNDERSCORES_, "
+        "Valid2: __ANOTHER_VALID__."
+    )
+    template_file = tmp_path / "template6.txt"
+    template_file.write_text(template_content)
+    variables = {
+        "VALID_VAR": "Replaced1",
+        "invalid_var": "NotThis1",
+        "MixedCase": "NotThis2",
+        "SINGLE_UNDERSCORES": "NotThis3",
+        "ANOTHER_VALID": "Replaced2",
+    }
+
+    result = load_and_fill_template(template_file, variables)
+    expected = (
+        "Valid: Replaced1, Invalid1: __invalid_var__, "
+        "Invalid2: __MixedCase__, Invalid3: _SINGLE_UNDERSCORES_, "
+        "Valid2: Replaced2."
+    )
+    assert result == expected
+
+
+def test_load_and_fill_template_file_not_found(tmp_path: Path, capsys: Any):
+    """Test behavior when the template file does not exist."""
+    non_existent_file = tmp_path / "non_existent_template.txt"
+    variables: Dict[str, str] = {}
+
+    result = load_and_fill_template(non_existent_file, variables)
+    assert result == ""  # Expect empty string on error
+
+    captured = capsys.readouterr()
+    assert f"Error: Template file not found: {non_existent_file}" in captured.err
+    # Further check for the specific "Error reading/processing template" might be too brittle
+    # if the error message format changes slightly. The main point is it handles it.
+
+
+def test_load_and_fill_template_special_regex_chars_in_content(tmp_path: Path):
+    """Test that special regex characters in template content are preserved."""
+    template_content = "Text with (parentheses) and [brackets]. Value: __VALUE__."
+    template_file = tmp_path / "template7.txt"
+    template_file.write_text(template_content)
+    variables = {"VALUE": "Test"}
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == "Text with (parentheses) and [brackets]. Value: Test."
+
+
+def test_load_and_fill_template_placeholder_at_start_and_end(tmp_path: Path):
+    """Test placeholders at the very start and end of the template string."""
+    template_content = "__START__ text __END__"
+    template_file = tmp_path / "template8.txt"
+    template_file.write_text(template_content)
+    variables = {"START": "Begin", "END": "Finish"}
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == "Begin text Finish"
+
+
+def test_load_and_fill_template_empty_template_file(tmp_path: Path):
+    """Test with an empty template file."""
+    template_file = tmp_path / "empty_template.txt"
+    template_file.write_text("")
+    variables = {"VAR": "some_value"}
+
+    result = load_and_fill_template(template_file, variables)
+    assert result == ""
