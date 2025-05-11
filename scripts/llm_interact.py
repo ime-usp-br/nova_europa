@@ -14,7 +14,7 @@
 # Allows excluding specific context files via --exclude-context.
 # Allows viewing the final prompt without API call via --only-prompt.
 # Allows viewing the meta-prompt without API call via --only-meta.
-# Supports Gemini API key rotation for rate limiting.
+# Supports Gemini API key rotation for rate limiting.os
 # Supports creating GitHub PRs via 'create-pr' task.
 # Supports creating test sub-issues via 'create-test-sub-issue'.
 # Supports updating documentation via 'update-doc'.
@@ -46,6 +46,7 @@ import traceback
 from pathlib import Path  # Usar pathlib para manipulação de caminhos mais robusta
 from typing import List, Tuple, Optional, Dict, Any, Set, Union, Callable
 from dotenv import load_dotenv
+from re import Match
 
 # Importa diretamente o google.genai
 from google import genai
@@ -249,25 +250,52 @@ def find_latest_context_dir(context_base_dir: Path) -> Optional[Path]:
 
 
 def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> str:
-    """Load a prompt/meta-prompt template and replace placeholders."""
-    # (Implementation unchanged)
+    """
+    Carrega um template de prompt/meta-prompt de um arquivo e substitui
+    placeholders no formato __NOME_DA_VARIAVEL__ pelos valores fornecidos.
+
+    Args:
+        template_path: O caminho para o arquivo de template.
+        variables: Um dicionário onde as chaves são os nomes das variáveis
+                   (sem os prefixos/sufixos __) e os valores são o que
+                   deve substituir os placeholders.
+
+    Returns:
+        O conteúdo do template com os placeholders substituídos.
+        Retorna uma string vazia se o arquivo não for encontrado ou se ocorrer
+        um erro durante a leitura/processamento.
+    """
     try:
         content = template_path.read_text(encoding="utf-8")
 
-        def replace_match(match: re.Match[str]) -> str:
+        # Função interna para ser usada com re.sub
+        # Ela recebe o objeto 'match' da regex
+        def replace_match(
+            match: Match[str],
+        ) -> str:  # Agora Match está corretamente tipado
+            # O grupo 1 da regex __([A-Z0-9_]+)__ captura apenas o nome da variável
+            # (ex: "TOKEN1" de "__TOKEN1__")
             var_name = match.group(1)
+            # variables.get(var_name, "") busca a variável no dicionário.
+            # Se não encontrar, retorna "" (string vazia) como default.
+            # str() garante que o valor seja uma string.
             return str(variables.get(var_name, ""))
 
-        filled_content = re.sub(r"__([A-Z_]+)__", replace_match, content)
+        # A regex r"__([A-Z0-9_]+)__" encontra todos os placeholders
+        # que começam e terminam com duplo underscore e contêm letras maiúsculas,
+        # números ou underscores entre eles. Os parênteses criam um grupo de captura
+        # para o nome da variável.
+        filled_content = re.sub(r"__([A-Z0-9_]+)__", replace_match, content)
         return filled_content
+
     except FileNotFoundError:
         print(f"Error: Template file not found: {template_path}", file=sys.stderr)
-        return ""
-    except Exception as e:
+        return ""  # Retorna string vazia em caso de erro de arquivo não encontrado
+    except Exception as e:  # Captura outros erros possíveis durante leitura ou regex
         print(
             f"Error reading/processing template {template_path}: {e}", file=sys.stderr
         )
-        return ""
+        return ""  # Retorna string vazia em caso de outros erros
 
 
 # --- CONTEXT LOADING FUNCTIONS (REVISED for AC23/AC24/AC25/AC29) ---
@@ -1315,14 +1343,14 @@ if __name__ == "__main__":
     meta_tasks_dict = find_available_meta_tasks(META_PROMPT_DIR)
     all_tasks_dict = {**direct_tasks_dict, **meta_tasks_dict}
     all_task_names = list(all_tasks_dict.keys())
-    
+
     parser = parse_arguments(all_task_names)
-    
+
     try:
         args = parser.parse_args()
     except SystemExit as e:
         sys.exit(e.code)
-        
+
     selected_task = args.task
     if not selected_task:
         if not all_task_names:

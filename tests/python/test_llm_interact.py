@@ -15,6 +15,8 @@ from scripts.llm_interact import (
     find_available_meta_tasks,
     prompt_user_to_select_task,  # Added for AC4 #47
     load_and_fill_template,  # Added for AC5 #47
+    find_latest_context_dir,  # Added for AC6 #47
+    TIMESTAMP_DIR_REGEX,  # Added for AC6 #47
 )
 
 # A fixed list of tasks for testing argument parsing in isolation.
@@ -627,26 +629,9 @@ def test_load_and_fill_template_variable_missing(tmp_path: Path):
     template_file.write_text(template_content)
     variables = {"REQUIRED_DATA": "Important"}
 
-
-def load_and_fill_template(template_path: Path, variables: Dict[str, str]) -> str:
-    """Load a prompt/meta-prompt template and replace placeholders."""
-    try:
-        content = template_path.read_text(encoding="utf-8")
-
-        def replace_match(match: re.Match[str]) -> str:
-            var_name = match.group(1)
-            return str(variables.get(var_name, ""))
-
-        filled_content = re.sub(r"__([A-Z0-9_]+)__", replace_match, content)
-        return filled_content
-    except FileNotFoundError:
-        print(f"Error: Template file not found: {template_path}", file=sys.stderr)
-        return ""
-    except Exception as e:
-        print(
-            f"Error reading/processing template {template_path}: {e}", file=sys.stderr
-        )
-        return ""
+    # The current implementation replaces missing variables with an empty string.
+    result = load_and_fill_template(template_file, variables)
+    assert result == "Data: Important, Optional: ."
 
 
 def test_load_and_fill_template_no_variables_in_template(tmp_path: Path):
@@ -676,12 +661,8 @@ def test_load_and_fill_template_variable_types(tmp_path: Path):
     template_content = "Count: __COUNT__, Flag: __IS_READY__."
     template_file = tmp_path / "template5.txt"
     template_file.write_text(template_content)
-    # Type of variables in load_and_fill_template is Dict[str, str],
-    # but the function uses str(variables.get(...)), so we test with non-str values.
     variables_mixed_types: Dict[str, Any] = {"COUNT": 123, "IS_READY": True}
 
-    # Cast to Dict[str, str] for the function call, simulating how it might be used
-    # if variables were constructed from various sources. The internal str() handles it.
     result = load_and_fill_template(
         template_file, {k: str(v) for k, v in variables_mixed_types.items()}
     )
@@ -720,12 +701,10 @@ def test_load_and_fill_template_file_not_found(tmp_path: Path, capsys: Any):
     variables: Dict[str, str] = {}
 
     result = load_and_fill_template(non_existent_file, variables)
-    assert result == ""  # Expect empty string on error
+    assert result == ""
 
     captured = capsys.readouterr()
     assert f"Error: Template file not found: {non_existent_file}" in captured.err
-    # Further check for the specific "Error reading/processing template" might be too brittle
-    # if the error message format changes slightly. The main point is it handles it.
 
 
 def test_load_and_fill_template_special_regex_chars_in_content(tmp_path: Path):
@@ -758,3 +737,119 @@ def test_load_and_fill_template_empty_template_file(tmp_path: Path):
 
     result = load_and_fill_template(template_file, variables)
     assert result == ""
+
+
+# --- Latest Context Directory Discovery Tests (AC6 #47) ---
+
+
+def test_find_latest_context_dir_base_not_exists(tmp_path: Path, capsys: Any):
+    """Test when the base context directory does not exist."""
+    base_dir = tmp_path / "non_existent_base"
+    assert find_latest_context_dir(base_dir) is None
+    captured = capsys.readouterr()
+    assert f"Error: Context base directory not found: {base_dir}" in captured.err
+
+
+def test_find_latest_context_dir_empty_base(tmp_path: Path, capsys: Any):
+    """Test when the base context directory is empty."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+    assert find_latest_context_dir(base_dir) is None
+    captured = capsys.readouterr()
+    assert f"Error: No valid context directories found in {base_dir}" in captured.err
+
+
+def test_find_latest_context_dir_no_valid_dirs(tmp_path: Path, capsys: Any):
+    """Test when base directory has subdirs, but none match TIMESTAMP_DIR_REGEX."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+    (base_dir / "invalid_dir_name").mkdir()
+    (base_dir / "20230101_10000").mkdir()  # Invalid format (too short time)
+    (base_dir / "some_file.txt").write_text("content")
+
+    assert find_latest_context_dir(base_dir) is None
+    captured = capsys.readouterr()
+    assert f"Error: No valid context directories found in {base_dir}" in captured.err
+
+
+def test_find_latest_context_dir_only_files_match_pattern(tmp_path: Path, capsys: Any):
+    """Test when base directory has files (not dirs) that match the pattern."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+    (base_dir / "20230101_120000").write_text("i am a file")  # File, not a dir
+
+    assert find_latest_context_dir(base_dir) is None
+    captured = capsys.readouterr()
+    assert f"Error: No valid context directories found in {base_dir}" in captured.err
+
+
+def test_find_latest_context_dir_one_valid_dir(tmp_path: Path):
+    """Test with a single valid timestamped directory."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+    valid_dir_path = base_dir / "20230101_100000"
+    valid_dir_path.mkdir()
+
+    latest_dir = find_latest_context_dir(base_dir)
+    assert latest_dir == valid_dir_path.resolve()
+
+
+def test_find_latest_context_dir_multiple_valid_dirs_correct_latest(tmp_path: Path):
+    """Test with multiple valid timestamped directories, ensuring the latest is returned."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+
+    dir1 = base_dir / "20230101_100000"
+    dir1.mkdir()
+    dir2_latest = base_dir / "20230102_120000"  # This is the latest
+    dir2_latest.mkdir()
+    dir3 = base_dir / "20221231_235959"
+    dir3.mkdir()
+
+    latest_dir = find_latest_context_dir(base_dir)
+    assert latest_dir == dir2_latest.resolve()
+
+
+def test_find_latest_context_dir_mixed_valid_invalid(tmp_path: Path):
+    """Test with a mix of valid dirs, invalid dirs, and files."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+
+    # Valid
+    dir_valid_old = base_dir / "20230101_090000"
+    dir_valid_old.mkdir()
+    dir_valid_latest = base_dir / "20230101_120000"  # This one is the latest valid
+    dir_valid_latest.mkdir()
+
+    # Invalid
+    (base_dir / "not_a_timestamp").mkdir()
+    (base_dir / "20230101_12000A").mkdir()  # Invalid char in time
+    (base_dir / "20230101_1200").mkdir()  # Too short
+
+    # Files
+    (base_dir / "some_file.txt").write_text("data")
+    (base_dir / "20230101_110000").write_text(
+        "a file, not a dir"
+    )  # Valid name, but a file
+
+    latest_dir = find_latest_context_dir(base_dir)
+    assert latest_dir == dir_valid_latest.resolve()
+
+
+def test_find_latest_context_dir_regex_precision(tmp_path: Path):
+    """Test that TIMESTAMP_DIR_REGEX is precise (e.g., doesn't match longer numbers)."""
+    base_dir = tmp_path / "context_base"
+    base_dir.mkdir()
+
+    valid_dir = base_dir / "20240115_103045"
+    valid_dir.mkdir()
+
+    # Invalid because too many digits for date or time part
+    (base_dir / "202401150_103045").mkdir()  # Extra digit in date
+    (base_dir / "20240115_1030450").mkdir()  # Extra digit in time
+    (base_dir / "20240115_10304").mkdir()  # Too few digits in time
+    (base_dir / "text20240115_103045").mkdir()  # Has prefix
+    (base_dir / "20240115_103045text").mkdir()  # Has suffix
+
+    latest_dir = find_latest_context_dir(base_dir)
+    assert latest_dir == valid_dir.resolve()
