@@ -855,18 +855,21 @@ def test_find_latest_context_dir_regex_precision(tmp_path: Path):
     assert latest_dir == valid_dir.resolve()
 
 
-# --- Context Loading Tests (AC7 #47) ---
+# --- Context Loading Tests (AC7 & AC8) ---
 
 # Constants for mock directory names for context loading tests
 CTXTEST_CONTEXT_LLM_DIR_NAME = "context_llm_test_root"
 CTXTEST_CODE_DIR_NAME = "code"
 CTXTEST_LATEST_SUBDIR_NAME = "20250101_100000"
+CTXTEST_OLDER_SUBDIR_NAME = "20241231_090000"  # For AC8 path update tests
 CTXTEST_COMMON_SUBDIR_NAME = "common"
+CTXTEST_OTHER_PROJECT_DIR_NAME = "app"  # For files outside context_llm for AC8
+
 
 def _create_tmp_file_rel_to_project_root(
-    base_tmp_path: Path, # This will be tmp_path from the test fixture
-    sub_path_str: str,   # This is ALREADY relative to tmp_path conceptually
-    content: str = "Test content."
+    base_tmp_path: Path,  # This will be tmp_path from the test fixture
+    sub_path_str: str,  # This is ALREADY relative to tmp_path conceptually
+    content: str = "Test content.",
 ) -> str:
     """
     Creates a file under base_tmp_path/sub_path_str and returns sub_path_str
@@ -875,7 +878,7 @@ def _create_tmp_file_rel_to_project_root(
     """
     # Defensive check for absolute-like sub_path_str
     if sub_path_str.startswith(os.sep):
-        sub_path_str = sub_path_str[len(os.sep):]
+        sub_path_str = sub_path_str[len(os.sep) :]
 
     abs_file_path = base_tmp_path / sub_path_str
     abs_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -883,18 +886,19 @@ def _create_tmp_file_rel_to_project_root(
     # The relative path *from the perspective of the test (tmp_path)* is sub_path_str
     return Path(sub_path_str).as_posix()
 
-def _check_loaded_parts_ac7(
-    parts: List[genai_types.Part],
-    expected_files_details: Dict[str, Dict[str, Any]]
+
+def _check_loaded_parts(  # Renamed from _check_loaded_parts_ac7
+    parts: List[genai_types.Part], expected_files_details: Dict[str, Dict[str, Any]]
 ):
     """
     Checks if the loaded context parts match the expected file details.
     expected_files_details: { "rel/path/to/file.txt": {"content": "...", "summary": "..." (optional)} }
     """
-    assert len(parts) == len(expected_files_details), \
-        f"Expected {len(expected_files_details)} parts, got {len(parts)}. " \
-        f"Loaded files: {[p.text.split('--- START OF FILE ')[1].split(' ---')[0] for p in parts if '--- START OF FILE ' in p.text and ' ---' in p.text.split('--- START OF FILE ')[1]]}. " \
+    assert len(parts) == len(expected_files_details), (
+        f"Expected {len(expected_files_details)} parts, got {len(parts)}. "
+        f"Loaded files: {[p.text.split('--- START OF FILE ')[1].split(' ---')[0] for p in parts if '--- START OF FILE ' in p.text and ' ---' in p.text.split('--- START OF FILE ')[1]]}. "
         f"Expected files: {list(expected_files_details.keys())}"
+    )
 
     actual_files_details: Dict[str, Dict[str, Any]] = {}
 
@@ -902,27 +906,28 @@ def _check_loaded_parts_ac7(
         text = part.text
 
         # Regex to capture: 1. relative path, 2. inner block (summary + content)
-        path_match = re.fullmatch(r"--- START OF FILE (.*?) ---\n(.*)\n--- END OF FILE \1 ---", text, re.DOTALL)
-        assert path_match, f"Part text does not match expected structure: '{text[:100]}...{text[-50:]}'"
+        path_match = re.fullmatch(
+            r"--- START OF FILE (.*?) ---\n(.*)\n--- END OF FILE \1 ---",
+            text,
+            re.DOTALL,
+        )
+        assert (
+            path_match
+        ), f"Part text does not match expected structure: '{text[:100]}...{text[-50:]}'"
 
         rel_path = path_match.group(1)
         inner_block = path_match.group(2)
 
         summary = None
-        content_str = inner_block # Default: all inner_block is content
+        content_str = inner_block  # Default: all inner_block is content
 
         # Corrected logic for summary extraction
-        # The inner_block from the main regex will be:
-        # "--- SUMMARY ---\n{summary_data}\n--- END SUMMARY ---\n{content}" if summary exists
-        # OR just "{content}" (possibly with leading/trailing newlines from file) if no summary
         summary_block_pattern = r"--- SUMMARY ---\n(.*?)\n--- END SUMMARY ---\n(.*)"
         summary_parse_match = re.match(summary_block_pattern, inner_block, re.DOTALL)
 
         if summary_parse_match:
             summary = summary_parse_match.group(1)
             content_str = summary_parse_match.group(2)
-        # If no match, summary remains None, and content_str is the full inner_block,
-        # which is correct if there's no summary block.
 
         actual_files_details[rel_path] = {"content": content_str, "summary": summary}
 
@@ -930,250 +935,363 @@ def _check_loaded_parts_ac7(
     normalized_expected_files_details = {}
     for k, v_dict in expected_files_details.items():
         if not isinstance(v_dict, dict) or "content" not in v_dict:
-             pytest.fail(f"Test setup error: Expected details for '{k}' is not a dict with 'content' key. Got: {v_dict}")
+            pytest.fail(
+                f"Test setup error: Expected details for '{k}' is not a dict with 'content' key. Got: {v_dict}"
+            )
         normalized_expected_files_details[k] = {
             "content": v_dict.get("content"),
-            "summary": v_dict.get("summary", None)
+            "summary": v_dict.get("summary", None),
         }
 
     assert actual_files_details == normalized_expected_files_details
 
 
-def test_prepare_context_parts_default_only_latest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+# --- AC7 Tests (Default Loading) ---
+def test_prepare_context_parts_default_only_latest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test loading only from the 'latest' context directory."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    latest_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
+    latest_dir_abs_path = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
 
     file1_content = "Content of file1.txt from latest."
     file1_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file1.txt", file1_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file1.txt",
+        file1_content,
     )
     file2_content = '{"key": "value from latest"}'
     file2_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file2.json", file2_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file2.json",
+        file2_content,
     )
 
     parts = prepare_context_parts(
         primary_context_dir=latest_dir_abs_path,
-        common_context_dir=None, # No common dir for this test
+        common_context_dir=None,  # No common dir for this test
         exclude_list=None,
         manifest_data=None,
-        include_list=None # Trigger default loading
+        include_list=None,  # Trigger default loading
     )
 
     expected = {
         file1_rel_path: {"content": file1_content},
         file2_rel_path: {"content": file2_content},
     }
-    _check_loaded_parts_ac7(parts, expected)
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_only_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_only_common(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test loading only from the 'common' context directory."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    common_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    common_dir_abs_path = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
 
     file_common_md_content = "# Common Markdown"
     file_common_md_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common.md", file_common_md_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common.md",
+        file_common_md_content,
     )
 
     parts = prepare_context_parts(
-        primary_context_dir=None, # No latest dir for this test
+        primary_context_dir=None,  # No latest dir for this test
         common_context_dir=common_dir_abs_path,
         exclude_list=None,
         manifest_data=None,
-        include_list=None
+        include_list=None,
     )
-    expected = {
-        file_common_md_rel_path: {"content": file_common_md_content}
-    }
-    _check_loaded_parts_ac7(parts, expected)
+    expected = {file_common_md_rel_path: {"content": file_common_md_content}}
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_latest_and_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_latest_and_common(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test loading from both 'latest' and 'common' directories."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    latest_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
-    common_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    latest_dir_abs_path = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
+    common_dir_abs_path = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
 
     latest_file_content = "From latest dir."
     latest_file_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/latest_file.txt", latest_file_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/latest_file.txt",
+        latest_file_content,
     )
     common_file_content = "From common dir."
     common_file_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_file.txt", common_file_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_file.txt",
+        common_file_content,
     )
 
     parts = prepare_context_parts(
         primary_context_dir=latest_dir_abs_path,
         common_context_dir=common_dir_abs_path,
-        exclude_list=None, manifest_data=None, include_list=None
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
     expected = {
         latest_file_rel_path: {"content": latest_file_content},
         common_file_rel_path: {"content": common_file_content},
     }
-    _check_loaded_parts_ac7(parts, expected)
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_exclude_from_latest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_exclude_from_latest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test --exclude-context affecting files from 'latest' directory."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    latest_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
+    latest_dir_abs_path = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
 
     file_A_content = "Content A"
     file_A_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/fileA.txt", file_A_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/fileA.txt",
+        file_A_content,
     )
     file_B_content = "Content B"
     file_B_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/fileB.txt", file_B_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/fileB.txt",
+        file_B_content,
     )
 
-    exclude_list = [file_A_rel_path] # Exclude fileA.txt
+    exclude_list = [file_A_rel_path]  # Exclude fileA.txt
 
     parts = prepare_context_parts(
         primary_context_dir=latest_dir_abs_path,
-        common_context_dir=None, exclude_list=exclude_list, manifest_data=None, include_list=None
+        common_context_dir=None,
+        exclude_list=exclude_list,
+        manifest_data=None,
+        include_list=None,
     )
     expected = {
-        file_B_rel_path: {"content": file_B_content} # Only fileB should be loaded
+        file_B_rel_path: {"content": file_B_content}  # Only fileB should be loaded
     }
-    _check_loaded_parts_ac7(parts, expected)
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_exclude_from_common(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_exclude_from_common(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test --exclude-context affecting files from 'common' directory."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    common_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    common_dir_abs_path = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
 
     common_A_content = "Common A"
     common_A_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/commonA.txt", common_A_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/commonA.txt",
+        common_A_content,
     )
     common_B_content = "Common B"
     common_B_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/commonB.txt", common_B_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/commonB.txt",
+        common_B_content,
     )
 
     exclude_list = [common_A_rel_path]
 
     parts = prepare_context_parts(
-        primary_context_dir=None, common_context_dir=common_dir_abs_path,
-        exclude_list=exclude_list, manifest_data=None, include_list=None
+        primary_context_dir=None,
+        common_context_dir=common_dir_abs_path,
+        exclude_list=exclude_list,
+        manifest_data=None,
+        include_list=None,
     )
-    expected = {
-        common_B_rel_path: {"content": common_B_content}
-    }
-    _check_loaded_parts_ac7(parts, expected)
+    expected = {common_B_rel_path: {"content": common_B_content}}
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_correct_file_types_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_correct_file_types_loaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test that only .txt, .json, .md files are loaded by default."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    latest_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
+    latest_dir_abs_path = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
 
     file_txt_content = "Text file."
     file_txt_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.txt", file_txt_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.txt",
+        file_txt_content,
     )
     file_json_content = '{"data": "json"}'
     file_json_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.json", file_json_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.json",
+        file_json_content,
     )
     file_md_content = "## Markdown"
     file_md_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.md", file_md_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.md",
+        file_md_content,
     )
     # This file should be ignored
     _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.py", "print('hello')"
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/file.py",
+        "print('hello')",
     )
     _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/another.log", "log entry"
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/another.log",
+        "log entry",
     )
 
     parts = prepare_context_parts(
         primary_context_dir=latest_dir_abs_path,
-        common_context_dir=None, exclude_list=None, manifest_data=None, include_list=None
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
     expected = {
         file_txt_rel_path: {"content": file_txt_content},
         file_json_rel_path: {"content": file_json_content},
         file_md_rel_path: {"content": file_md_content},
     }
-    _check_loaded_parts_ac7(parts, expected)
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_with_manifest_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_with_manifest_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test loading with summaries from manifest_data."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
-    latest_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
+    latest_dir_abs_path = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
 
     file_content = "File content that needs a summary."
     file_summary = "This is a test summary."
     file_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/summarized.txt", file_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/summarized.txt",
+        file_content,
     )
 
-    manifest_data = {
-        "files": {
-            file_rel_path: {"summary": file_summary}
-        }
-    }
+    manifest_data = {"files": {file_rel_path: {"summary": file_summary}}}
     parts = prepare_context_parts(
         primary_context_dir=latest_dir_abs_path,
-        common_context_dir=None, exclude_list=None, manifest_data=manifest_data, include_list=None
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=manifest_data,
+        include_list=None,
     )
-    expected = {
-        file_rel_path: {"content": file_content, "summary": file_summary}
-    }
-    _check_loaded_parts_ac7(parts, expected)
+    expected = {file_rel_path: {"content": file_content, "summary": file_summary}}
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_primary_dir_is_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_primary_dir_is_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test when primary_context_dir is a file, not a directory. Common should still load."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
     # Create a file where a directory is expected for 'latest'
-    primary_dir_path_as_file = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_CODE_DIR_NAME / CTXTEST_LATEST_SUBDIR_NAME
+    primary_dir_path_as_file = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
     primary_dir_path_as_file.parent.mkdir(parents=True, exist_ok=True)
     primary_dir_path_as_file.write_text("I am a file, not a dir.")
 
-    common_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    common_dir_abs_path = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
     common_file_content = "Content from common."
     common_file_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_valid.txt", common_file_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_valid.txt",
+        common_file_content,
     )
 
     parts = prepare_context_parts(
-        primary_context_dir=primary_dir_path_as_file, # Pass the file path as if it were a dir
+        primary_context_dir=primary_dir_path_as_file,  # Pass the file path as if it were a dir
         common_context_dir=common_dir_abs_path,
-        exclude_list=None, manifest_data=None, include_list=None
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
     expected = {
-        common_file_rel_path: {"content": common_file_content} # Only common file should load
+        common_file_rel_path: {
+            "content": common_file_content
+        }  # Only common file should load
     }
-    _check_loaded_parts_ac7(parts, expected)
+    _check_loaded_parts(parts, expected)
 
-def test_prepare_context_parts_default_primary_dir_not_exist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+
+def test_prepare_context_parts_default_primary_dir_not_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test when primary_context_dir does not exist. Common should still load."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
     primary_dir_non_existent = tmp_path / "non_existent_primary_dir"
     # Do not create primary_dir_non_existent
 
-    common_dir_abs_path = tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    common_dir_abs_path = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
     common_file_content = "Content from common again."
     common_file_rel_path = _create_tmp_file_rel_to_project_root(
-        tmp_path, f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_valid_again.txt", common_file_content
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/common_valid_again.txt",
+        common_file_content,
     )
 
     parts = prepare_context_parts(
         primary_context_dir=primary_dir_non_existent,
         common_context_dir=common_dir_abs_path,
-        exclude_list=None, manifest_data=None, include_list=None
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
-    expected = {
-        common_file_rel_path: {"content": common_file_content}
-    }
-    _check_loaded_parts_ac7(parts, expected)
+    expected = {common_file_rel_path: {"content": common_file_content}}
+    _check_loaded_parts(parts, expected)
 
 
-def test_prepare_context_parts_default_no_valid_dirs_provided(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_prepare_context_parts_default_no_valid_dirs_provided(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """AC7: Test when both primary and common context dirs are invalid or None."""
     monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
     primary_dir_non_existent = tmp_path / "non_existent_primary_dir"
@@ -1181,16 +1299,260 @@ def test_prepare_context_parts_default_no_valid_dirs_provided(tmp_path: Path, mo
 
     parts = prepare_context_parts(
         primary_context_dir=primary_dir_non_existent,
-        common_context_dir=common_dir_non_existent, # or None
-        exclude_list=None, manifest_data=None, include_list=None
+        common_context_dir=common_dir_non_existent,  # or None
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
-    expected = {} # No files should be loaded
-    _check_loaded_parts_ac7(parts, expected)
+    expected = {}  # No files should be loaded
+    _check_loaded_parts(parts, expected)
 
     # Also test with None for directories
     parts_none = prepare_context_parts(
         primary_context_dir=cast(Path, None),
         common_context_dir=cast(Path, None),
-        exclude_list=None, manifest_data=None, include_list=None
+        exclude_list=None,
+        manifest_data=None,
+        include_list=None,
     )
-    _check_loaded_parts_ac7(parts_none, expected)
+    _check_loaded_parts(parts_none, expected)
+
+
+# --- AC8 Tests (Selected Context Loading - `include_list`) ---
+
+
+def test_prepare_context_parts_include_list_basic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC8: Test basic loading with include_list, ignoring default dirs."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    # Files for include_list
+    included_file1_content = "Content for included file 1 in app dir."
+    included_file1_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path,
+        f"{CTXTEST_OTHER_PROJECT_DIR_NAME}/included1.txt",
+        included_file1_content,
+    )
+    included_file2_content = "Content for included file 2 in common context."
+    included_file2_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/included2.md",
+        included_file2_content,
+    )
+
+    # Files in default dirs that should be ignored
+    _create_tmp_file_rel_to_project_root(
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_CODE_DIR_NAME}/{CTXTEST_LATEST_SUBDIR_NAME}/ignored_latest.txt",
+    )
+    _create_tmp_file_rel_to_project_root(
+        tmp_path,
+        f"{CTXTEST_CONTEXT_LLM_DIR_NAME}/{CTXTEST_COMMON_SUBDIR_NAME}/ignored_common.json",
+    )
+    # Dummy primary and common dir paths to pass to function, to ensure they are ignored
+    dummy_primary_dir = (
+        tmp_path
+        / CTXTEST_CONTEXT_LLM_DIR_NAME
+        / CTXTEST_CODE_DIR_NAME
+        / CTXTEST_LATEST_SUBDIR_NAME
+    )
+    dummy_common_dir = (
+        tmp_path / CTXTEST_CONTEXT_LLM_DIR_NAME / CTXTEST_COMMON_SUBDIR_NAME
+    )
+
+    include_list = [included_file1_rel_path, included_file2_rel_path]
+
+    parts = prepare_context_parts(
+        primary_context_dir=dummy_primary_dir,  # Should be ignored
+        common_context_dir=dummy_common_dir,  # Should be ignored
+        exclude_list=None,
+        manifest_data=None,
+        include_list=include_list,
+    )
+    expected = {
+        included_file1_rel_path: {"content": included_file1_content},
+        included_file2_rel_path: {"content": included_file2_content},
+    }
+    _check_loaded_parts(parts, expected)
+
+
+def test_prepare_context_parts_include_list_with_exclusion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC8: Test include_list with some files also in exclude_list."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    file_A_content = "File A content"
+    file_A_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "dir1/fileA.txt", file_A_content
+    )
+    file_B_content = "File B content (to be excluded)"  # This file will be created but should not be loaded
+    file_B_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "dir2/fileB.txt", file_B_content
+    )
+    file_C_content = "File C content"
+    file_C_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "dir1/fileC.json", file_C_content
+    )
+
+    include_list = [file_A_rel_path, file_B_rel_path, file_C_rel_path]
+    exclude_list = [file_B_rel_path]
+
+    parts = prepare_context_parts(
+        primary_context_dir=None,
+        common_context_dir=None,
+        exclude_list=exclude_list,
+        manifest_data=None,
+        include_list=include_list,
+    )
+    expected = {
+        file_A_rel_path: {"content": file_A_content},
+        file_C_rel_path: {"content": file_C_content},
+    }
+    _check_loaded_parts(parts, expected)
+
+
+def test_prepare_context_parts_include_list_with_summaries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC8: Test include_list with summaries from manifest_data."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    file_sum_content = "Content for summary file."
+    file_sum_summary = "This is its summary."
+    file_sum_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "docs/summarized_doc.md", file_sum_content
+    )
+
+    file_nosum_content = "Content for no summary file."
+    file_nosum_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "app/plain_file.txt", file_nosum_content
+    )
+
+    include_list = [file_sum_rel_path, file_nosum_rel_path]
+    manifest_data = {
+        "files": {
+            file_sum_rel_path: {"summary": file_sum_summary}
+            # file_nosum_rel_path intentionally missing summary
+        }
+    }
+    parts = prepare_context_parts(
+        primary_context_dir=None,
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=manifest_data,
+        include_list=include_list,
+    )
+    expected = {
+        file_sum_rel_path: {"content": file_sum_content, "summary": file_sum_summary},
+        file_nosum_rel_path: {"content": file_nosum_content, "summary": None},
+    }
+    _check_loaded_parts(parts, expected)
+
+
+def test_prepare_context_parts_include_list_non_existent_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
+):
+    """AC8: Test include_list with a non-existent file."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    existing_content = "This file exists."
+    existing_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "data/real.txt", existing_content
+    )
+    non_existent_rel_path = "data/ghost.txt"
+
+    include_list = [existing_rel_path, non_existent_rel_path]
+
+    parts = prepare_context_parts(
+        primary_context_dir=None,
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=None,
+        include_list=include_list,
+    )
+    expected = {existing_rel_path: {"content": existing_content}}
+    _check_loaded_parts(parts, expected)
+    # Check for warning about the non-existent file in stderr
+    captured = capsys.readouterr()
+    assert (
+        f"Warning: Included file not found or is not a file: {non_existent_rel_path}"
+        in captured.err
+    )
+
+
+def test_prepare_context_parts_include_list_file_outside_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Any
+):
+    """AC8: Test include_list with a file path attempting to go outside project root."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    # Create a file that is legitimately within the (mocked) project root
+    legit_content = "Legitimate file content."
+    legit_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "safe_dir/legit_file.txt", legit_content
+    )
+
+    # Path that tries to go up and out.
+    # Note: On some OS, `Path(tmp_path / "../../rogue.txt").resolve()` might still be within a base temporary directory,
+    # but `relative_to(tmp_path)` should correctly fail if it resolves to something not under tmp_path.
+    # For simplicity, we rely on the `relative_to(PROJECT_ROOT)` check within `prepare_context_parts`.
+    rogue_rel_path = "../../../tmp/rogue_file.txt"  # Path for include_list
+    # We don't actually create this rogue file as it's meant to be outside.
+
+    include_list = [legit_rel_path, rogue_rel_path]
+
+    parts = prepare_context_parts(
+        primary_context_dir=None,
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=None,
+        include_list=include_list,
+    )
+    expected = {
+        legit_rel_path: {
+            "content": legit_content
+        }  # Only the legitimate file should be loaded
+    }
+    _check_loaded_parts(parts, expected)
+
+    captured = capsys.readouterr()
+    # The warning message for files outside project root or not found might be similar.
+    # The key is that it's not loaded.
+    # The exact warning message depends on internal path resolution and checks.
+    # If it resolves but is outside: "Warning: Skipping file outside project root"
+    # If it doesn't resolve to a file: "Warning: Included file not found or is not a file"
+    assert (
+        f"Warning: Skipping file outside project root: {rogue_rel_path}" in captured.err
+        or f"Warning: Included file not found or is not a file: {rogue_rel_path}"
+        in captured.err
+    ), f"Expected specific warning for '{rogue_rel_path}', got: {captured.err}"
+
+
+def test_prepare_context_parts_include_list_duplicate_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AC8: Test include_list with duplicate entries; should load only once."""
+    monkeypatch.setattr("scripts.llm_interact.PROJECT_ROOT", tmp_path)
+
+    file_content = "Content of a unique file."
+    file_rel_path = _create_tmp_file_rel_to_project_root(
+        tmp_path, "unique_file.txt", file_content
+    )
+
+    include_list = [file_rel_path, file_rel_path, file_rel_path]  # Duplicate entries
+
+    parts = prepare_context_parts(
+        primary_context_dir=None,
+        common_context_dir=None,
+        exclude_list=None,
+        manifest_data=None,
+        include_list=include_list,
+    )
+    expected = {file_rel_path: {"content": file_content}}
+    # The check_loaded_parts itself will fail if there are more parts than expected unique files
+    _check_loaded_parts(parts, expected)
+    assert (
+        len(parts) == 1
+    ), "Expected only one part for duplicate entries in include_list"
