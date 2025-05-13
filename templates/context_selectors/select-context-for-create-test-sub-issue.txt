@@ -1,25 +1,29 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Gerar o texto completo (formato `KEY: VALUE`) para um arquivo de plano `.txt`, definindo uma sub-issue do GitHub focada em testes (Unitários, Feature, Dusk) e CI para a funcionalidade da Issue pai `#__PARENT_ISSUE_NUMBER__`.
 
 **Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
 
-**Seu Processo de Seleção:**
+**Seu Processo de Seleção (COM PRIORIZAÇÃO E USO DE TOKEN):**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: gerar a definição de uma sub-issue de teste para a Issue `#__PARENT_ISSUE_NUMBER__`.
-2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
-3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
-    *   Os detalhes completos da Issue pai `#__PARENT_ISSUE_NUMBER__` (`github_issue___PARENT_ISSUE_NUMBER___details.json`) para entender a funcionalidade a ser testada e seus ACs originais.
-    *   O código fonte principal relacionado à funcionalidade da Issue pai (Controllers, Models, Services, Views relevantes, inferidos do manifesto ou diffs associados à issue pai).
-    *   Arquivos de teste existentes (`tests/Feature/*`, `tests/Unit/*`, `tests/Browser/*`) para referência de estilo e cobertura atual.
-    *   O workflow de CI (`.github/workflows/laravel.yml`) para entender os steps de teste atuais.
-    *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões de teste e qualidade.
-4.  **Priorize:** Detalhes da issue pai, código fonte relevante e testes existentes são essenciais. Guias e workflow CI são importantes para definir os ACs da sub-issue de teste.
-5.  **Exclua:** Diffs de commits, logs, arquivos de configuração não relacionados, dependências, e outros arquivos de contexto não diretamente necessários para *definir o escopo, a abordagem e os critérios de aceite* dos testes para a funcionalidade da issue pai.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary, token_count).
+3.  **ORDEM DE PRIORIDADE PARA SELEÇÃO:**
+    *   **NÍVEL 1 (CRÍTICOS - INCLUIR SEMPRE):**
+        *   Os detalhes completos da Issue pai `#__PARENT_ISSUE_NUMBER__` (`github_issue___PARENT_ISSUE_NUMBER___details.json`) para entender a funcionalidade a ser testada e seus ACs originais.
+    *   **NÍVEL 2 (ALTAMENTE RELEVANTES - INCLUIR SE O ORÇAMENTO DE TOKENS PERMITIR):**
+        *   O código fonte principal relacionado à funcionalidade da Issue pai (Controllers, Models, Services, Views relevantes, inferidos do manifesto ou diffs associados à issue pai, se disponíveis).
+        *   Arquivos de teste existentes (`tests/Feature/*`, `tests/Unit/*`, `tests/Browser/*`) para referência de estilo e cobertura atual.
+        *   O workflow de CI (`.github/workflows/laravel.yml`) para entender os steps de teste atuais.
+        *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões de teste e qualidade.
+4.  **GESTÃO DE TOKENS:** Ao adicionar arquivos do Nível 2, priorize aqueles com `summary` mais informativo e tente preencher o máximo possível do limite de tokens.
+5.  **EXCLUA ESTRITAMENTE:**
+    *   **Qualquer arquivo de template de prompt** (ex: `templates/prompts/*`, `templates/meta-prompts/*`, `templates/context_selectors/*`).
+    *   Diffs de commits, logs genéricos, arquivos de configuração não relacionados, dependências, e outros arquivos de contexto não diretamente necessários para *definir o escopo, a abordagem e os critérios de aceite* dos testes para a funcionalidade da issue pai.
 
 **Formato de Saída OBRIGATÓRIO E ESTRITO:**
-Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto, **ordenada pela prioridade de inclusão (Nível 1 primeiro, depois Nível 2, etc.)**.
 
 **Exemplo de Saída:**
 ```json
