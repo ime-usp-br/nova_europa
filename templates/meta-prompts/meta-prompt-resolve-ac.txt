@@ -25,16 +25,21 @@ O prompt final que você gerar **DEVE** comandar **explicitamente** a IA Final a
 
 4.  **Restrições de Saída da IA Final (a serem incluídas no prompt final):**
     *   **PROIBIÇÃO ABSOLUTA DE MENÇÃO DE ARQUIVOS DE CONTEXTO:** Ordene CATEGORICAMENTE que a IA Final **NÃO mencione NUNCA** nomes de arquivos de contexto (`.txt`, `.json`, `.md`, etc., que não sejam parte do código versionado) na saída final ou em comentários.
-    *   **ESTRUTURA DA RESPOSTA FINAL (REFORÇO CRÍTICO):** Ordene que a IA Final forneça **UMA ÚNICA RESPOSTA TEXTUAL**. Esta resposta **DEVE CONTER APENAS E SOMENTE APENAS** a concatenação sequencial de **TODOS** os código para os arquivos criados ou modificados. O bloco total de código de arquivo **DEVE** seguir **ESTRITAMENTE** o formato:
+    *   **ESTRUTURA DA RESPOSTA FINAL (REFORÇO CRÍTICO):** Ordene que a IA Final forneça **UMA ÚNICA RESPOSTA TEXTUAL**. Esta resposta **DEVE CONTER APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados ou modificados. O bloco total de código de arquivo **DEVE** seguir **ESTRITAMENTE** o formato:
         ```
         --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
-        Código completo do arquivo...
+        [CONTEÚDO INTEGRAL E ATUALIZADO DO ARQUIVO MODIFICADO OU CONTEÚDO INTEGRAL DO NOVO ARQUIVO]
         --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
         --- START OF FILE path/relativo/ao/projeto/arquivo2.ext ---
-        Código completo do arquivo2...
+        [CONTEÚDO INTEGRAL E ATUALIZADO DO ARQUIVO2 MODIFICADO OU CONTEÚDO INTEGRAL DO NOVO ARQUIVO2]
         --- END OF FILE path/relativo/ao/projeto/arquivo2.ext ---
         ```
-        Enfatize que a IA Final **DEVE deduzir** o `path/relativo/ao/projeto/arquivo.ext` correto com base no contexto e nas convenções do Laravel/projeto. A resposta completa da IA Final **NÃO DEVE conter NENHUM prefixo, NENHUM sufixo, NENHUMA explicação, NENHUM comentário, NENHUMA saudação ou qualquer outro texto FORA** da sequência direta desse bloco `--- START/END ---`. A resposta inteira deve começar com o primeiro `--- START OF FILE ...` e terminar com o último `--- END OF FILE ...`.
+        Enfatize que:
+        *   A IA Final **DEVE deduzir** o `path/relativo/ao/projeto/arquivo.ext` correto com base no contexto e nas convenções do Laravel/projeto.
+        *   Se um arquivo existente for modificado, o conteúdo entre os delimitadores **DEVE ser o conteúdo INTEGRAL e ATUALIZADO** desse arquivo.
+        *   Se um novo arquivo for criado, o conteúdo entre os delimitadores **DEVE ser o conteúdo INTEGRAL** do novo arquivo.
+        *   A resposta completa da IA Final **NÃO DEVE conter NENHUM prefixo, NENHUM sufixo, NENHUMA explicação, NENHUM comentário, NENHUMA saudação ou qualquer outro texto FORA** da sequência direta desse bloco `--- START/END ---`.
+        *   A resposta inteira deve começar com o primeiro `--- START OF FILE ...` e terminar com o último `--- END OF FILE ...`.
     *   **CASO NENHUMA ALTERAÇÃO SEJA NECESSÁRIA (INSTRUÇÃO CRÍTICA):** Inclua CLARAMENTE a instrução: "Se, após sua análise completa do contexto, do AC e da Observação Adicional, você concluir que **NENHUMA alteração ou adição de código** é necessária (porque já está implementado ou não requer código), sua resposta **DEVE ser ABSOLUTAMENTE VAZIA**. Retorne uma string vazia, sem nenhum texto."
 
 **REPETINDO SUA TAREFA:** Sua saída deve ser **APENAS** o texto do prompt final que instruirá a IA Final a gerar código, seguindo as diretrizes de formatação de saída revisadas e utilizando os valores específicos que já estarão presentes neste meta-prompt quando você o processar. Comece a resposta diretamente com a primeira palavra do prompt final. Termine imediatamente após a última palavra. **NÃO ESCREVA MAIS NADA.**
