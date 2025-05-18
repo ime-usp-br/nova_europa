@@ -27,3 +27,6 @@ source_code_string.txt
 /scripts/data/
 /docs/laravel_12
 context_selected.txt
+/scripts/__pycache__/
+/scripts/llm_core/__pycache__/
+/scripts/tasks/__pycache__/
