@@ -23,15 +23,15 @@ TIMESTAMP_DIR_REGEX = r"^\d{8}_\d{6}$"
 TIMESTAMP_MANIFEST_REGEX = r"^\d{8}_\d{6}_manifest\.json$"
 
 # Gemini API Model Names
-GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-04-17"  # Changed from gemini-2.5-pro-exp-03-25 based on new SDK docs (2025-05-18)
+GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_RESOLVE = (
-    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-2.5-pro-exp-03-25
+    "gemini-2.5-flash-preview-05-20"
 )
 GEMINI_MODEL_SUMMARY = (
-    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-1.5-flash-preview-04-17
+    "gemini-2.5-flash-preview-05-20"
 )
 GEMINI_MODEL_FLASH = (
-    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-1.5-flash-preview-04-17
+    "gemini-2.5-flash-preview-05-20"
 )
 
 # Delimiters and Constants

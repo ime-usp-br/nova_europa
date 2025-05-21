@@ -241,7 +241,7 @@ def execute_gemini_call(
                 return genai_client.models.generate_content(
                     model=model_name,
                     contents=contents,
-                    generation_config=api_config_obj,  # Corrected parameter name
+                    config=api_config_obj,  # Corrected parameter name
                 )
             except Exception as inner_e:
                 if verbose:
