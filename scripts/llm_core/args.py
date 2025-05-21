@@ -5,7 +5,8 @@ LLM Core Arguments Module.
 import argparse
 from pathlib import Path
 import sys
-from . import config as core_config # Import the core config
+from . import config as core_config  # Import the core config
+
 
 def get_common_arg_parser(description: str) -> argparse.ArgumentParser:
     """
@@ -84,7 +85,7 @@ def get_common_arg_parser(description: str) -> argparse.ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose output for debugging."
+        help="Enable verbose output for debugging.",
     )
 
     # Consider adding --api-key, --timeout, --model overrides if needed frequently across tasks

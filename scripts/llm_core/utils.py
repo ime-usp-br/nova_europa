@@ -36,9 +36,13 @@ def suggest_install(cmd_name: str, pkg_name: Optional[str] = None) -> str:
     """Generates installation suggestion message."""
     pkg = pkg_name or cmd_name
     suggestions = [f"AVISO: Comando '{cmd_name}' não encontrado."]
-    suggestions.append(f" > Para usar esta funcionalidade, tente instalar o pacote '{pkg}'.")
+    suggestions.append(
+        f" > Para usar esta funcionalidade, tente instalar o pacote '{pkg}'."
+    )
     if command_exists("apt"):
-        suggestions.append(f" > Sugestão (Debian/Ubuntu): sudo apt update && sudo apt install -y {pkg}")
+        suggestions.append(
+            f" > Sugestão (Debian/Ubuntu): sudo apt update && sudo apt install -y {pkg}"
+        )
     elif command_exists("dnf"):
         suggestions.append(f" > Sugestão (Fedora): sudo dnf install -y {pkg}")
     elif command_exists("yum"):
@@ -50,7 +54,9 @@ def suggest_install(cmd_name: str, pkg_name: Optional[str] = None) -> str:
     elif command_exists("zypper"):
         suggestions.append(f" > Sugestão (openSUSE): sudo zypper install -y {pkg}")
     else:
-        suggestions.append(f" > Verifique o gerenciador de pacotes do seu sistema para instalar '{pkg}'.")
+        suggestions.append(
+            f" > Verifique o gerenciador de pacotes do seu sistema para instalar '{pkg}'."
+        )
     return "\n".join(suggestions) + "\n"
 
 
@@ -61,11 +67,13 @@ def run_command(
     capture: bool = True,
     input_data: Optional[str] = None,
     shell: bool = False,
-    timeout: Optional[int] = 60, # Default timeout 60s
+    timeout: Optional[int] = 60,  # Default timeout 60s
 ) -> Tuple[int, str, str]:
     """Runs a subprocess command and returns exit code, stdout, stderr."""
-    cmd_str = shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
-    print(f"    Executing: {cmd_str} (em {cwd})") # Added print for visibility
+    cmd_str = (
+        shlex.join(cmd_list) if not shell else " ".join(map(shlex.quote, cmd_list))
+    )
+    print(f"    Executing: {cmd_str} (em {cwd})")  # Added print for visibility
     start_time = time.monotonic()
     try:
         process = subprocess.run(
@@ -81,7 +89,9 @@ def run_command(
             errors="replace",
         )
         duration = time.monotonic() - start_time
-        print(f"    Comando concluído em {duration:.2f}s com código {process.returncode}")
+        print(
+            f"    Comando concluído em {duration:.2f}s com código {process.returncode}"
+        )
         return process.returncode, process.stdout or "", process.stderr or ""
     except FileNotFoundError:
         error_msg = f"Comando não encontrado: {cmd_list[0]}"
@@ -91,11 +101,13 @@ def run_command(
         error_msg = f"Comando excedeu o tempo limite de {timeout} segundos: {cmd_str}"
         print(f"    ERRO: {error_msg}", file=sys.stderr)
         return 1, "", error_msg
-    except subprocess.CalledProcessError as e: # Only happens if check=True
+    except subprocess.CalledProcessError as e:  # Only happens if check=True
         error_msg = f"Comando falhou (Exit Code: {e.returncode})"
         stderr_content = e.stderr or ""
         stdout_content = e.stdout or ""
-        print(f"    ERRO: {error_msg}. Stderr: {stderr_content.strip()}", file=sys.stderr)
+        print(
+            f"    ERRO: {error_msg}. Stderr: {stderr_content.strip()}", file=sys.stderr
+        )
         return e.returncode, stdout_content.strip(), stderr_content.strip()
     except Exception as e:
         error_msg = f"Erro inesperado ao executar '{cmd_str}': {e}"

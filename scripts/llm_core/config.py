@@ -23,10 +23,16 @@ TIMESTAMP_DIR_REGEX = r"^\d{8}_\d{6}$"
 TIMESTAMP_MANIFEST_REGEX = r"^\d{8}_\d{6}_manifest\.json$"
 
 # Gemini API Model Names
-GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-04-17" # Changed from gemini-2.5-pro-exp-03-25 based on new SDK docs (2025-05-18)
-GEMINI_MODEL_RESOLVE = "gemini-2.5-flash-preview-04-17"       # Changed from gemini-2.5-pro-exp-03-25
-GEMINI_MODEL_SUMMARY = "gemini-2.5-flash-preview-04-17"    # Changed from gemini-1.5-flash-preview-04-17
-GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-04-17"      # Changed from gemini-1.5-flash-preview-04-17
+GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-04-17"  # Changed from gemini-2.5-pro-exp-03-25 based on new SDK docs (2025-05-18)
+GEMINI_MODEL_RESOLVE = (
+    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-2.5-pro-exp-03-25
+)
+GEMINI_MODEL_SUMMARY = (
+    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-1.5-flash-preview-04-17
+)
+GEMINI_MODEL_FLASH = (
+    "gemini-2.5-flash-preview-04-17"  # Changed from gemini-1.5-flash-preview-04-17
+)
 
 # Delimiters and Constants
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
@@ -51,5 +57,7 @@ DEFAULT_MAX_FILES_PER_CALL_SUMMARY = 10
 DEFAULT_CONTEXT_GENERATION_TIMEOUT = 600  # 10 minutes for context generation
 DEFAULT_GH_PROJECT_NUMBER = os.getenv("GH_PROJECT_NUMBER", "1")
 DEFAULT_GH_PROJECT_OWNER = os.getenv("GH_PROJECT_OWNER", "@me")
-DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv("GH_PROJECT_STATUS_FIELD_NAME", "Status")
+DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv(
+    "GH_PROJECT_STATUS_FIELD_NAME", "Status"
+)
 DEFAULT_RATE_LIMIT_SLEEP = 60
