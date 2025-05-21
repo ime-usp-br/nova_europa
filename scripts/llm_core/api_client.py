@@ -13,7 +13,7 @@ from google import genai
 from google.genai import types
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
-from dotenv import load_dotenv
+from dotenv import load_dotenv # Mantenha a importação de dotenv
 from tqdm import tqdm
 
 from . import config as core_config
@@ -31,24 +31,31 @@ def load_api_keys(verbose: bool = False) -> bool:
     """Loads API keys from .env file or environment variables."""
     global GEMINI_API_KEYS_LIST, api_key_loaded_successfully, current_api_key_index
 
-    if api_key_loaded_successfully: # Avoid reloading if already done
+    if api_key_loaded_successfully: 
         return True
 
-    # dotenv_path = core_config.PROJECT_ROOT / ".env" # This was pointing one level too high
-    dotenv_path = core_config.PROJECT_ROOT / ".env"
-
-    if dotenv_path.is_file():
-        if verbose:
-            print(f"  Carregando variáveis de ambiente de: {dotenv_path.relative_to(core_config.PROJECT_ROOT)}")
-        load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True)
-    else:
-         if verbose:
-            print(f"  Arquivo .env não encontrado em {dotenv_path}. Usando variáveis de ambiente do sistema se disponíveis.")
-
+    # Prioriza variáveis de ambiente do sistema
     api_key_string = os.getenv("GEMINI_API_KEY")
 
+    # Se não encontrar no ambiente, tenta carregar do .env
     if not api_key_string:
-        print("Erro: Variável de ambiente GEMINI_API_KEY não encontrada.", file=sys.stderr)
+        dotenv_path = core_config.PROJECT_ROOT / ".env"
+        if dotenv_path.is_file():
+            if verbose:
+                print(f"  Tentando carregar variáveis de ambiente de: {dotenv_path.relative_to(core_config.PROJECT_ROOT)}")
+            # load_dotenv pode ser chamado aqui, mas a fixture já mocka a nível de módulo
+            # Se o .env não definir GEMINI_API_KEY, api_key_string continuará None.
+            # A fixture mock_load_dotenv_globally garante que load_dotenv não faça I/O real nos testes.
+            # A chamada real de load_dotenv é feita aqui se o .env existir.
+            load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True)
+            api_key_string = os.getenv("GEMINI_API_KEY") # Tenta ler novamente após carregar .env
+        elif verbose:
+            print(f"  Arquivo .env não encontrado em {dotenv_path}. Usando apenas variáveis de ambiente do sistema (se houver).")
+
+
+    if not api_key_string:
+        if verbose: # Adiciona verbose aqui para o caso de falha
+            print("Erro: Variável de ambiente GEMINI_API_KEY não encontrada no sistema nem no arquivo .env.", file=sys.stderr)
         api_key_loaded_successfully = False
         return False
 
@@ -71,7 +78,7 @@ def initialize_genai_client(verbose: bool = False) -> bool:
     global genai_client, gemini_initialized_successfully, GEMINI_API_KEYS_LIST, current_api_key_index
 
     if not api_key_loaded_successfully:
-        if not load_api_keys(verbose): # Attempt to load if not already
+        if not load_api_keys(verbose): 
             return False
 
     if not GEMINI_API_KEYS_LIST or not (0 <= current_api_key_index < len(GEMINI_API_KEYS_LIST)):
@@ -84,7 +91,7 @@ def initialize_genai_client(verbose: bool = False) -> bool:
     try:
         if verbose:
             print(f"  Inicializando Google GenAI Client com Key Index {current_api_key_index}...")
-        genai_client = genai.Client(api_key=active_key) # Correct initialization
+        genai_client = genai.Client(api_key=active_key) 
         if verbose:
             print("  Google GenAI Client inicializado com sucesso.")
         gemini_initialized_successfully = True
@@ -117,7 +124,7 @@ def shutdown_api_resources(verbose: bool = False):
     if api_executor:
         if verbose:
             print("  Encerrando API ThreadPoolExecutor...")
-        api_executor.shutdown(wait=False) # Don't wait indefinitely, let script exit
+        api_executor.shutdown(wait=False) 
         api_executor = None
         if verbose:
             print("  API ThreadPoolExecutor encerrado.")
@@ -134,7 +141,7 @@ def rotate_api_key_and_reinitialize(verbose: bool = False) -> bool:
     start_index = current_api_key_index
     current_api_key_index = (current_api_key_index + 1) % len(GEMINI_API_KEYS_LIST)
     print(f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n")
-    gemini_initialized_successfully = False # Mark as uninitialized before trying the new key
+    gemini_initialized_successfully = False 
 
     if current_api_key_index == start_index:
         print("Aviso: Ciclo completo por todas as chaves de API. Limites de taxa podem persistir.", file=sys.stderr)
@@ -166,18 +173,17 @@ def execute_gemini_call(
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
 
-    while True: # Loop for retrying with key rotation
+    while True: 
         def _api_call_task() -> types.GenerateContentResponse:
-            if not genai_client: # Check again inside task, as it might be reinitialized
+            if not genai_client: 
                 raise RuntimeError("Gemini client tornou-se não inicializado na task.")
 
-            # Convert config dict to types.GenerateContentConfig if necessary
             api_config_obj: Optional[types.GenerateContentConfig] = None
             if isinstance(config, dict):
                 api_config_obj = types.GenerateContentConfig(**config)
             elif isinstance(config, types.GenerateContentConfig):
                 api_config_obj = config
-            elif isinstance(config, types.GenerationConfig): # Handle older type if passed
+            elif isinstance(config, types.GenerationConfig): 
                 api_config_obj = types.GenerateContentConfig(
                     candidate_count=config.candidate_count,
                     stop_sequences=config.stop_sequences,
@@ -185,7 +191,6 @@ def execute_gemini_call(
                     temperature=config.temperature,
                     top_p=config.top_p,
                     top_k=config.top_k,
-                    # Note: Other fields from GenerationConfig might not map directly
                 )
 
             try:
@@ -194,7 +199,7 @@ def execute_gemini_call(
                 return genai_client.models.generate_content(
                     model=model_name,
                     contents=contents,
-                    config=api_config_obj # Use a consistent name
+                    generation_config=api_config_obj # Corrected parameter name
                 )
             except Exception as inner_e:
                 if verbose:
@@ -212,14 +217,14 @@ def execute_gemini_call(
             if response.prompt_feedback and response.prompt_feedback.block_reason:
                 block_reason_name = types.BlockedReason(response.prompt_feedback.block_reason).name
                 print(f"  Aviso: Prompt bloqueado devido a {block_reason_name}.", file=sys.stderr)
-                raise RuntimeError(f"Prompt bloqueado: {block_reason_name}") # For AC27
+                raise RuntimeError(f"Prompt bloqueado: {block_reason_name}") 
 
             if response.candidates:
                 for candidate in response.candidates:
                     if hasattr(candidate, "finish_reason") and candidate.finish_reason not in (
                         types.FinishReason.STOP,
-                        types.FinishReason.FINISH_REASON_UNSPECIFIED, # Usually means STOP
-                        types.FinishReason.MAX_TOKENS # This is an expected finish reason
+                        types.FinishReason.FINISH_REASON_UNSPECIFIED, 
+                        types.FinishReason.MAX_TOKENS 
                     ):
                         reason_name = types.FinishReason(candidate.finish_reason).name
                         print(f"  Aviso: Candidato finalizado com razão: {reason_name}", file=sys.stderr)
@@ -228,17 +233,17 @@ def execute_gemini_call(
 
             try:
                 return response.text
-            except (ValueError, AttributeError) as e: # Handle cases where .text might not exist or is empty
+            except (ValueError, AttributeError) as e: 
                 print(f"Aviso: Não foi possível extrair texto da resposta. Resposta: {response}. Erro: {e}", file=sys.stderr)
-                return "" # Return empty string as a fallback
+                return "" 
 
         except concurrent.futures.TimeoutError:
             print(f"  Chamada API excedeu o tempo limite de {timeout_seconds}s. Erro para a tarefa atual.", file=sys.stderr)
-            raise TimeoutError # Re-raise to be caught by the task's main loop if needed for retry
+            raise TimeoutError 
         except (
-            google_api_core_exceptions.ResourceExhausted, # HTTP 429
-            google_genai_errors.ServerError, # Typically HTTP 500 or 503
-            google_api_core_exceptions.DeadlineExceeded, # HTTP 504
+            google_api_core_exceptions.ResourceExhausted, 
+            google_genai_errors.ServerError, 
+            google_api_core_exceptions.DeadlineExceeded, 
         ) as e:
             print(f"  Erro de API ({type(e).__name__}) com Key Index {current_api_key_index}. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...", file=sys.stderr)
             if verbose: print(f"    Detalhes do erro: {e}")
@@ -252,30 +257,27 @@ def execute_gemini_call(
 
             if not rotate_api_key_and_reinitialize(verbose):
                 print("Erro: Não foi possível rotacionar a chave de API. Relançando erro original.", file=sys.stderr)
-                raise e # Re-raise if rotation fails
+                raise e 
 
             if current_api_key_index in keys_tried_in_this_call:
                 print(f"Erro: Ciclo completo de chaves API. Limite/Erro persistente. Relançando erro original.", file=sys.stderr)
-                raise e # Re-raise if all keys failed
+                raise e 
 
             keys_tried_in_this_call.add(current_api_key_index)
             if verbose: print(f"        -> Tentando novamente chamada API com nova Key Index {current_api_key_index}")
-            continue # Retry the API call with the new key/client
+            continue 
 
-        except google_genai_errors.APIError as e: # Catch other specific GenAI API errors
+        except google_genai_errors.APIError as e: 
             print(f"  Erro de API GenAI ({type(e).__name__}) com Key Index {current_api_key_index}: {e}", file=sys.stderr)
-            # Depending on the error, might decide to rotate or just raise
-            # For now, let's try rotating for some common ones or just raise.
-            if e.code == 429: # Explicitly handle 429 if not caught by ResourceExhausted
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 429: # Check for specific status code
                  print(f"  Erro 429 (Rate Limit) detectado. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...", file=sys.stderr)
-                 # ... (same rotation logic as above) ...
                  if not rotate_api_key_and_reinitialize(verbose): raise e
                  if current_api_key_index in keys_tried_in_this_call: raise e
                  keys_tried_in_this_call.add(current_api_key_index)
                  continue
-            raise e # Re-raise other APIErrors
+            raise e 
 
-        except Exception as e: # Catch-all for other unexpected errors during API call
+        except Exception as e: 
             print(f"Erro inesperado durante a chamada API: {e}", file=sys.stderr)
             traceback.print_exc()
-            raise # Re-raise the caught exception
+            raise 
