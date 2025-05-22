@@ -329,19 +329,18 @@ def confirm_and_modify_selection(
         )
         choice = (
             input("Confirm selection, modify, or use default context? [Y]: ")
-            .strip()
-            .lower()
+            .strip()            
         )
 
-        if choice in ["y", "yes", ""]:
+        if choice.lower() in ["y", "yes", ""]:
             print(
                 f"  User confirmed using {len(current_files)} selected files for context."
             )
             return current_files
-        elif choice in ["n", "no"]:
+        elif choice.lower() in ["n", "no"]:
             print("  User chose to use the default context instead.")
             return None
-        elif choice in ["q", "quit"]:
+        elif choice.lower() in ["q", "quit"]:
             print("  Task aborted by user during context selection.")
             sys.exit(0)  # Exit script if user quits here
         elif choice.startswith("a "):
