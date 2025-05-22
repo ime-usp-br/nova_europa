@@ -6,7 +6,7 @@ import sys
 import re
 import datetime
 from pathlib import Path
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List, Set
 
 from . import config as core_config  # Import the core config
 
@@ -132,3 +132,70 @@ def parse_summaries_from_response(llm_response: str) -> Dict[str, str]:
     for filepath, summary in matches:
         summaries[filepath.strip()] = summary.strip()
     return summaries
+
+
+def find_documentation_files(base_dir: Path) -> List[Path]:
+    """
+    Finds potential documentation files (.md) in the project root and docs/ directory.
+    Returns a list of paths relative to the base_dir.
+    """
+    print(f"  Escaneando por arquivos de documentação em: {base_dir}")
+    found_paths: Set[Path] = set()
+
+    # Check for README.md and CHANGELOG.md in the base_dir (project root)
+    for filename in ["README.md", "CHANGELOG.md"]:
+        filepath = base_dir / filename
+        if filepath.is_file():
+            try:
+                found_paths.add(filepath.relative_to(base_dir))
+            except ValueError: # pragma: no cover
+                 # This might happen if base_dir is not a parent of filepath, though unlikely here
+                print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
+
+
+    # Scan docs/ directory recursively for .md files
+    docs_dir = base_dir / "docs"
+    if docs_dir.is_dir():
+        for filepath in docs_dir.rglob("*.md"):
+            if filepath.is_file():
+                try:
+                    found_paths.add(filepath.relative_to(base_dir))
+                except ValueError: # pragma: no cover
+                    print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
+
+
+    sorted_paths = sorted(list(found_paths), key=lambda p: str(p))
+    print(f"  Encontrados {len(sorted_paths)} arquivos de documentação únicos.")
+    return sorted_paths
+
+
+def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
+    """
+    Displays a numbered list of documentation files and prompts the user for selection.
+    doc_files should be a list of paths relative to the project root.
+    Returns the selected Path object (still relative to project root) or None if user quits.
+    """
+    if not doc_files:
+        print("  Nenhum arquivo de documentação encontrado para seleção.")
+        return None
+
+    print("\nArquivos de documentação encontrados. Por favor, escolha um para atualizar:")
+    for i, filepath_relative in enumerate(doc_files):
+        # Display the path as it was provided (relative to project root)
+        print(f"  {i + 1}: {filepath_relative.as_posix()}")
+    print("  q: Sair")
+
+    while True:
+        choice = input("Digite o número do arquivo para atualizar (ou 'q' para sair): ").strip().lower()
+        if choice == 'q':
+            return None
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(doc_files):
+                selected_path_relative = doc_files[index]
+                print(f"  Você selecionou: {selected_path_relative.as_posix()}")
+                return selected_path_relative
+            else:
+                print("  Número inválido. Por favor, tente novamente.")
+        except ValueError:
+            print("  Entrada inválida. Por favor, digite um número ou 'q'.")
