@@ -73,7 +73,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
     *   Adicionado logo do IME à tela de login (`login.blade.php`) (commit `2695909`).
 
 ### Alterado
-
+-   **[DevTools]** Refatorado o script `scripts/llm_interact.py` para uma arquitetura modular. O script principal agora atua como um dispatcher, e as tarefas individuais foram movidas para scripts dedicados em `scripts/tasks/` (ex: `llm_task_resolve_ac.py`). Funcionalidades centrais foram movidas para `scripts/llm_core/`. (Resolve #57)
 *   **[DevTools] Script de geração de contexto migrado de Bash (`gerar_contexto_llm.sh`) para Python (`scripts/generate_context.py`) para melhor manutenibilidade, robustez e extensibilidade, mantendo a funcionalidade de coleta original. (#35)**
 *   Nível de análise do PHPStan elevado para 10.
 *   README.md atualizado para refletir o estado do projeto (v0.1.0).

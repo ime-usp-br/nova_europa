@@ -826,10 +826,11 @@ def run_tests(output_dir: Path, step_num: int, total_steps: int):
         write_warning_to_file(phpunit_output_file, warning_msg)
         print(f"  {warning_msg.strip()}", file=sys.stderr)
 
+
 def run_python_tests(output_dir: Path, step_num: int, total_steps: int):
     """Executa os testes Python usando pytest."""
     print(f"[{step_num}/{total_steps}] Executando testes Python (pytest)...")
-    pytest_output_file = output_dir / "pytest_results.txt" # Nome do arquivo de saída
+    pytest_output_file = output_dir / "pytest_results.txt"  # Nome do arquivo de saída
 
     if not PYTHON_CMD:
         warning_msg = "Comando Python não encontrado. Pulando testes pytest."
@@ -843,22 +844,29 @@ def run_python_tests(output_dir: Path, step_num: int, total_steps: int):
 
     # Executa o comando, check=False para capturar saída mesmo em falha
     exit_code, stdout, stderr = run_command(
-        test_cmd,
-        pytest_output_file, # Arquivo onde a saída será salva
-        check=False
+        test_cmd, pytest_output_file, check=False  # Arquivo onde a saída será salva
     )
 
     # Adiciona o código de saída ao final do arquivo para referência
     try:
         if pytest_output_file.exists():
-             with open(pytest_output_file, "a", encoding="utf-8") as f:
-                 f.write(f"\n\n--- pytest Exit Code: {exit_code} ---")
+            with open(pytest_output_file, "a", encoding="utf-8") as f:
+                f.write(f"\n\n--- pytest Exit Code: {exit_code} ---")
         if exit_code != 0:
-            print(f"  AVISO: Testes pytest falharam ou não puderam ser executados (Código: {exit_code}). Veja {pytest_output_file.name}.", file=sys.stderr)
+            print(
+                f"  AVISO: Testes pytest falharam ou não puderam ser executados (Código: {exit_code}). Veja {pytest_output_file.name}.",
+                file=sys.stderr,
+            )
         else:
-            print(f"  Testes pytest executados (Código: 0). Veja {pytest_output_file.name}.")
+            print(
+                f"  Testes pytest executados (Código: 0). Veja {pytest_output_file.name}."
+            )
     except Exception as e:
-        print(f"  ERRO: Não foi possível anexar o código de saída ao arquivo {pytest_output_file.name}: {e}", file=sys.stderr)
+        print(
+            f"  ERRO: Não foi possível anexar o código de saída ao arquivo {pytest_output_file.name}: {e}",
+            file=sys.stderr,
+        )
+
 
 def run_dusk_tests(output_dir: Path, step_num: int, total_steps: int):
     print(f"[{step_num}/{total_steps}] Executando testes Dusk (php artisan dusk)...")
@@ -1059,8 +1067,6 @@ def run_all_collections(output_dir: Path, timestamp: str, args: argparse.Namespa
     step += 1
     collect_structure_info(output_dir, args, step, TOTAL_STEPS)
     step += 1
-    copy_project_files(output_dir, step, TOTAL_STEPS)
-    step += 1
     collect_github_issue_details(output_dir, args, step, TOTAL_STEPS)
     # Executa quality checks (phpstan, pint)
     step += 1
@@ -1074,8 +1080,8 @@ def run_all_collections(output_dir: Path, timestamp: str, args: argparse.Namespa
     run_dusk_tests(output_dir, step, TOTAL_STEPS)  # Dusk (Etapa 14)
     step += 1
     create_dusk_note(output_dir, step, TOTAL_STEPS)  # Nota Dusk (Etapa 15)
-    step += 1 
-    run_python_tests(output_dir, step, TOTAL_STEPS) # pytest (Etapa 16)
+    step += 1
+    run_python_tests(output_dir, step, TOTAL_STEPS)  # pytest (Etapa 16)
 
     # --- AC22 #32: Invocar generate_manifest.py ---
     # Assume-se que esta etapa aconteça aqui, ANTES de tentar copiar o JSON.

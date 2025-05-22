@@ -1,4 +1,3 @@
-
 Sua tarefa é gerar **APENAS E SOMENTE APENAS** o código PHP/Blade/JS/CSS/SQL (incluindo testes, traduções, migrations, etc.) **ESTRITAMENTE NECESSÁRIO** para resolver **APENAS** o Critério de Aceite (AC) **__NUMERO_DO_AC__** da Issue GitHub **__NUMERO_DA_ISSUE__**.
 
 **DIRETRIZ CRÍTICA DE ESCOPO:** Ao implementar a solução para o AC __NUMERO_DO_AC__, você **DEVE OBRIGATORIAMENTE** analisar o contexto completo da Issue __NUMERO_DA_ISSUE__ (incluindo todos os outros ACs detalhados em `github_issue___NUMERO_DA_ISSUE___details.json`) para garantir que sua solução seja arquiteturalmente sólida e **prepare o terreno** para a implementação futura dos ACs subsequentes dessa mesma issue, sem criar conflitos ou necessidade de refatoração posterior. Isso pode envolver a criação de interfaces, classes base ou estruturas de dados que serão usadas por outros ACs, mas **NÃO IMPLEMENTE A LÓGICA** específica desses outros ACs agora. Foque exclusivamente em fazer o AC __NUMERO_DO_AC__ funcionar de forma coesa com o plano geral da issue.
@@ -12,25 +11,26 @@ __OBSERVACAO_ADICIONAL__
 
 **REGRAS DE IMPLEMENTAÇÃO OBRIGATÓRIAS:**
 
-*   **Padrões:** Siga **CEGAMENTE** `guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md` (PSR-12/Pint, nomenclatura `camelCase`/`snake_case`, Controllers Finos, Form Requests, etc.), *a menos que `__OBSERVACAO_ADICIONAL__` ou o contexto (Regra #2) indiquem o contrário*.
+*   **Requisitos do AC:** Use o arquivo `github_issue___NUMERO_DA_ISSUE___details.json` como fonte primária para os requisitos do AC __NUMERO_DO_AC__.
+*   **Padrões:** Siga **CEGAMENTE** **todas** as regras de `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md` (estilo PSR-12/Pint, nomenclatura, arquitetura, localização, etc.), *a menos que `__OBSERVACAO_ADICIONAL__` ou o contexto (Regra #2) indiquem o contrário*.
 *   **Tecnologia:** Use **Laravel 12**.
-*   **Consistência:** Modifique arquivos existentes de forma consistente antes de criar novos.
+*   **Consistência:** Priorize a modificação consistente de arquivos existentes antes de criar novos, *seguindo o estilo do contexto*.
 *   **Qualidade:** Verifique `phpstan_analysis.txt`, `artisan_route_list.json`, `config/*` conforme necessário.
 *   **Nomenclatura:** Código em **INGLÊS**. Texto de usuário em português/inglês.
 *   **Traduções:** Use `__()` para **todo** texto de usuário. Adicione/atualize chaves (em inglês) em **TODOS** os `lang/*.json`.
 *   **Testes:** Crie testes (Unit/Feature) em `tests/` para **todo** código PHP novo/modificado relacionado a este AC.
-*   **Escopo:** Implemente **APENAS** o AC __NUMERO_DO_AC__ e a `__OBSERVACAO_ADICIONAL__`, mas com visão do todo da Issue __NUMERO_DA_ISSUE__.
+*   **Escopo:** Implemente **APENAS** o AC __NUMERO_DO_AC__ e a `__OBSERVACAO_ADICIONAL__`, com visão do todo da Issue __NUMERO_DA_ISSUE__.
 
 **REGRAS DE SAÍDA EXTREMAMENTE RESTRITAS:**
 
 *   **PROIBIDO:** **NUNCA** mencione nomes de arquivos de contexto não versionados (`.txt`, `.json`, `.md`, etc.).
-*   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados/modificados para este AC, no formato **ESTRITO**:
+*   **ESTRUTURA OBRIGATÓRIA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** a concatenação sequencial de **TODO** o código para os arquivos criados ou modificados para este AC, no formato **ESTRITO**:
 
     --- START OF FILE path/relativo/ao/projeto/arquivo.ext ---
-    Código completo do arquivo...
+    [SE ARQUIVO EXISTENTE MODIFICADO: O CONTEÚDO INTEGRAL E ATUALIZADO DO ARQUIVO. SE ARQUIVO NOVO: O CONTEÚDO INTEGRAL DO NOVO ARQUIVO.]
     --- END OF FILE path/relativo/ao/projeto/arquivo.ext ---
     --- START OF FILE path/relativo/ao/projeto/arquivo2.ext ---
-    Código completo do arquivo2...
+    [SE ARQUIVO2 EXISTENTE MODIFICADO: O CONTEÚDO INTEGRAL E ATUALIZADO DO ARQUIVO2. SE ARQUIVO2 NOVO: O CONTEÚDO INTEGRAL DO NOVO ARQUIVO2.]
     --- END OF FILE path/relativo/ao/projeto/arquivo2.ext ---
 
     *   **Deduza** o `path/relativo/ao/projeto/arquivo.ext` correto.

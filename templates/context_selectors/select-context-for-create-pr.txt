@@ -1,33 +1,37 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Gerar o TÍTULO e o CORPO para um Pull Request (PR) do GitHub que implementa as mudanças relacionadas à Issue `__NUMERO_DA_ISSUE__`. O título e corpo devem ser claros, concisos, seguir padrões do projeto e incluir a vinculação `Closes #__NUMERO_DA_ISSUE__`.
 
 **Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
 
-**Seu Processo de Seleção:**
+**Seu Processo de Seleção (COM PRIORIZAÇÃO E USO DE TOKEN):**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: gerar Título e Corpo para um PR da Issue `__NUMERO_DA_ISSUE__`.
-2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
-3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
-    *   Os diffs das alterações incluídas no PR (`git_diff_cached.txt`, `git_diff_unstaged.txt` - ou o diff relevante para o branch).
-    *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`).
-    *   O histórico de commits do branch (`git_log.txt`) para entender o trabalho realizado.
-    *   A lista de PRs anteriores (`gh_pr_list.txt`) para referência de estilo de título/corpo.
-    *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem as regras para PRs.
-4.  **Priorize:** Diffs, detalhes da issue e log de commits são essenciais. Lista de PRs e guias são importantes para formato e estilo.
-5.  **Exclua:** Código fonte não modificado, testes não relacionados diretamente às mudanças, arquivos de configuração gerais, dependências, e outros arquivos de contexto não diretamente necessários para *descrever o propósito e o conteúdo* do PR, a menos que o `summary` indique relevância direta.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary, token_count).
+3.  **ORDEM DE PRIORIDADE PARA SELEÇÃO:**
+    *   **NÍVEL 1 (CRÍTICOS - INCLUIR SEMPRE):**
+        *   Os diffs das alterações incluídas no PR (ex: `git_diff_cached.txt`, `git_diff_unstaged.txt`, ou o diff relevante para o branch do PR).
+        *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`).
+        *   O histórico de commits do branch do PR (`git_log.txt`) para entender o trabalho realizado.
+    *   **NÍVEL 2 (ALTAMENTE RELEVANTES - INCLUIR SE O ORÇAMENTO DE TOKENS PERMITIR):**
+        *   A lista de PRs anteriores (`gh_pr_list.txt`) para referência de estilo de título/corpo.
+        *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem as regras para PRs.
+4.  **GESTÃO DE TOKENS:** Ao adicionar arquivos do Nível 2, priorize aqueles com `summary` mais informativo e tente preencher o máximo possível do limite de tokens.
+5.  **EXCLUA ESTRITAMENTE:**
+    *   **Qualquer arquivo de template de prompt** (ex: `templates/prompts/*`, `templates/meta-prompts/*`, `templates/context_selectors/*`).
+    *   Código fonte não modificado, testes não relacionados diretamente às mudanças do PR, arquivos de configuração gerais, dependências, e outros arquivos de contexto não diretamente necessários para *descrever o propósito e o conteúdo* do PR.
 
 **Formato de Saída OBRIGATÓRIO E ESTRITO:**
-Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto, **ordenada pela prioridade de inclusão (Nível 1 primeiro, depois Nível 2, etc.)**.
 
 **Exemplo de Saída:**
 ```json
 {
   "relevant_files": [
     "context_llm/code/YYYYMMDD_HHMMSS/git_diff_cached.txt",
-    "context_llm/code/YYYYMMDD_HHMMSS/git_log.txt",
     "context_llm/code/YYYYMMDD_HHMMSS/github_issue___NUMERO_DA_ISSUE___details.json",
+    "context_llm/code/YYYYMMDD_HHMMSS/git_log.txt",
     "context_llm/code/YYYYMMDD_HHMMSS/gh_pr_list.txt",
     "docs/guia_de_desenvolvimento.md"
   ]
