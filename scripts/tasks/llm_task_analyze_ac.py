@@ -204,10 +204,13 @@ def main_analyze_ac():
             excluded_count_filter = 0
             for path, metadata in all_manifest_files.items():
                 if not isinstance(metadata, dict):
-                    excluded_count_filter +=1 # Conta como excluído se não for dict
+                    excluded_count_filter += 1  # Conta como excluído se não for dict
                     continue
                 token_c = metadata.get("token_count")
-                if isinstance(token_c, int) and token_c <= core_config.MANIFEST_MAX_TOKEN_FILTER:
+                if (
+                    isinstance(token_c, int)
+                    and token_c <= core_config.MANIFEST_MAX_TOKEN_FILTER
+                ):
                     filtered_manifest_files_for_selection[path] = metadata
                 else:
                     excluded_count_filter += 1
@@ -479,7 +482,7 @@ def main_analyze_ac():
         else:
             print(
                 "\nResposta final da LLM está vazia. Nenhum arquivo será salvo."
-            ) # AC9 #57
+            )  # AC9 #57
             # Se a resposta é vazia, pode ser intencional pela IA, não salvamos.
 
     except Exception as e:

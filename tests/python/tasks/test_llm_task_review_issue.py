@@ -20,18 +20,20 @@ def test_add_task_specific_args():
     llm_task_review_issue.add_task_specific_args(parser)
 
     action_dests = [action.dest for action in parser._actions]
-    assert "issue" in action_dests # --issue é obrigatório
+    assert "issue" in action_dests  # --issue é obrigatório
 
     # Verifica se --issue é obrigatório
     with pytest.raises(SystemExit):
-        parser.parse_args([]) # Falta --issue
+        parser.parse_args([])  # Falta --issue
 
     # Verifica se funciona com --issue
     try:
         args_minimal = parser.parse_args(["--issue", "123"])
         assert args_minimal.issue == "123"
     except SystemExit as e:
-        pytest.fail(f"Argumento '--issue' não foi corretamente definido como obrigatório. Erro: {e}")
+        pytest.fail(
+            f"Argumento '--issue' não foi corretamente definido como obrigatório. Erro: {e}"
+        )
 
 
 @patch("scripts.tasks.llm_task_review_issue.core_args_module.get_common_arg_parser")
@@ -61,9 +63,9 @@ def test_main_review_issue_direct_flow_success(
     args = argparse.Namespace(
         task=llm_task_review_issue.TASK_NAME,
         issue="555",
-        ac=None, # Não usado por esta task
+        ac=None,  # Não usado por esta task
         observation="Review this issue carefully.",
-        two_stage=False, # Fluxo direto
+        two_stage=False,  # Fluxo direto
         verbose=False,
         web_search=False,
         generate_context=False,
@@ -84,7 +86,7 @@ def test_main_review_issue_direct_flow_success(
     mock_startup_api.return_value = True
     mock_load_template.return_value = "Template para revisar issue __NUMERO_DA_ISSUE__."
     mock_prepare_context.return_value = [MagicMock(spec=Path)]
-    mock_execute_gemini.return_value = "TITLE: Issue Revisada\nBODY: Conteúdo da issue revisada." # Simula corpo da issue no formato KEY: VALUE
+    mock_execute_gemini.return_value = "TITLE: Issue Revisada\nBODY: Conteúdo da issue revisada."  # Simula corpo da issue no formato KEY: VALUE
     mock_confirm_step.return_value = ("y", None)
 
     original_template_dir = task_core_config.TEMPLATE_DIR
@@ -92,7 +94,9 @@ def test_main_review_issue_direct_flow_success(
     monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", tmp_path)
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
-    (tmp_path / llm_task_review_issue.PROMPT_TEMPLATE_NAME).write_text("Template review issue")
+    (tmp_path / llm_task_review_issue.PROMPT_TEMPLATE_NAME).write_text(
+        "Template review issue"
+    )
 
     try:
         llm_task_review_issue.main_review_issue()
@@ -112,11 +116,15 @@ def test_main_review_issue_direct_flow_success(
     mock_prepare_context.assert_called_once()
     mock_execute_gemini.assert_called_once()
     # O modelo para review-issue é GENERAL_TASKS
-    assert mock_execute_gemini.call_args[0][0] == task_core_config.GEMINI_MODEL_GENERAL_TASKS
+    assert (
+        mock_execute_gemini.call_args[0][0]
+        == task_core_config.GEMINI_MODEL_GENERAL_TASKS
+    )
     mock_save_response.assert_called_once_with(
         llm_task_review_issue.TASK_NAME, mock_execute_gemini.return_value.strip()
     )
     mock_shutdown_api.assert_called_once()
+
 
 # Adicionar mais testes para:
 # - Fluxo de duas etapas

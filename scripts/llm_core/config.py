@@ -24,15 +24,9 @@ TIMESTAMP_MANIFEST_REGEX = r"^\d{8}_\d{6}_manifest\.json$"
 
 # Gemini API Model Names
 GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-05-20"
-GEMINI_MODEL_RESOLVE = (
-    "gemini-2.5-flash-preview-05-20"
-)
-GEMINI_MODEL_SUMMARY = (
-    "gemini-2.5-flash-preview-05-20"
-)
-GEMINI_MODEL_FLASH = (
-    "gemini-2.5-flash-preview-05-20"
-)
+GEMINI_MODEL_RESOLVE = "gemini-2.5-flash-preview-05-20"
+GEMINI_MODEL_SUMMARY = "gemini-2.5-flash-preview-05-20"
+GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
 
 # Delimiters and Constants
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."

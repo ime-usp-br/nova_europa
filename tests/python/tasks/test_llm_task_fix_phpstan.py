@@ -18,7 +18,9 @@ def test_add_task_specific_args():
     """Testa se a função add_task_specific_args funciona (mesmo que não adicione args)."""
     parser = argparse.ArgumentParser()
     llm_task_fix_phpstan.add_task_specific_args(parser)
-    action_dests = [action.dest for action in parser._actions if action.dest not in ['help']]
+    action_dests = [
+        action.dest for action in parser._actions if action.dest not in ["help"]
+    ]
     assert not action_dests
 
 
@@ -48,8 +50,8 @@ def test_main_fix_phpstan_direct_flow_success(
 
     args = argparse.Namespace(
         task=llm_task_fix_phpstan.TASK_NAME,
-        issue=None, # Não é obrigatório para esta task
-        ac=None,    # Não é obrigatório para esta task
+        issue=None,  # Não é obrigatório para esta task
+        ac=None,  # Não é obrigatório para esta task
         observation="Fix PHPStan errors.",
         two_stage=False,
         verbose=False,
@@ -70,7 +72,9 @@ def test_main_fix_phpstan_direct_flow_success(
     mock_parser_instance.parse_args.return_value = args
 
     mock_startup_api.return_value = True
-    mock_load_template.return_value = "Template para corrigir erros PHPStan com observação: __OBSERVACAO_ADICIONAL__."
+    mock_load_template.return_value = (
+        "Template para corrigir erros PHPStan com observação: __OBSERVACAO_ADICIONAL__."
+    )
     mock_prepare_context.return_value = [MagicMock(spec=Path)]
     mock_execute_gemini.return_value = "--- START OF FILE app/Services/MyService.php ---\n<?php\n// Conteúdo PHPStan corrigido\n--- END OF FILE app/Services/MyService.php ---"
     mock_confirm_step.return_value = ("y", None)
@@ -80,7 +84,9 @@ def test_main_fix_phpstan_direct_flow_success(
     monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", tmp_path)
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
-    (tmp_path / llm_task_fix_phpstan.PROMPT_TEMPLATE_NAME).write_text("Template fix phpstan")
+    (tmp_path / llm_task_fix_phpstan.PROMPT_TEMPLATE_NAME).write_text(
+        "Template fix phpstan"
+    )
 
     try:
         llm_task_fix_phpstan.main_fix_phpstan()
@@ -103,6 +109,7 @@ def test_main_fix_phpstan_direct_flow_success(
         llm_task_fix_phpstan.TASK_NAME, mock_execute_gemini.return_value.strip()
     )
     mock_shutdown_api.assert_called_once()
+
 
 # Adicionar mais testes para:
 # - Fluxo de duas etapas

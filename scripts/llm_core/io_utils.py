@@ -5,8 +5,8 @@ LLM Core Input/Output Utilities Module.
 import sys
 import re
 import datetime
-import json # Adicionado para update_manifest_file
-import traceback # Adicionado para update_manifest_file
+import json  # Adicionado para update_manifest_file
+import traceback  # Adicionado para update_manifest_file
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List, Set
 
@@ -126,8 +126,10 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
         if filepath.is_file():
             try:
                 found_paths.add(filepath.relative_to(base_dir))
-            except ValueError: # pragma: no cover
-                print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
+            except ValueError:  # pragma: no cover
+                print(
+                    f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr
+                )
 
     docs_dir = base_dir / "docs"
     if docs_dir.is_dir():
@@ -135,8 +137,11 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
             if filepath.is_file():
                 try:
                     found_paths.add(filepath.relative_to(base_dir))
-                except ValueError: # pragma: no cover
-                    print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
+                except ValueError:  # pragma: no cover
+                    print(
+                        f"    Aviso: {filepath} não está sob {base_dir}.",
+                        file=sys.stderr,
+                    )
 
     sorted_paths = sorted(list(found_paths), key=lambda p: str(p))
     print(f"  Encontrados {len(sorted_paths)} arquivos de documentação únicos.")
@@ -153,14 +158,20 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
         print("  Nenhum arquivo de documentação encontrado para seleção.")
         return None
 
-    print("\nArquivos de documentação encontrados. Por favor, escolha um para atualizar:")
+    print(
+        "\nArquivos de documentação encontrados. Por favor, escolha um para atualizar:"
+    )
     for i, filepath_relative in enumerate(doc_files):
         print(f"  {i + 1}: {filepath_relative.as_posix()}")
     print("  q: Sair")
 
     while True:
-        choice = input("Digite o número do arquivo para atualizar (ou 'q' para sair): ").strip().lower()
-        if choice == 'q':
+        choice = (
+            input("Digite o número do arquivo para atualizar (ou 'q' para sair): ")
+            .strip()
+            .lower()
+        )
+        if choice == "q":
             return None
         try:
             index = int(choice) - 1
@@ -173,6 +184,7 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
         except ValueError:
             print("  Entrada inválida. Por favor, digite um número ou 'q'.")
 
+
 def update_manifest_file(manifest_path: Path, manifest_data: Dict[str, Any]) -> bool:
     """Writes the updated manifest data back to the JSON file."""
     try:
@@ -181,6 +193,9 @@ def update_manifest_file(manifest_path: Path, manifest_data: Dict[str, Any]) -> 
         print(f"  Arquivo de manifesto '{manifest_path.name}' atualizado com sucesso.")
         return True
     except Exception as e:
-        print(f"Erro ao salvar arquivo de manifesto atualizado '{manifest_path.name}': {e}", file=sys.stderr)
+        print(
+            f"Erro ao salvar arquivo de manifesto atualizado '{manifest_path.name}': {e}",
+            file=sys.stderr,
+        )
         traceback.print_exc(file=sys.stderr)
         return False

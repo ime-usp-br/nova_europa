@@ -137,9 +137,7 @@ def create_github_pr(
             core_utils.suggest_install("gh", "github-cli"),
             file=sys.stderr,
         )
-        print(
-            "Erro: gh CLI não encontrado. Não é possível criar PR.", file=sys.stderr
-        )
+        print("Erro: gh CLI não encontrado. Não é possível criar PR.", file=sys.stderr)
         return False
 
     cmd = [
@@ -248,7 +246,6 @@ def main_create_pr():
             GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_GENERAL_TASKS
             GEMINI_MODEL_STEP2 = core_config.GEMINI_MODEL_GENERAL_TASKS
 
-
         initial_prompt_content_original = core_prompts_module.load_and_fill_template(
             template_path_to_load, task_variables
         )
@@ -266,7 +263,10 @@ def main_create_pr():
             print("--- Fim ---")
             sys.exit(0)
         elif args.only_meta:
-            print("Aviso: --only-meta é aplicável apenas com --two-stage.", file=sys.stderr)
+            print(
+                "Aviso: --only-meta é aplicável apenas com --two-stage.",
+                file=sys.stderr,
+            )
 
         if args.only_prompt and not args.two_stage:
             print(f"\n--- Prompt Final (--only-prompt) ---")
@@ -278,19 +278,38 @@ def main_create_pr():
         final_selected_files_for_context: Optional[List[str]] = None
         manifest_data_for_context_selection: Optional[Dict[str, Any]] = None
         load_default_context_after_selection_failure = False
-        latest_context_dir_path = core_context.find_latest_context_dir(core_config.CONTEXT_DIR_BASE)
+        latest_context_dir_path = core_context.find_latest_context_dir(
+            core_config.CONTEXT_DIR_BASE
+        )
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
-            latest_manifest_path = core_context.find_latest_manifest_json(core_config.MANIFEST_DATA_DIR)
-            if not latest_manifest_path: sys.exit(1)
-            manifest_data_for_context_selection = core_context.load_manifest(latest_manifest_path)
-            if not manifest_data_for_context_selection or "files" not in manifest_data_for_context_selection: sys.exit(1)
+            latest_manifest_path = core_context.find_latest_manifest_json(
+                core_config.MANIFEST_DATA_DIR
+            )
+            if not latest_manifest_path:
+                sys.exit(1)
+            manifest_data_for_context_selection = core_context.load_manifest(
+                latest_manifest_path
+            )
+            if (
+                not manifest_data_for_context_selection
+                or "files" not in manifest_data_for_context_selection
+            ):
+                sys.exit(1)
 
-            context_selector_prompt_path = core_prompts_module.find_context_selector_prompt(TASK_NAME, args.two_stage)
-            if not context_selector_prompt_path: sys.exit(1)
-            selector_prompt_content = core_prompts_module.load_and_fill_template(context_selector_prompt_path, task_variables)
-            if not selector_prompt_content: sys.exit(1)
+            context_selector_prompt_path = (
+                core_prompts_module.find_context_selector_prompt(
+                    TASK_NAME, args.two_stage
+                )
+            )
+            if not context_selector_prompt_path:
+                sys.exit(1)
+            selector_prompt_content = core_prompts_module.load_and_fill_template(
+                context_selector_prompt_path, task_variables
+            )
+            if not selector_prompt_content:
+                sys.exit(1)
 
             all_manifest_files = manifest_data_for_context_selection.get("files", {})
             filtered_manifest_files_for_selection: Dict[str, Any] = {}
@@ -300,10 +319,12 @@ def main_create_pr():
                     continue
                 # CORREÇÃO:
                 token_c = metadata.get("token_count")
-                if token_c is None: # Trata o caso de token_count ser None explicitamente
-                    token_c_val = float('inf') # Se None, não deve passar no filtro <=
-                elif not isinstance(token_c, int): # Se não for int (ex: string "null")
-                    token_c_val = float('inf') # Também não deve passar
+                if (
+                    token_c is None
+                ):  # Trata o caso de token_count ser None explicitamente
+                    token_c_val = float("inf")  # Se None, não deve passar no filtro <=
+                elif not isinstance(token_c, int):  # Se não for int (ex: string "null")
+                    token_c_val = float("inf")  # Também não deve passar
                 else:
                     token_c_val = token_c
 
@@ -311,89 +332,172 @@ def main_create_pr():
                     filtered_manifest_files_for_selection[path] = metadata
                 else:
                     excluded_count_filter += 1
-            if verbose: print(f"    Excluídos {excluded_count_filter} arquivos do manifesto para API seletora.")
+            if verbose:
+                print(
+                    f"    Excluídos {excluded_count_filter} arquivos do manifesto para API seletora."
+                )
 
             try:
-                filtered_manifest_json = json.dumps({"files": filtered_manifest_files_for_selection}, indent=2, ensure_ascii=False)
+                filtered_manifest_json = json.dumps(
+                    {"files": filtered_manifest_files_for_selection},
+                    indent=2,
+                    ensure_ascii=False,
+                )
                 preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
             except Exception as e:
-                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr); sys.exit(1)
+                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr)
+                sys.exit(1)
 
             suggested_files_from_api: List[str] = []
             try:
                 response_prelim_str = api_client.execute_gemini_call(
                     core_config.GEMINI_MODEL_FLASH,
                     [types.Part.from_text(text=preliminary_api_input_content)],
-                    config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
-                    verbose=verbose
+                    config=types.GenerateContentConfig(
+                        tools=(
+                            [
+                                types.Tool(
+                                    google_search_retrieval=types.GoogleSearchRetrieval()
+                                )
+                            ]
+                            if args.web_search
+                            else []
+                        )
+                    ),
+                    verbose=verbose,
                 )
                 cleaned_response_str = response_prelim_str.strip()
-                if cleaned_response_str.startswith("```json"): cleaned_response_str = cleaned_response_str[7:].strip()
-                if cleaned_response_str.endswith("```"): cleaned_response_str = cleaned_response_str[:-3].strip()
+                if cleaned_response_str.startswith("```json"):
+                    cleaned_response_str = cleaned_response_str[7:].strip()
+                if cleaned_response_str.endswith("```"):
+                    cleaned_response_str = cleaned_response_str[:-3].strip()
                 parsed_response = json.loads(cleaned_response_str)
-                if isinstance(parsed_response, dict) and "relevant_files" in parsed_response and isinstance(parsed_response["relevant_files"], list):
-                    suggested_files_from_api = [str(item) for item in parsed_response["relevant_files"] if isinstance(item, str)]
-                else: raise ValueError("Formato de 'relevant_files' inválido.")
+                if (
+                    isinstance(parsed_response, dict)
+                    and "relevant_files" in parsed_response
+                    and isinstance(parsed_response["relevant_files"], list)
+                ):
+                    suggested_files_from_api = [
+                        str(item)
+                        for item in parsed_response["relevant_files"]
+                        if isinstance(item, str)
+                    ]
+                else:
+                    raise ValueError("Formato de 'relevant_files' inválido.")
             except Exception as e:
-                print(f"\nErro fatal durante seleção de contexto preliminar: {type(e).__name__} - {e}", file=sys.stderr); sys.exit(1)
+                print(
+                    f"\nErro fatal durante seleção de contexto preliminar: {type(e).__name__} - {e}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
             if not suggested_files_from_api:
-                if not core_context.prompt_user_on_empty_selection(): sys.exit(1)
+                if not core_context.prompt_user_on_empty_selection():
+                    sys.exit(1)
                 load_default_context_after_selection_failure = True
             else:
-                final_selected_files_for_context = core_context.confirm_and_modify_selection(
-                    suggested_files_from_api, manifest_data_for_context_selection, core_config.SUMMARY_TOKEN_LIMIT_PER_CALL
+                final_selected_files_for_context = (
+                    core_context.confirm_and_modify_selection(
+                        suggested_files_from_api,
+                        manifest_data_for_context_selection,
+                        core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,
+                    )
                 )
                 if final_selected_files_for_context is None:
                     load_default_context_after_selection_failure = True
 
-        if final_selected_files_for_context is not None and not load_default_context_after_selection_failure:
+        if (
+            final_selected_files_for_context is not None
+            and not load_default_context_after_selection_failure
+        ):
             context_parts = core_context.prepare_context_parts(
-                primary_context_dir=None, common_context_dir=None,
-                exclude_list=args.exclude_context, manifest_data=manifest_data_for_context_selection,
-                include_list=final_selected_files_for_context
+                primary_context_dir=None,
+                common_context_dir=None,
+                exclude_list=args.exclude_context,
+                manifest_data=manifest_data_for_context_selection,
+                include_list=final_selected_files_for_context,
             )
         else:
             if not latest_context_dir_path:
-                print("Erro fatal: Nenhum diretório de contexto encontrado. Execute generate_context.py.", file=sys.stderr)
+                print(
+                    "Erro fatal: Nenhum diretório de contexto encontrado. Execute generate_context.py.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             context_parts = core_context.prepare_context_parts(
-                primary_context_dir=latest_context_dir_path, common_context_dir=core_config.COMMON_CONTEXT_DIR,
-                exclude_list=args.exclude_context, manifest_data=manifest_data_for_context_selection
+                primary_context_dir=latest_context_dir_path,
+                common_context_dir=core_config.COMMON_CONTEXT_DIR,
+                exclude_list=args.exclude_context,
+                manifest_data=manifest_data_for_context_selection,
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
 
         final_prompt_to_send: Optional[str] = None
         if args.two_stage:
-            print("\nExecutando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final)...")
+            print(
+                "\nExecutando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final)..."
+            )
             prompt_final_content: Optional[str] = None
             meta_prompt_current = initial_prompt_content_current
             while True:
-                contents_step1 = [types.Part.from_text(text=meta_prompt_current)] + context_parts
+                contents_step1 = [
+                    types.Part.from_text(text=meta_prompt_current)
+                ] + context_parts
                 try:
                     prompt_final_content = api_client.execute_gemini_call(
-                        GEMINI_MODEL_STEP1, contents_step1,
-                        config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
-                        verbose=verbose
+                        GEMINI_MODEL_STEP1,
+                        contents_step1,
+                        config=types.GenerateContentConfig(
+                            tools=(
+                                [
+                                    types.Tool(
+                                        google_search_retrieval=types.GoogleSearchRetrieval()
+                                    )
+                                ]
+                                if args.web_search
+                                else []
+                            )
+                        ),
+                        verbose=verbose,
                     )
                     print("\n--- Prompt Final Gerado (Etapa 1) ---")
                     print(prompt_final_content.strip())
                     print("---")
-                    if args.yes: user_choice_step1, observation_step1 = "y", None
-                    else: user_choice_step1, observation_step1 = io_utils.confirm_step("Usar este prompt gerado para a Etapa 2?")
-                    if user_choice_step1 == "y": final_prompt_to_send = prompt_final_content; break
-                    elif user_choice_step1 == "q": sys.exit(0)
+                    if args.yes:
+                        user_choice_step1, observation_step1 = "y", None
+                    else:
+                        user_choice_step1, observation_step1 = io_utils.confirm_step(
+                            "Usar este prompt gerado para a Etapa 2?"
+                        )
+                    if user_choice_step1 == "y":
+                        final_prompt_to_send = prompt_final_content
+                        break
+                    elif user_choice_step1 == "q":
+                        sys.exit(0)
                     elif user_choice_step1 == "n" and observation_step1:
-                        meta_prompt_current = core_prompts_module.modify_prompt_with_observation(meta_prompt_current, observation_step1)
-                    else: sys.exit(1)
+                        meta_prompt_current = (
+                            core_prompts_module.modify_prompt_with_observation(
+                                meta_prompt_current, observation_step1
+                            )
+                        )
+                    else:
+                        sys.exit(1)
                 except Exception as e:
                     print(f"  Erro durante chamada API Etapa 1: {e}", file=sys.stderr)
-                    if "Prompt bloqueado" in str(e): sys.exit(1)
-                    retry_choice, _ = io_utils.confirm_step("Chamada API Etapa 1 falhou. Tentar novamente?")
-                    if retry_choice != "y": sys.exit(1)
-            if not final_prompt_to_send: sys.exit(1)
-            if args.web_search and core_config.WEB_SEARCH_ENCOURAGEMENT_PT not in final_prompt_to_send:
+                    if "Prompt bloqueado" in str(e):
+                        sys.exit(1)
+                    retry_choice, _ = io_utils.confirm_step(
+                        "Chamada API Etapa 1 falhou. Tentar novamente?"
+                    )
+                    if retry_choice != "y":
+                        sys.exit(1)
+            if not final_prompt_to_send:
+                sys.exit(1)
+            if (
+                args.web_search
+                and core_config.WEB_SEARCH_ENCOURAGEMENT_PT not in final_prompt_to_send
+            ):
                 final_prompt_to_send += core_config.WEB_SEARCH_ENCOURAGEMENT_PT
         else:
             final_prompt_to_send = initial_prompt_content_current
@@ -408,33 +512,61 @@ def main_create_pr():
         final_prompt_current = final_prompt_to_send
         while True:
             step_name = "Etapa 2: Enviando" if args.two_stage else "Enviando"
-            print(f"\n{step_name} Prompt Final + Contexto ({len(context_parts)} partes) para gerar título/corpo do PR...")
-            contents_final = [types.Part.from_text(text=final_prompt_current)] + context_parts
+            print(
+                f"\n{step_name} Prompt Final + Contexto ({len(context_parts)} partes) para gerar título/corpo do PR..."
+            )
+            contents_final = [
+                types.Part.from_text(text=final_prompt_current)
+            ] + context_parts
             try:
                 final_response_content = api_client.execute_gemini_call(
-                    GEMINI_MODEL_STEP2, contents_final,
-                    config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
-                    verbose=verbose
+                    GEMINI_MODEL_STEP2,
+                    contents_final,
+                    config=types.GenerateContentConfig(
+                        tools=(
+                            [
+                                types.Tool(
+                                    google_search_retrieval=types.GoogleSearchRetrieval()
+                                )
+                            ]
+                            if args.web_search
+                            else []
+                        )
+                    ),
+                    verbose=verbose,
                 )
                 print("\n--- Resposta da LLM (Título/Corpo do PR) ---")
                 print(final_response_content.strip() if final_response_content else "")
                 print("---")
-                if args.yes: 
+                if args.yes:
                     user_choice_final, observation_final = "y", None
                     print("  Resposta da LLM auto-confirmada (--yes).")
                 else:
-                    user_choice_final, observation_final = io_utils.confirm_step("Prosseguir com este título/corpo de PR?")
+                    user_choice_final, observation_final = io_utils.confirm_step(
+                        "Prosseguir com este título/corpo de PR?"
+                    )
 
-                if user_choice_final == "y": break
-                elif user_choice_final == "q": sys.exit(0)
+                if user_choice_final == "y":
+                    break
+                elif user_choice_final == "q":
+                    sys.exit(0)
                 elif user_choice_final == "n" and observation_final:
-                    final_prompt_current = core_prompts_module.modify_prompt_with_observation(final_prompt_current, observation_final)
-                else: sys.exit(1)
+                    final_prompt_current = (
+                        core_prompts_module.modify_prompt_with_observation(
+                            final_prompt_current, observation_final
+                        )
+                    )
+                else:
+                    sys.exit(1)
             except Exception as e:
                 print(f"  Erro durante chamada API para gerar PR: {e}", file=sys.stderr)
-                if "Prompt bloqueado" in str(e): sys.exit(1)
-                retry_choice_final, _ = io_utils.confirm_step("Chamada API para PR falhou. Tentar novamente?")
-                if retry_choice_final != "y": sys.exit(1)
+                if "Prompt bloqueado" in str(e):
+                    sys.exit(1)
+                retry_choice_final, _ = io_utils.confirm_step(
+                    "Chamada API para PR falhou. Tentar novamente?"
+                )
+                if retry_choice_final != "y":
+                    sys.exit(1)
 
         if final_response_content is None:
             print("Erro: Nenhuma resposta final para o PR obtida.", file=sys.stderr)
@@ -446,7 +578,10 @@ def main_create_pr():
         if pr_title and pr_body is not None:
             current_branch = get_current_branch(verbose)
             if not current_branch:
-                print("Erro: Não foi possível obter o branch Git atual. Abortando criação do PR.", file=sys.stderr)
+                print(
+                    "Erro: Não foi possível obter o branch Git atual. Abortando criação do PR.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
             target_branch = args.target_branch
@@ -454,27 +589,46 @@ def main_create_pr():
             print(f"  Branch Alvo (Base): {target_branch}")
 
             if not check_new_commits(target_branch, current_branch, verbose):
-                print(f"Erro: Nenhum commit novo no branch '{current_branch}' em relação a '{target_branch}'. Abortando criação do PR.", file=sys.stderr)
+                print(
+                    f"Erro: Nenhum commit novo no branch '{current_branch}' em relação a '{target_branch}'. Abortando criação do PR.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
             issue_ref_str = f"Closes #{args.issue}"
             if issue_ref_str not in pr_body:
                 print(f"  Adicionando '{issue_ref_str}' ao corpo do PR.")
                 pr_body += f"\n\n{issue_ref_str}"
-            
-            pr_confirm_choice, _ = io_utils.confirm_step(f"Confirmar criação de {'RASCUNHO de ' if args.draft else ''}PR com o título:\n'{pr_title}'\nE corpo:\n{pr_body[:300]}... ?")
+
+            pr_confirm_choice, _ = io_utils.confirm_step(
+                f"Confirmar criação de {'RASCUNHO de ' if args.draft else ''}PR com o título:\n'{pr_title}'\nE corpo:\n{pr_body[:300]}... ?"
+            )
             if pr_confirm_choice == "y":
-                if create_github_pr(pr_title, pr_body, current_branch, target_branch, args.draft, verbose):
+                if create_github_pr(
+                    pr_title,
+                    pr_body,
+                    current_branch,
+                    target_branch,
+                    args.draft,
+                    verbose,
+                ):
                     print("\nProcesso de criação de PR finalizado.")
                 else:
                     print("\nCriação do PR falhou.", file=sys.stderr)
                     sys.exit(1)
             else:
                 print("Criação do PR cancelada pelo usuário.")
-                io_utils.save_llm_response(TASK_NAME + "_user_cancelled_pr_creation", final_response_content)
+                io_utils.save_llm_response(
+                    TASK_NAME + "_user_cancelled_pr_creation", final_response_content
+                )
         else:
-            print("Erro: Falha ao parsear o título/corpo do PR da resposta da LLM.", file=sys.stderr)
-            io_utils.save_llm_response(TASK_NAME + "_parsing_failed", final_response_content)
+            print(
+                "Erro: Falha ao parsear o título/corpo do PR da resposta da LLM.",
+                file=sys.stderr,
+            )
+            io_utils.save_llm_response(
+                TASK_NAME + "_parsing_failed", final_response_content
+            )
             sys.exit(1)
 
     except Exception as e:
@@ -483,6 +637,7 @@ def main_create_pr():
         sys.exit(1)
     finally:
         api_client.shutdown_api_resources(verbose)
+
 
 if __name__ == "__main__":
     main_create_pr()

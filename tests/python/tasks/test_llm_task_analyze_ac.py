@@ -13,7 +13,7 @@ if str(_project_root_dir_for_task_test) not in sys.path:
 
 from scripts.tasks import llm_task_analyze_ac
 from scripts.llm_core import config as task_core_config
-from scripts.llm_core import config as core_config_test_scope # Para restaurar depois
+from scripts.llm_core import config as core_config_test_scope  # Para restaurar depois
 
 
 def test_add_task_specific_args():
@@ -27,13 +27,13 @@ def test_add_task_specific_args():
 
     # Verifica se --issue e --ac são obrigatórios
     with pytest.raises(SystemExit):
-        parser.parse_args([]) # Nenhum argumento
+        parser.parse_args([])  # Nenhum argumento
 
     with pytest.raises(SystemExit):
-        parser.parse_args(["--issue", "123"]) # Falta --ac
+        parser.parse_args(["--issue", "123"])  # Falta --ac
 
     with pytest.raises(SystemExit):
-        parser.parse_args(["--ac", "1"]) # Falta --issue
+        parser.parse_args(["--ac", "1"])  # Falta --issue
 
     # Deve funcionar com ambos
     try:
@@ -41,7 +41,9 @@ def test_add_task_specific_args():
         assert args_both.issue == "123"
         assert args_both.ac == "1"
     except SystemExit as e:
-        pytest.fail(f"Argumentos específicos da tarefa não foram corretamente definidos como obrigatórios. Erro: {e}")
+        pytest.fail(
+            f"Argumentos específicos da tarefa não foram corretamente definidos como obrigatórios. Erro: {e}"
+        )
 
 
 @patch("scripts.tasks.llm_task_analyze_ac.core_args_module.get_common_arg_parser")
@@ -73,7 +75,7 @@ def test_main_analyze_ac_direct_flow_success(
         issue="100",
         ac="2",
         observation="Analyze this specific AC.",
-        two_stage=False, # Fluxo direto
+        two_stage=False,  # Fluxo direto
         verbose=False,
         web_search=False,
         generate_context=False,
@@ -102,7 +104,9 @@ def test_main_analyze_ac_direct_flow_success(
     monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", tmp_path)
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
-    (tmp_path / llm_task_analyze_ac.PROMPT_TEMPLATE_NAME).write_text("Template content for analyze AC")
+    (tmp_path / llm_task_analyze_ac.PROMPT_TEMPLATE_NAME).write_text(
+        "Template content for analyze AC"
+    )
 
     try:
         llm_task_analyze_ac.main_analyze_ac()
@@ -128,6 +132,7 @@ def test_main_analyze_ac_direct_flow_success(
         llm_task_analyze_ac.TASK_NAME, mock_execute_gemini.return_value.strip()
     )
     mock_shutdown_api.assert_called_once()
+
 
 # Adicionar mais testes para:
 # - Fluxo de duas etapas (--two-stage)

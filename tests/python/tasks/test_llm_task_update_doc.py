@@ -45,11 +45,15 @@ def test_add_task_specific_args():
 @patch("scripts.tasks.llm_task_update_doc.io_utils.save_llm_response")
 @patch("scripts.tasks.llm_task_update_doc.io_utils.confirm_step")
 @patch("scripts.tasks.llm_task_update_doc.api_client.shutdown_api_resources")
-@patch("scripts.tasks.llm_task_update_doc.io_utils.find_documentation_files") # Mock da nova função
-@patch("scripts.tasks.llm_task_update_doc.io_utils.prompt_user_to_select_doc") # Mock da nova função
+@patch(
+    "scripts.tasks.llm_task_update_doc.io_utils.find_documentation_files"
+)  # Mock da nova função
+@patch(
+    "scripts.tasks.llm_task_update_doc.io_utils.prompt_user_to_select_doc"
+)  # Mock da nova função
 def test_main_update_doc_direct_flow_with_doc_file_arg(
-    mock_prompt_select_doc, # Mock para seleção interativa
-    mock_find_docs,         # Mock para encontrar docs
+    mock_prompt_select_doc,  # Mock para seleção interativa
+    mock_find_docs,  # Mock para encontrar docs
     mock_shutdown_api,
     mock_confirm_step,
     mock_save_response,
@@ -58,7 +62,7 @@ def test_main_update_doc_direct_flow_with_doc_file_arg(
     mock_execute_gemini,
     mock_startup_api,
     mock_get_common_parser,
-    tmp_path: Path, # Usado para simular PROJECT_ROOT
+    tmp_path: Path,  # Usado para simular PROJECT_ROOT
     monkeypatch,
 ):
     """Testa o fluxo principal da tarefa update-doc (direto, com --doc-file fornecido)."""
@@ -67,15 +71,15 @@ def test_main_update_doc_direct_flow_with_doc_file_arg(
 
     doc_file_relative_path = "README.md"
     doc_file_absolute_path = tmp_path / doc_file_relative_path
-    doc_file_absolute_path.write_text("Old readme content.") # Cria o arquivo mock
+    doc_file_absolute_path.write_text("Old readme content.")  # Cria o arquivo mock
 
     args = argparse.Namespace(
         task=llm_task_update_doc.TASK_NAME,
         issue="101",
         ac=None,
-        doc_file=doc_file_relative_path, # --doc-file fornecido
+        doc_file=doc_file_relative_path,  # --doc-file fornecido
         observation="Update based on new feature.",
-        two_stage=False, # Fluxo direto
+        two_stage=False,  # Fluxo direto
         verbose=False,
         web_search=False,
         generate_context=False,
@@ -93,22 +97,28 @@ def test_main_update_doc_direct_flow_with_doc_file_arg(
     mock_parser_instance.parse_args.return_value = args
 
     mock_startup_api.return_value = True
-    mock_load_template.return_value = "Template preenchido para __NUMERO_DA_ISSUE__ doc __ARQUIVO_DOC_ALVO__."
-    mock_prepare_context.return_value = [MagicMock(spec=Path)] # Simula partes de contexto
+    mock_load_template.return_value = (
+        "Template preenchido para __NUMERO_DA_ISSUE__ doc __ARQUIVO_DOC_ALVO__."
+    )
+    mock_prepare_context.return_value = [
+        MagicMock(spec=Path)
+    ]  # Simula partes de contexto
     mock_execute_gemini.return_value = "--- START OF FILE README.md ---\nNew readme content.\n--- END OF FILE README.md ---"
-    mock_confirm_step.return_value = ("y", None) # Auto-confirma o salvamento
+    mock_confirm_step.return_value = ("y", None)  # Auto-confirma o salvamento
 
     # Monkeypatch as constantes de diretório
     original_template_dir = task_core_config.TEMPLATE_DIR
     original_project_root = task_core_config.PROJECT_ROOT
-    
+
     # Define o diretório de templates mockado
     mocked_template_dir = tmp_path / "templates" / "prompts"
     mocked_template_dir.mkdir(parents=True, exist_ok=True)
-    (mocked_template_dir / llm_task_update_doc.PROMPT_TEMPLATE_NAME).write_text("Template content for update doc")
+    (mocked_template_dir / llm_task_update_doc.PROMPT_TEMPLATE_NAME).write_text(
+        "Template content for update doc"
+    )
 
     monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", mocked_template_dir)
-    monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path) 
+    monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
     try:
         llm_task_update_doc.main_update_doc()
@@ -118,47 +128,66 @@ def test_main_update_doc_direct_flow_with_doc_file_arg(
 
     mock_get_common_parser.assert_called_once()
     mock_startup_api.assert_called_once()
-    mock_find_docs.assert_not_called() 
-    mock_prompt_select_doc.assert_not_called() 
+    mock_find_docs.assert_not_called()
+    mock_prompt_select_doc.assert_not_called()
 
     mock_load_template.assert_called_once_with(
         mocked_template_dir / llm_task_update_doc.PROMPT_TEMPLATE_NAME,
         {
             "NUMERO_DA_ISSUE": "101",
-            "ARQUIVO_DOC_ALVO": doc_file_relative_path, 
+            "ARQUIVO_DOC_ALVO": doc_file_relative_path,
             "OBSERVACAO_ADICIONAL": "Update based on new feature.",
         },
     )
     mock_prepare_context.assert_called_once()
     mock_execute_gemini.assert_called_once()
-    assert mock_execute_gemini.call_args[0][0] == task_core_config.GEMINI_MODEL_GENERAL_TASKS
+    assert (
+        mock_execute_gemini.call_args[0][0]
+        == task_core_config.GEMINI_MODEL_GENERAL_TASKS
+    )
     mock_save_response.assert_called_once_with(
         llm_task_update_doc.TASK_NAME, mock_execute_gemini.return_value.strip()
     )
     mock_shutdown_api.assert_called_once()
 
 
-@patch("scripts.tasks.llm_task_update_doc.io_utils.find_documentation_files", return_value=[])
+@patch(
+    "scripts.tasks.llm_task_update_doc.io_utils.find_documentation_files",
+    return_value=[],
+)
 @patch("scripts.tasks.llm_task_update_doc.core_args_module.get_common_arg_parser")
 @patch("scripts.tasks.llm_task_update_doc.api_client.startup_api_resources")
 def test_main_update_doc_no_doc_files_found(
     mock_startup_api: MagicMock,
     mock_get_common_parser: MagicMock,
-    mock_find_docs: MagicMock, 
+    mock_find_docs: MagicMock,
     tmp_path: Path,
     monkeypatch,
-    capsys
+    capsys,
 ):
     """Testa o comportamento quando nenhum arquivo de documentação é encontrado e --doc-file não é fornecido."""
     mock_parser_instance = MagicMock()
     mock_get_common_parser.return_value = mock_parser_instance
     args_no_doc_file_no_found = argparse.Namespace(
-        task=llm_task_update_doc.TASK_NAME, issue="303", ac=None, doc_file=None,
-        observation="", two_stage=False, verbose=False, web_search=False,
-        generate_context=False, select_context=False, exclude_context=[],
-        only_meta=False, only_prompt=False, yes=True,
-        target_branch=None, draft=False, manifest_path=None,
-        force_summary=None, max_files_per_call=10,
+        task=llm_task_update_doc.TASK_NAME,
+        issue="303",
+        ac=None,
+        doc_file=None,
+        observation="",
+        two_stage=False,
+        verbose=False,
+        web_search=False,
+        generate_context=False,
+        select_context=False,
+        exclude_context=[],
+        only_meta=False,
+        only_prompt=False,
+        yes=True,
+        target_branch=None,
+        draft=False,
+        manifest_path=None,
+        force_summary=None,
+        max_files_per_call=10,
     )
     mock_parser_instance.parse_args.return_value = args_no_doc_file_no_found
     mock_startup_api.return_value = True
@@ -168,50 +197,72 @@ def test_main_update_doc_no_doc_files_found(
 
     with pytest.raises(SystemExit) as excinfo:
         llm_task_update_doc.main_update_doc()
-    
+
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Erro: Nenhum arquivo de documentação (.md na raiz ou em docs/) encontrado." in captured.err
-    
+    assert (
+        "Erro: Nenhum arquivo de documentação (.md na raiz ou em docs/) encontrado."
+        in captured.err
+    )
+
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", original_project_root)
 
 
 @patch("scripts.tasks.llm_task_update_doc.io_utils.find_documentation_files")
-@patch("scripts.tasks.llm_task_update_doc.io_utils.prompt_user_to_select_doc", return_value=None) 
+@patch(
+    "scripts.tasks.llm_task_update_doc.io_utils.prompt_user_to_select_doc",
+    return_value=None,
+)
 @patch("scripts.tasks.llm_task_update_doc.core_args_module.get_common_arg_parser")
 @patch("scripts.tasks.llm_task_update_doc.api_client.startup_api_resources")
 def test_main_update_doc_user_quits_selection(
     mock_startup_api: MagicMock,
     mock_get_common_parser: MagicMock,
-    mock_prompt_select_doc: MagicMock, 
-    mock_find_docs: MagicMock, 
+    mock_prompt_select_doc: MagicMock,
+    mock_find_docs: MagicMock,
     tmp_path: Path,
     monkeypatch,
-    capsys
+    capsys,
 ):
     """Testa o comportamento quando o usuário desiste da seleção interativa de arquivo."""
     mock_parser_instance = MagicMock()
     mock_get_common_parser.return_value = mock_parser_instance
     args_user_quits = argparse.Namespace(
-        task=llm_task_update_doc.TASK_NAME, issue="404", ac=None, doc_file=None,
-        observation="", two_stage=False, verbose=False, web_search=False,
-        generate_context=False, select_context=False, exclude_context=[],
-        only_meta=False, only_prompt=False, yes=True,
-        target_branch=None, draft=False, manifest_path=None,
-        force_summary=None, max_files_per_call=10,
+        task=llm_task_update_doc.TASK_NAME,
+        issue="404",
+        ac=None,
+        doc_file=None,
+        observation="",
+        two_stage=False,
+        verbose=False,
+        web_search=False,
+        generate_context=False,
+        select_context=False,
+        exclude_context=[],
+        only_meta=False,
+        only_prompt=False,
+        yes=True,
+        target_branch=None,
+        draft=False,
+        manifest_path=None,
+        force_summary=None,
+        max_files_per_call=10,
     )
     mock_parser_instance.parse_args.return_value = args_user_quits
     mock_startup_api.return_value = True
-    mock_find_docs.return_value = [Path("README.md")] 
+    mock_find_docs.return_value = [Path("README.md")]
 
     original_project_root = task_core_config.PROJECT_ROOT
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
     with pytest.raises(SystemExit) as excinfo:
         llm_task_update_doc.main_update_doc()
-    
-    assert excinfo.value.code == 0 
+
+    assert excinfo.value.code == 0
     captured = capsys.readouterr()
-    assert "Seleção de arquivo de documentação cancelada pelo usuário. Saindo." in captured.out
+    assert (
+        "Seleção de arquivo de documentação cancelada pelo usuário. Saindo."
+        in captured.out
+    )
 
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", original_project_root)

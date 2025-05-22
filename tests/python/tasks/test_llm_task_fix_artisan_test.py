@@ -18,7 +18,9 @@ def test_add_task_specific_args():
     """Testa se a função add_task_specific_args funciona (mesmo que não adicione args)."""
     parser = argparse.ArgumentParser()
     llm_task_fix_artisan_test.add_task_specific_args(parser)
-    action_dests = [action.dest for action in parser._actions if action.dest not in ['help']]
+    action_dests = [
+        action.dest for action in parser._actions if action.dest not in ["help"]
+    ]
     assert not action_dests
 
 
@@ -26,7 +28,9 @@ def test_add_task_specific_args():
 @patch("scripts.tasks.llm_task_fix_artisan_test.api_client.startup_api_resources")
 @patch("scripts.tasks.llm_task_fix_artisan_test.api_client.execute_gemini_call")
 @patch("scripts.tasks.llm_task_fix_artisan_test.core_context.prepare_context_parts")
-@patch("scripts.tasks.llm_task_fix_artisan_test.core_prompts_module.load_and_fill_template")
+@patch(
+    "scripts.tasks.llm_task_fix_artisan_test.core_prompts_module.load_and_fill_template"
+)
 @patch("scripts.tasks.llm_task_fix_artisan_test.io_utils.save_llm_response")
 @patch("scripts.tasks.llm_task_fix_artisan_test.io_utils.confirm_step")
 @patch("scripts.tasks.llm_task_fix_artisan_test.api_client.shutdown_api_resources")
@@ -80,7 +84,9 @@ def test_main_fix_artisan_test_direct_flow_success(
     monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", tmp_path)
     monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
 
-    (tmp_path / llm_task_fix_artisan_test.PROMPT_TEMPLATE_NAME).write_text("Template fix phpunit")
+    (tmp_path / llm_task_fix_artisan_test.PROMPT_TEMPLATE_NAME).write_text(
+        "Template fix phpunit"
+    )
 
     try:
         llm_task_fix_artisan_test.main_fix_artisan_test()
