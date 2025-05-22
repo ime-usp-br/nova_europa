@@ -1067,8 +1067,6 @@ def run_all_collections(output_dir: Path, timestamp: str, args: argparse.Namespa
     step += 1
     collect_structure_info(output_dir, args, step, TOTAL_STEPS)
     step += 1
-    copy_project_files(output_dir, step, TOTAL_STEPS)
-    step += 1
     collect_github_issue_details(output_dir, args, step, TOTAL_STEPS)
     # Executa quality checks (phpstan, pint)
     step += 1
