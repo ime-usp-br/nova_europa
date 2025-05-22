@@ -465,7 +465,7 @@ def main_resolve_ac():
                     verbose=verbose,
                 )
                 print("\n--- Resposta Final ---")
-                print(final_response_content.strip())
+                print(final_response_content.strip() if final_response_content else "")
                 print("---")
                 if args.yes:
                     user_choice_final, observation_final = "y", None

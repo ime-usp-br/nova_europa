@@ -283,7 +283,7 @@ def main_update_doc():
                     verbose=verbose
                 )
                 print("\n--- Resposta Final (Conteúdo da Documentação) ---")
-                print(final_response_content.strip())
+                print(final_response_content.strip() if final_response_content else "")
                 print("---")
                 if args.yes: user_choice_final, observation_final = "y", None
                 else: user_choice_final, observation_final = io_utils.confirm_step("Prosseguir com esta resposta final?")

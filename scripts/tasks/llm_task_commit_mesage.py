@@ -11,7 +11,6 @@ import traceback
 import json
 from pathlib import Path
 
-
 # Adiciona o diretório raiz do projeto (PROJECT_ROOT) ao sys.path
 _project_root_dir_for_task = Path(__file__).resolve().parent.parent.parent
 if str(_project_root_dir_for_task) not in sys.path:
@@ -428,7 +427,7 @@ def main_commit_mesage():
                     verbose=verbose,
                 )
                 print("\n--- Resposta Final ---")
-                print(final_response_content.strip())
+                print(final_response_content.strip() if final_response_content else "")
                 print("---")
                 if args.yes:
                     user_choice_final, observation_final = "y", None
