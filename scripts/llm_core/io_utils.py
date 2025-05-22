@@ -5,6 +5,8 @@ LLM Core Input/Output Utilities Module.
 import sys
 import re
 import datetime
+import json # Adicionado para update_manifest_file
+import traceback # Adicionado para update_manifest_file
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List, Set
 
@@ -14,7 +16,7 @@ from . import config as core_config  # Import the core config
 def save_llm_response(
     task_name: str,
     response_content: str,
-    output_dir_base_override: Optional[Path] = None,  # Novo argumento opcional
+    output_dir_base_override: Optional[Path] = None,
 ) -> None:
     """Saves the LLM's final response to a timestamped file within a task-specific directory."""
 
@@ -80,44 +82,21 @@ def parse_pr_content(llm_output: str) -> Tuple[Optional[str], Optional[str]]:
     body: Optional[str] = None
 
     try:
-        # Encontrar o início do título
         title_start_delimiter = core_config.PR_CONTENT_DELIMITER_TITLE
         title_start_index = llm_output.index(title_start_delimiter) + len(
             title_start_delimiter
         )
-
-        # Encontrar o início do corpo (que é o fim do título)
         body_start_delimiter = core_config.PR_CONTENT_DELIMITER_BODY
         body_start_index = llm_output.index(body_start_delimiter, title_start_index)
-
         title = llm_output[title_start_index:body_start_index].strip()
-
-        # O corpo começa após o delimitador do corpo
         body_content_start_index = body_start_index + len(body_start_delimiter)
         body = llm_output[body_content_start_index:].strip()
-
-        if (
-            not title or body is None
-        ):  # Body pode ser string vazia, mas não None se delimitador presente
-            # Se o título foi encontrado mas o corpo não (ou vice-versa de forma estranha), considera falha
-            # Esta condição pode ser ajustada se um corpo vazio após o delimitador for válido
-            # e title não for None. Se body for "" (string vazia), está OK.
-            # O problema é se o DELIMITADOR do corpo não for encontrado.
-            # A lógica acima com `index` já levantaria ValueError se os delimitadores não existissem.
-            # A checagem `if not title or body is None` é mais para o caso de
-            # os delimitadores existirem mas o conteúdo entre eles ser problemático
-            # ou se um delimitador é encontrado mas o subsequente não,
-            # o que seria pego pelo `except ValueError` abaixo.
-            # Se chegamos aqui, ambos delimitadores foram encontrados.
-            pass  # Ambos delimitadores foram encontrados, title e body foram extraídos.
-
-    except ValueError:  # Ocorre se .index() não encontrar os delimitadores
+    except ValueError:
         print(
             f"Erro: Não foi possível parsear a saída da LLM para o PR. Delimitadores '{core_config.PR_CONTENT_DELIMITER_TITLE}' ou '{core_config.PR_CONTENT_DELIMITER_BODY}' não encontrados ou formato incorreto.",
             file=sys.stderr,
         )
         return None, None
-
     return title, body
 
 
@@ -142,18 +121,14 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
     print(f"  Escaneando por arquivos de documentação em: {base_dir}")
     found_paths: Set[Path] = set()
 
-    # Check for README.md and CHANGELOG.md in the base_dir (project root)
     for filename in ["README.md", "CHANGELOG.md"]:
         filepath = base_dir / filename
         if filepath.is_file():
             try:
                 found_paths.add(filepath.relative_to(base_dir))
             except ValueError: # pragma: no cover
-                 # This might happen if base_dir is not a parent of filepath, though unlikely here
                 print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
 
-
-    # Scan docs/ directory recursively for .md files
     docs_dir = base_dir / "docs"
     if docs_dir.is_dir():
         for filepath in docs_dir.rglob("*.md"):
@@ -162,7 +137,6 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
                     found_paths.add(filepath.relative_to(base_dir))
                 except ValueError: # pragma: no cover
                     print(f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr)
-
 
     sorted_paths = sorted(list(found_paths), key=lambda p: str(p))
     print(f"  Encontrados {len(sorted_paths)} arquivos de documentação únicos.")
@@ -181,7 +155,6 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
 
     print("\nArquivos de documentação encontrados. Por favor, escolha um para atualizar:")
     for i, filepath_relative in enumerate(doc_files):
-        # Display the path as it was provided (relative to project root)
         print(f"  {i + 1}: {filepath_relative.as_posix()}")
     print("  q: Sair")
 
@@ -199,3 +172,15 @@ def prompt_user_to_select_doc(doc_files: List[Path]) -> Optional[Path]:
                 print("  Número inválido. Por favor, tente novamente.")
         except ValueError:
             print("  Entrada inválida. Por favor, digite um número ou 'q'.")
+
+def update_manifest_file(manifest_path: Path, manifest_data: Dict[str, Any]) -> bool:
+    """Writes the updated manifest data back to the JSON file."""
+    try:
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest_data, f, indent=4, ensure_ascii=False)
+        print(f"  Arquivo de manifesto '{manifest_path.name}' atualizado com sucesso.")
+        return True
+    except Exception as e:
+        print(f"Erro ao salvar arquivo de manifesto atualizado '{manifest_path.name}': {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return False
