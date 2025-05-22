@@ -2,6 +2,7 @@
 import pytest
 import argparse
 from unittest.mock import patch, MagicMock
+from io import StringIO
 
 # Adiciona o diretório raiz do projeto ao sys.path para importações corretas
 import sys
@@ -12,12 +13,11 @@ if str(_project_root_dir_for_task_test) not in sys.path:
     sys.path.insert(0, str(_project_root_dir_for_task_test))
 
 from scripts.tasks import llm_task_resolve_ac
-
-# Importar o módulo config que o script da tarefa usa, para poder mocká-lo
-from scripts.llm_core import config as task_core_config
-from scripts.llm_core import (
-    config as core_config_test_scope,
-)  # Para restaurar depois, se necessário
+from scripts.llm_core import config as task_core_config # Importa o config usado pela task
+from scripts.llm_core import context as core_context_module # Para mockar find_latest_context_dir
+from scripts.llm_core import prompts as core_prompts_module # Para mockar load_and_fill_template
+from scripts.llm_core import io_utils as core_io_utils # Para mockar io_utils
+from scripts.llm_core import api_client as core_api_client # Para mockar api_client
 
 
 def test_add_task_specific_args():
@@ -49,7 +49,7 @@ def test_add_task_specific_args():
                 pytest.fail(
                     "Erro inesperado ao parsear com --issue e --ac, SystemExit ocorreu mas não deveria ser por falta destes."
                 )
-        if e.code != 0:
+        if e.code != 0: # type: ignore
             pass
 
 
@@ -61,7 +61,9 @@ def test_add_task_specific_args():
 @patch("scripts.tasks.llm_task_resolve_ac.io_utils.save_llm_response")
 @patch("scripts.tasks.llm_task_resolve_ac.io_utils.confirm_step")
 @patch("scripts.tasks.llm_task_resolve_ac.api_client.shutdown_api_resources")
+@patch("scripts.tasks.llm_task_resolve_ac.core_context.find_latest_context_dir") # Mock para find_latest_context_dir
 def test_main_resolve_ac_direct_flow_success(
+    mock_find_latest_context_dir, # Adicionado mock
     mock_shutdown_api,
     mock_confirm_step,
     mock_save_response,
@@ -71,7 +73,7 @@ def test_main_resolve_ac_direct_flow_success(
     mock_startup_api,
     mock_get_common_parser,
     tmp_path,
-    monkeypatch,  # Adicionado monkeypatch
+    monkeypatch,
 ):
     """Testa o fluxo principal da tarefa resolve-ac (direto, com sucesso)."""
     mock_parser = MagicMock()
@@ -95,37 +97,53 @@ def test_main_resolve_ac_direct_flow_success(
 
     mock_startup_api.return_value = True
     mock_load_template.return_value = "Template preenchido para __NUMERO_DO_AC__"
-    mock_prepare_context.return_value = [MagicMock(spec=Path)]
+    mock_prepare_context.return_value = [MagicMock(spec=Path)] # type: ignore
     mock_execute_gemini.return_value = "--- START OF FILE path/to/code.php ---\nConteúdo do código\n--- END OF FILE path/to/code.php ---"
     mock_confirm_step.return_value = ("y", None)
 
-    # --- CORREÇÃO PRINCIPAL AQUI ---
-    # Monkeypatch as constantes de diretório DENTRO do módulo config que o script da tarefa usa.
+    # Configura o mock para find_latest_context_dir para retornar um caminho válido dentro de tmp_path
+    mock_latest_context_dir = tmp_path / "context_llm" / "code" / "20230101_120000"
+    mock_latest_context_dir.mkdir(parents=True, exist_ok=True)
+    mock_find_latest_context_dir.return_value = mock_latest_context_dir
+
+
     original_template_dir = task_core_config.TEMPLATE_DIR
     original_project_root = task_core_config.PROJECT_ROOT
+    original_context_dir_base = task_core_config.CONTEXT_DIR_BASE
+    original_common_context_dir = task_core_config.COMMON_CONTEXT_DIR
 
     monkeypatch.setattr(
-        task_core_config, "TEMPLATE_DIR", tmp_path
-    )  # Agora TEMPLATE_DIR aponta para tmp_path
+        task_core_config, "TEMPLATE_DIR", tmp_path / "templates" / "prompts"
+    )
+    monkeypatch.setattr(task_core_config, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(
-        task_core_config, "PROJECT_ROOT", tmp_path
-    )  # PROJECT_ROOT também aponta para tmp_path
+        task_core_config, "CONTEXT_DIR_BASE", tmp_path / "context_llm" / "code"
+    )
+    monkeypatch.setattr(
+        task_core_config, "COMMON_CONTEXT_DIR", tmp_path / "context_llm" / "common"
+    )
 
-    (tmp_path / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME).write_text(
+    (tmp_path / "templates" / "prompts").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "context_llm" / "common").mkdir(parents=True, exist_ok=True)
+
+
+    (tmp_path / "templates" / "prompts" / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME).write_text(
         "Template content"
     )
 
     try:
         llm_task_resolve_ac.main_resolve_ac()
     finally:
-        # Restaurar os valores originais para não afetar outros testes
         monkeypatch.setattr(task_core_config, "TEMPLATE_DIR", original_template_dir)
         monkeypatch.setattr(task_core_config, "PROJECT_ROOT", original_project_root)
+        monkeypatch.setattr(task_core_config, "CONTEXT_DIR_BASE", original_context_dir_base)
+        monkeypatch.setattr(task_core_config, "COMMON_CONTEXT_DIR", original_common_context_dir)
+
 
     mock_get_common_parser.assert_called_once()
     mock_startup_api.assert_called_once()
     mock_load_template.assert_called_once_with(
-        tmp_path / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME,
+        tmp_path / "templates" / "prompts" / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME,
         {"NUMERO_DA_ISSUE": "1", "NUMERO_DO_AC": "1", "OBSERVACAO_ADICIONAL": "obs"},
     )
     mock_prepare_context.assert_called_once()
@@ -134,3 +152,4 @@ def test_main_resolve_ac_direct_flow_success(
         llm_task_resolve_ac.TASK_NAME, mock_execute_gemini.return_value.strip()
     )
     mock_shutdown_api.assert_called_once()
+    
