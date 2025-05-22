@@ -4,3 +4,4 @@ pytest-mock
 tqdm==4.65.0
 google-genai
 google-api-core
+python-dotenv
