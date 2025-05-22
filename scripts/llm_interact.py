@@ -21,17 +21,17 @@ import shlex  # Para construir o comando com segurança
 import traceback  # Para traceback completo em exceções
 
 # Corrigindo as importações para serem absolutas a partir da raiz do projeto
-from scripts.llm_core import config as core_config
-from scripts.llm_core import (
+from llm_core import config as core_config
+from llm_core import (
     args as core_args_module,
 )  # Renomeado para evitar conflito com args do argparse
-from scripts.llm_core import utils as core_utils  # Importando utils do core
-from scripts.llm_core import (
+from llm_core import utils as core_utils  # Importando utils do core
+from llm_core import (
     prompts as core_prompts_module,
 )  # Renomeado para evitar conflito
 
 # api_client não é usado diretamente pelo dispatcher, mas pelos scripts de tarefa
-# from scripts.llm_core import api_client
+# from llm_core import api_client
 
 
 def find_task_scripts(tasks_dir: Path) -> Dict[str, Path]:

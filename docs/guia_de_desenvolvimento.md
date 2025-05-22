@@ -76,7 +76,7 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
 *   **(Opcional) Ferramentas de Desenvolvimento Adicionais:**
     *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto e ambiente. **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
-    *   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python para automatizar interações com a API do Google Gemini. **PODE** ser usada para auxiliar em tarefas de desenvolvimento. Requer `python3 >= 3.10`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
+    *   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):** Ferramentas Python para automatizar interações com a API do Google Gemini. `llm_interact.py` atua como dispatcher para os scripts de tarefa em `scripts/tasks/`. **PODEM** ser usadas para auxiliar em tarefas de desenvolvimento. Requerem `python3 >= 3.10`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
     *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano. Requer `python3 >= 3.8`, `gh` CLI, `jq`.
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
@@ -98,7 +98,7 @@ Este ciclo descreve o fluxo recomendado para transformar uma ideia ou necessidad
 *   **Como Criar Issues Eficazes:**
     *   **Título:** Claro, conciso e acionável. Deve resumir o problema ou a tarefa. (Ex: "[BUG] Botão de login não funciona no Firefox", "[FEAT] Implementar exportação de usuários para CSV").
     *   **Descrição:** Detalhada e contextualizada. Explique o *quê* e o *porquê*. Para bugs, inclua passos para reproduzir, comportamento esperado vs. atual, ambiente. Para features, descreva o objetivo, a motivação e a solução proposta.
-    *   **Templates:** **SEMPRE** utilize os templates fornecidos (veja seção 5.3 para o local correto) ao criar novas Issues. Eles guiam o preenchimento das informações essenciais:
+    *   **Templates:** **SEMPRE** utilize os templates fornecidos (localizados em `templates/issue_bodies/`) ao criar novas Issues. Eles guiam o preenchimento das informações essenciais:
         *   `bug_body.md`: Para relatar bugs.
         *   `feature_body.md`: Para novas funcionalidades ou melhorias.
         *   `chore_body.md`: Para tarefas internas, refatorações, atualizações de dependências, etc.
@@ -147,7 +147,7 @@ O desenvolvimento de código deve ser sempre guiado por uma Issue específica.
     *   **Formato:** `<tipo>(<escopo_opcional>): <descrição imperativa concisa> (#<ID_da_Issue>)`
     *   **Tipos Comuns:** `feat:` (nova feature), `fix:` (correção de bug), `refactor:` (mudança que não altera comportamento externo), `chore:` (manutenção, build), `test:` (adição/ajuste de testes), `docs:` (mudanças na documentação).
     *   **Exemplo:** `feat: Adiciona rota e controller para logout (#124)`
-    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `commit-mesage` (ex: `python scripts/llm_interact.py commit-mesage -i 124 -g`) para gerar uma mensagem de commit sugerida, baseada nas alterações em stage e no histórico do projeto. **REVISE** a mensagem gerada antes de usar.
+    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `commit-mesage` (ex: `python scripts/llm_interact.py commit-mesage -i 124 -g`) ou o script de tarefa direto (`python scripts/tasks/llm_task_commit_mesage.py -i 124 -g`) para gerar uma mensagem de commit sugerida, baseada nas alterações em stage e no histórico do projeto. **REVISE** a mensagem gerada antes de usar.
 
 ### 4.5. Fase 5: Integração e Revisão (Pull Requests)
 
@@ -160,7 +160,7 @@ Mesmo trabalhando sozinho, usar Pull Requests (PRs) é uma excelente prática.
     *   **Título:** Claro e relacionado à Issue (GitHub pode sugerir baseado no branch/commits).
     *   **Descrição:** Resuma as mudanças. **OBRIGATÓRIO** usar `Closes #<ID>` ou `Fixes #<ID>` para vincular o PR à Issue e garantir seu fechamento automático no merge.
     *   **Revisão:** Revise seu próprio código no PR. Isso ajuda a pegar erros antes do merge.
-    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `create-pr` (ex: `python scripts/llm_interact.py create-pr -i 124 -g`) para gerar automaticamente o título e corpo do PR, e opcionalmente criá-lo no GitHub. **REVISE** o conteúdo gerado.
+    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `create-pr` (ex: `python scripts/llm_interact.py create-pr -i 124 -g`) ou o script de tarefa direto (`python scripts/tasks/llm_task_create_pr.py -i 124 -g`) para gerar automaticamente o título e corpo do PR, e opcionalmente criá-lo no GitHub. **REVISE** o conteúdo gerado.
 *   **Integração Contínua (CI):** A abertura/atualização do PR deve disparar automaticamente os workflows do GitHub Actions configurados no Starter Kit (testes, Pint, Larastan). O PR só deve ser mergeado se a CI passar.
 
 ### 4.6. Fase 6: Merge e Conclusão
@@ -211,7 +211,7 @@ O script `scripts/create_issue.py` incluído no repositório lê um arquivo de p
         # Criar/Editar issues do plano, sem milestone específico
         python scripts/create_issue.py planos/ciclo_atual.txt
 
-        # Criar/Editar issues, associando-as ao milestone "Sprint 1" (cria se não existir)
+        # Criar/Editar issues, associando-as ao milestone "Sprint 1" (cria se não existir com desc)
         python scripts/create_issue.py --milestone-title "Sprint 1" --milestone-desc "Objetivos da Sprint 1" planos/ciclo_atual.txt
         ```
     5.  Verifique as Issues criadas/editadas no GitHub e no seu quadro Kanban.
@@ -256,13 +256,22 @@ O processo (Issues -> Branch -> Commits -> PR -> Merge) aplica-se a todo trabalh
 
 A chave é a rastreabilidade via Issues e commits vinculados.
 
-## 8. Ferramentas de Desenvolvimento e Automação (Detalhes)
+## 8. Ferramentas de Desenvolvimento e Automação
 
 *   **Laravel Pint:** (`vendor/bin/pint`) Formatador PSR-12. Use antes de commitar.
 *   **Larastan:** (`vendor/bin/phpstan analyse`) Análise estática. Execute regularmente.
 *   **Script de Criação de Issues (`scripts/create_issue.py`):** Automatiza a criação/edição de Issues no GitHub a partir de planos `.txt`.
-*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Usa API Gemini, contexto e meta-prompts (`templates/meta-prompts/`) para auxiliar em tarefas (gerar código para ACs, commits, análise de ACs, docs, PRs - tasks `resolve-ac`, `commit-mesage`, `analyze-ac`, `update-doc`, `create-pr`, `create-test-sub-issue`). Requer setup (`pip install`, `GEMINI_API_KEY`). Use `python scripts/llm_interact.py -h`.
+*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar as ferramentas de LLM.
+*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
+    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
+    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
+        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
+        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
+    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
+        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
+    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`.
+    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa (ex: `--issue`, `--ac`, `--observation`, `--two-stage`, `--select-context`, `--web-search`, `--generate-context`, etc.).
+    *   Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes Automatizados
 
@@ -303,3 +312,5 @@ Ao escrever documentação, use os termos da [RFC 2119](https://datatracker.ietf
 | SHOULD, RECOMMENDED         | **PODERIA, PODERIAM, RECOMENDÁVEL** | Forte recomendação, exceções justificadas. |
 | SHOULD NOT, NOT RECOMMENDED | **NÃO PODERIA, NÃO RECOMENDÁVEL** | Forte desaconselhamento, exceções justificadas. |
 | MAY, OPTIONAL               | **PODE, PODEM, OPCIONAL**   | Verdadeiramente opcional, sem preferência.      |
+
+Exemplo: _"O Model **DEVE** ter a propriedade `$fillable` definida."_ vs. _"Você **PODERIA** usar um Service para encapsular a lógica de email."_ vs. _"Todo texto visível ao usuário **DEVE** usar a função `__()`."_

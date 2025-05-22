@@ -59,7 +59,9 @@ Este Starter Kit vem pré-configurado com:
 *   **Ferramentas de Desenvolvimento:**
     *   Script Python (`scripts/create_issue.py`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
     *   Script Python (`scripts/generate_context.py`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs.
-    *   Script Python (`scripts/llm_interact.py`) para interagir com a API Google Gemini, utilizando o contexto gerado e meta-prompts (`templates/meta-prompts/*.txt`), para auxiliar em tarefas de desenvolvimento (geração de código, commits, análise de ACs, documentação, PRs).
+    *   **Scripts de Interação com LLM:**
+        *   `scripts/llm_interact.py`: Atua como um **dispatcher** para tarefas de LLM.
+        *   `scripts/tasks/llm_task_*.py`: Scripts individuais para tarefas específicas (gerar código, commits, analisar ACs, documentação, PRs), utilizando funcionalidades centrais de `scripts/llm_core/`. Interagem com a API Google Gemini usando o contexto gerado e meta-prompts (`templates/meta-prompts/*.txt`).
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
 *Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md).*
@@ -81,7 +83,7 @@ Este Starter Kit vem pré-configurado com:
 *   **Permissões:** `spatie/laravel-permission`
 *   **Testes:** **PHPUnit**, **Laravel Dusk**
 *   **Qualidade:** Laravel Pint, Larastan
-*   **Ferramentas Dev:** Python 3.x, `google-genai`, `python-dotenv`, `tqdm` (para script LLM)
+*   **Ferramentas Dev:** Python 3.x, `google-genai`, `python-dotenv`, `tqdm` (para scripts LLM)
 
 ## 5. Instalação
 
@@ -126,7 +128,7 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         *   `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: Credenciais do seu banco de dados.
         *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail).
         *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
-        *   **(Opcional) `GEMINI_API_KEY`:** Adicione sua chave da API Google Gemini para usar o script `llm_interact.py`. Pode conter múltiplas chaves separadas por `|`.
+        *   **(Opcional) `GEMINI_API_KEY`:** Adicione sua chave da API Google Gemini para usar os scripts de LLM. Pode conter múltiplas chaves separadas por `|`.
 
 6.  **Banco de Dados e Dados Iniciais:**
     *   Execute as migrações para criar todas as tabelas necessárias:
@@ -157,12 +159,12 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
 
 9.  **(Opcional) Configurar Ferramentas de Desenvolvimento:**
     *   Instale Python 3.10+ e Pip, se necessário.
-    *   Instale as dependências Python para o script LLM:
+    *   Instale as dependências Python para os scripts LLM:
         ```bash
         pip install google-genai python-dotenv tqdm
         ```
-    *   Instale a `gh` CLI e `jq` se for usar os scripts `scripts/create_issue.py` ou `scripts/llm_interact.py` (tarefa `create-pr`).
-    *   Torne os scripts Python executáveis: `chmod +x scripts/llm_interact.py scripts/create_issue.py scripts/generate_context.py scripts/update_project.py` (o script bash pode ser removido ou marcado como obsoleto).
+    *   Instale a `gh` CLI e `jq` se for usar os scripts `scripts/create_issue.py` ou algum script de tarefa LLM (ex: `scripts/tasks/llm_task_create_pr.py`).
+    *   Torne os scripts Python executáveis: `chmod +x scripts/*.py scripts/tasks/*.py`.
 
 Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
@@ -208,7 +210,16 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
 *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
 *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python (requer `google-genai`, `python-dotenv`, `tqdm` e `GEMINI_API_KEY` no `.env`) que utiliza o contexto gerado e meta-prompts (`templates/meta-prompts/`) para interagir com a API Google Gemini e auxiliar em tarefas de desenvolvimento (gerar código, commits, análise de ACs, atualização de documentação, criação de PRs). Use `python scripts/llm_interact.py -h` para ver as opções.
+*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
+    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
+    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
+        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
+        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
+    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
+        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
+    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`.
+    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa (ex: `--issue`, `--ac`, `--observation`, `--two-stage`, `--select-context`, `--web-search`, `--generate-context`, etc.).
+    *   Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes
 
@@ -276,7 +287,7 @@ Em resumo:
 5.  Aguarde a revisão (mesmo que seja auto-revisão) e a passagem da CI.
 6.  Faça o **Merge** do PR.
 
-*(Considere usar os scripts `scripts/create_issue.py` e `scripts/llm_interact.py` para agilizar a criação de issues e a geração de commits/PRs)*.
+*(Considere usar os scripts `scripts/create_issue.py` e `scripts/llm_interact.py` (ou os scripts de tarefa em `scripts/tasks/`) para agilizar a criação de issues e a geração de commits/PRs)*.
 
 ## 12. Licença
 
