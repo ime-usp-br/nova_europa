@@ -233,8 +233,10 @@ def test_interactive_task_selection_invalid_then_valid_choice(
     with pytest.raises(SystemExit) as excinfo_main:
         llm_interact_main()
 
-    assert excinfo_main.value.code == 1 # Espera-se que saia com 1 devido à entrada inválida
-    assert mock_input.call_count == 1 # Só a primeira chamada a input() acontece
+    assert (
+        excinfo_main.value.code == 1
+    )  # Espera-se que saia com 1 devido à entrada inválida
+    assert mock_input.call_count == 1  # Só a primeira chamada a input() acontece
     captured_output = capsys.readouterr().out
     assert "Entrada inválida." in captured_output
     mock_subprocess_run.assert_not_called()

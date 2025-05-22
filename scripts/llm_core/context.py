@@ -327,10 +327,9 @@ def confirm_and_modify_selection(
         print(
             "Commands: 'y' (yes/confirm), 'n' (no/use default context), 'a path/to/add' (add file), 'r index|path' (remove file), 'q' (quit task)"
         )
-        choice = (
-            input("Confirm selection, modify, or use default context? [Y]: ")
-            .strip()            
-        )
+        choice = input(
+            "Confirm selection, modify, or use default context? [Y]: "
+        ).strip()
 
         if choice.lower() in ["y", "yes", ""]:
             print(

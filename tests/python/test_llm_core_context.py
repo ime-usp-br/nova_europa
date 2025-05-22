@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from unittest.mock import patch, mock_open, call, MagicMock
 from google.genai import types as genai_types
-from typing import List, Optional, Dict, Any, Set, Union # Adicionado Union
+from typing import List, Optional, Dict, Any, Set, Union  # Adicionado Union
 
 # Adiciona o diretório raiz do projeto ao sys.path para importações corretas
 import sys
@@ -191,7 +191,9 @@ def _check_loaded_parts(
             {},
             [],
             {"context_llm/code/{latest_dir_name}/latest_file1.txt"},
-            None, True, False,
+            None,
+            True,
+            False,
         ),
         (
             "load_common_only",
@@ -199,7 +201,9 @@ def _check_loaded_parts(
             {"common_fileA.txt": "commonA content"},
             [],
             {"context_llm/common/common_fileA.txt"},
-            None, False, True,
+            None,
+            False,
+            True,
         ),
         (
             "load_both_no_overlap",
@@ -210,20 +214,22 @@ def _check_loaded_parts(
                 "context_llm/code/{latest_dir_name}/latest_file1.txt",
                 "context_llm/common/common_fileA.txt",
             },
-            None, True, True,
+            None,
+            True,
+            True,
         ),
         (
             "load_with_primary_exclusions",
             {"latest_file1.txt": "latest1", "latest_file2.txt": "latest2_excl_content"},
             {"common_file1.txt": "common1"},
-            [
-                "context_llm/code/{latest_dir_name}/latest_file2.txt"
-            ],
+            ["context_llm/code/{latest_dir_name}/latest_file2.txt"],
             {
                 "context_llm/common/common_file1.txt",
                 "context_llm/code/{latest_dir_name}/latest_file1.txt",
             },
-            None, True, True,
+            None,
+            True,
+            True,
         ),
         (
             "load_with_common_exclusions",
@@ -234,7 +240,9 @@ def _check_loaded_parts(
                 "context_llm/common/common_file2.txt",
                 "context_llm/code/{latest_dir_name}/latest_file1.txt",
             },
-            None, True, True,
+            None,
+            True,
+            True,
         ),
         (
             "load_with_mixed_exclusions",
@@ -248,15 +256,23 @@ def _check_loaded_parts(
                 "context_llm/common/common_file2.txt",
                 "context_llm/code/{latest_dir_name}/latest_file2.txt",
             },
-            None, True, True,
+            None,
+            True,
+            True,
         ),
         (
             "load_with_exclusions_and_manifest",
-            {"latest_main.txt": "latest main", "latest_excl.txt": "latest excl content"},
-            {"common_main.txt": "common main", "common_excl.txt": "common excl content"},
+            {
+                "latest_main.txt": "latest main",
+                "latest_excl.txt": "latest excl content",
+            },
+            {
+                "common_main.txt": "common main",
+                "common_excl.txt": "common excl content",
+            },
             [
                 "context_llm/common/common_excl.txt",
-                "context_llm/code/{latest_dir_name}/latest_excl.txt"
+                "context_llm/code/{latest_dir_name}/latest_excl.txt",
             ],
             {
                 "context_llm/code/{latest_dir_name}/latest_main.txt",
@@ -264,12 +280,19 @@ def _check_loaded_parts(
             },
             {
                 "files": {
-                    "context_llm/code/{latest_dir_name}/latest_main.txt": {"summary": "Summary for latest main"},
-                    "context_llm/common/common_main.txt": {"summary": "Summary for common main"},
-                     "context_llm/code/{latest_dir_name}/latest_excl.txt": {"summary": "Summary for excluded latest"},
+                    "context_llm/code/{latest_dir_name}/latest_main.txt": {
+                        "summary": "Summary for latest main"
+                    },
+                    "context_llm/common/common_main.txt": {
+                        "summary": "Summary for common main"
+                    },
+                    "context_llm/code/{latest_dir_name}/latest_excl.txt": {
+                        "summary": "Summary for excluded latest"
+                    },
                 }
             },
-            True, True,
+            True,
+            True,
         ),
     ],
 )
@@ -280,16 +303,18 @@ def test_prepare_context_parts_default_loading(
     primary_files_to_create: Dict[str, str],
     common_files_to_create: Dict[str, str],
     exclude_list: List[str],
-    expected_loaded_paths_set: Set[str], 
+    expected_loaded_paths_set: Set[str],
     manifest_data: Optional[Dict[str, Any]],
     primary_context_dir_exists: bool,
     common_context_dir_exists: bool,
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
     # CORREÇÃO: Usar o nome correto da constante do módulo config
-    monkeypatch.setattr(core_config, "COMMON_CONTEXT_DIR", tmp_path / "context_llm" / "common")
+    monkeypatch.setattr(
+        core_config, "COMMON_CONTEXT_DIR", tmp_path / "context_llm" / "common"
+    )
 
-    latest_dir_name = "20230101_120000" 
+    latest_dir_name = "20230101_120000"
     primary_dir = tmp_path / "context_llm" / "code" / latest_dir_name
     common_dir = tmp_path / "context_llm" / "common"
 
@@ -306,17 +331,21 @@ def test_prepare_context_parts_default_loading(
             _create_tmp_file_rel_to_project_root(
                 tmp_path, f"context_llm/common/{fname}", content
             )
-    
-    formatted_exclude_list = [item.format(latest_dir_name=latest_dir_name) for item in exclude_list]
-    
+
+    formatted_exclude_list = [
+        item.format(latest_dir_name=latest_dir_name) for item in exclude_list
+    ]
+
     formatted_manifest_data = None
     if manifest_data and "files" in manifest_data:
         formatted_manifest_data = {"files": {}}
         for k, v in manifest_data["files"].items():
             formatted_k = k.format(latest_dir_name=latest_dir_name)
             formatted_manifest_data["files"][formatted_k] = v
-    
-    formatted_expected_paths_set = {s.format(latest_dir_name=latest_dir_name) for s in expected_loaded_paths_set}
+
+    formatted_expected_paths_set = {
+        s.format(latest_dir_name=latest_dir_name) for s in expected_loaded_paths_set
+    }
 
     actual_loaded_parts = core_context.prepare_context_parts(
         primary_dir if primary_context_dir_exists else None,
@@ -328,7 +357,7 @@ def test_prepare_context_parts_default_loading(
 
     _check_loaded_parts(
         actual_loaded_parts,
-        formatted_expected_paths_set, 
+        formatted_expected_paths_set,
         formatted_manifest_data,
         tmp_path,
     )
@@ -339,7 +368,7 @@ def test_prepare_context_parts_default_loading(
 def test_load_files_from_dir_basic_loading_and_exclusion(
     # mock_read_text: MagicMock, # Removido o parâmetro
     tmp_path: Path,
-    monkeypatch
+    monkeypatch,
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
     test_dir = tmp_path / "test_context_dir"
@@ -360,14 +389,14 @@ def test_load_files_from_dir_basic_loading_and_exclusion(
     (test_dir / "file4.log").write_text("log content")
 
     loaded_parts: List[genai_types.Part] = []
-    exclude_list = [file2_rel_path] 
+    exclude_list = [file2_rel_path]
 
     core_context._load_files_from_dir(
         test_dir, loaded_parts, exclude_list=exclude_list, manifest_data=None
     )
 
-    assert len(loaded_parts) == 2 
-    
+    assert len(loaded_parts) == 2
+
     loaded_paths = set()
     for part in loaded_parts:
         match = re.search(r"--- START OF FILE (.*?) ---", part.text)
@@ -378,6 +407,7 @@ def test_load_files_from_dir_basic_loading_and_exclusion(
     assert file3_rel_path in loaded_paths
     assert file2_rel_path not in loaded_paths
     assert file_ignored_ext_rel_path not in loaded_paths
+
 
 @patch("scripts.llm_core.context._load_files_from_dir")
 def test_prepare_context_parts_with_include_list(
@@ -392,23 +422,24 @@ def test_prepare_context_parts_with_include_list(
         )
 
     actual_loaded_parts = core_context.prepare_context_parts(
-        primary_context_dir=None, 
-        common_context_dir=None,  
+        primary_context_dir=None,
+        common_context_dir=None,
         exclude_list=None,
         manifest_data=None,
         include_list=include_list,
     )
 
-    mock_load_from_dir.assert_not_called() 
+    mock_load_from_dir.assert_not_called()
     assert len(actual_loaded_parts) == len(include_list)
-    
+
     loaded_paths_from_parts = set()
     for part in actual_loaded_parts:
         match = re.search(r"--- START OF FILE (.*?) ---", part.text)
         assert match
         loaded_paths_from_parts.add(match.group(1).strip())
-    
+
     assert loaded_paths_from_parts == set(include_list)
+
 
 @pytest.mark.parametrize(
     "scenario_name, files_to_create, include_list, exclude_list, expected_loaded_paths_set, manifest_data",
@@ -422,10 +453,10 @@ def test_prepare_context_parts_with_include_list(
             None,
         ),
         (
-            "include_with_exclusion", 
+            "include_with_exclusion",
             {"inc_file1.txt": "incl1", "inc_file2.txt": "incl2_excl"},
             ["inc_file1.txt", "inc_file2.txt"],
-            ["inc_file2.txt"], 
+            ["inc_file2.txt"],
             {"inc_file1.txt"},
             None,
         ),
@@ -451,11 +482,15 @@ def test_prepare_context_parts_with_include_list(
             },
         ),
         (
-            "include_and_exclude_with_manifest", 
-            {"inc_file1.txt": "incl1", "inc_file2_excl.txt": "incl2_excl", "inc_file3.txt": "incl3_content"},
+            "include_and_exclude_with_manifest",
+            {
+                "inc_file1.txt": "incl1",
+                "inc_file2_excl.txt": "incl2_excl",
+                "inc_file3.txt": "incl3_content",
+            },
             ["inc_file1.txt", "inc_file2_excl.txt", "inc_file3.txt"],
-            ["inc_file2_excl.txt"], 
-            {"inc_file1.txt", "inc_file3.txt"}, 
+            ["inc_file2_excl.txt"],
+            {"inc_file1.txt", "inc_file3.txt"},
             {
                 "files": {
                     "inc_file1.txt": {"summary": "Summary for include 1"},
@@ -477,13 +512,13 @@ def test_prepare_context_parts_with_include_list(
     manifest_data: Optional[Dict[str, Any]],
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
-    
+
     for rel_path_str, content in files_to_create.items():
         _create_tmp_file_rel_to_project_root(tmp_path, rel_path_str, content)
-    
+
     actual_loaded_parts = core_context.prepare_context_parts(
-        primary_context_dir=None, 
-        common_context_dir=None,  
+        primary_context_dir=None,
+        common_context_dir=None,
         exclude_list=exclude_list,
         manifest_data=manifest_data,
         include_list=include_list,
@@ -491,7 +526,7 @@ def test_prepare_context_parts_with_include_list(
 
     _check_loaded_parts(
         actual_loaded_parts,
-        expected_loaded_paths_set, 
+        expected_loaded_paths_set,
         manifest_data,
         tmp_path,
     )
