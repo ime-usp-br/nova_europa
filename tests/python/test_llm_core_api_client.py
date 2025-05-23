@@ -2,117 +2,242 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
-from scripts.llm_core import api_client # Importa o módulo a ser testado
-# from scripts.llm_core import config as core_config # Pode não ser necessário para este teste específico
+from scripts.llm_core import api_client
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
+from google.genai import types as genai_types # Importação explícita
 
-# Fixture para garantir que load_dotenv seja mockado em todos os testes deste módulo
-# para evitar I/O real de .env durante testes unitários de api_client.
+# Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
-def mock_dotenv_load_globally():
-    with patch("scripts.llm_core.api_client.load_dotenv") as mock_load:
-        mock_load.return_value = True # Simula que foi chamado, mas não faz nada
-        yield mock_load
+def reset_module_globals_for_each_test(monkeypatch):
+    """Reseta o estado global do módulo api_client e mocka load_dotenv antes de cada teste."""
+    original_keys = list(api_client.GEMINI_API_KEYS_LIST)
+    original_index = api_client.current_api_key_index
+    original_client = api_client.genai_client
+    original_executor = api_client.api_executor
+    original_key_loaded = api_client.api_key_loaded_successfully
+    original_gemini_init = api_client.gemini_initialized_successfully
 
-@pytest.fixture(autouse=True)
-def reset_api_client_module_state():
-    """Reseta o estado global do módulo api_client antes de cada teste."""
     api_client.GEMINI_API_KEYS_LIST = []
     api_client.current_api_key_index = 0
     api_client.genai_client = None
-    api_client.api_executor = None
+    if api_client.api_executor:
+        api_client.api_executor.shutdown(wait=False)
+        api_client.api_executor = None
     api_client.api_key_loaded_successfully = False
     api_client.gemini_initialized_successfully = False
-    yield
 
-# Teste para a função load_api_keys
+    with patch("scripts.llm_core.api_client.load_dotenv") as mock_load_dotenv_fixture:
+        mock_load_dotenv_fixture.return_value = True
+        yield mock_load_dotenv_fixture
+
+    api_client.GEMINI_API_KEYS_LIST = original_keys
+    api_client.current_api_key_index = original_index
+    api_client.genai_client = original_client
+    api_client.api_executor = original_executor
+    api_client.api_key_loaded_successfully = original_key_loaded
+    api_client.gemini_initialized_successfully = original_gemini_init
+
+# Testes para load_api_keys
 @patch.dict(os.environ, {"GEMINI_API_KEY": "env_key1|env_key2"}, clear=True)
-def test_load_api_keys_success(mock_dotenv_load_globally): # mock_dotenv_load_globally é aplicado via autouse
+def test_load_api_keys_success(reset_module_globals_for_each_test): # Fixture autouse já aplicada
+    mock_dotenv_load_fixture = reset_module_globals_for_each_test
     assert api_client.load_api_keys(verbose=True) is True
     assert api_client.GEMINI_API_KEYS_LIST == ["env_key1", "env_key2"]
     assert api_client.api_key_loaded_successfully is True
-    mock_dotenv_load_globally.assert_not_called() # Não deve ser chamado se a chave está no env
+    mock_dotenv_load_fixture.assert_not_called()
 
-@patch.dict(os.environ, {}, clear=True) # Limpa GEMINI_API_KEY do os.environ
-def test_load_api_keys_no_env_var_but_dotenv_has_it(mock_dotenv_load_globally):
-    # Simula que após o (mockado) load_dotenv, os.getenv encontrará a chave
+@patch.dict(os.environ, {}, clear=True)
+def test_load_api_keys_no_env_var_but_dotenv_has_it(reset_module_globals_for_each_test):
+    mock_dotenv_load_fixture = reset_module_globals_for_each_test
     def getenv_side_effect(key, default=None):
         if key == "GEMINI_API_KEY":
-            # A primeira chamada a os.getenv (antes de load_dotenv) retorna None.
-            # A segunda chamada a os.getenv (depois de load_dotenv) retorna as chaves.
             if getenv_side_effect.call_count == 1: # type: ignore
                 getenv_side_effect.call_count += 1 # type: ignore
                 return None
             return "dotenv_key_A|dotenv_key_B"
-        return os.environ.get(key, default) # Comportamento padrão para outras chaves
-    getenv_side_effect.call_count = 1 # Inicializa o contador para a função side_effect # type: ignore
+        return os.environ.get(key, default)
+    getenv_side_effect.call_count = 1 # type: ignore
 
     with patch("scripts.llm_core.api_client.os.getenv", side_effect=getenv_side_effect):
         assert api_client.load_api_keys(verbose=True) is True
     assert api_client.GEMINI_API_KEYS_LIST == ["dotenv_key_A", "dotenv_key_B"]
     assert api_client.api_key_loaded_successfully is True
-    mock_dotenv_load_globally.assert_called_once() # Deve ser chamado pois a chave não estava no env inicialmente
+    mock_dotenv_load_fixture.assert_called_once()
 
-# Teste para initialize_genai_client (AC2 da Issue #48)
-@patch('scripts.llm_core.api_client.genai.Client') # Mock o construtor
-@patch.dict(os.environ, {"GEMINI_API_KEY": "env_init_key_for_ac2_test"}, clear=True) # Chave específica para o teste
-def test_initialize_genai_client_success(mock_genai_client_constructor):
-    """
-    Verifica a inicialização correta do cliente Gemini (genai.Client)
-    quando a API Key é carregada diretamente da variável de ambiente.
-    Este teste cobre o Critério de Aceite 2 (AC2) da Issue #48.
-    """
-    # Arrange
-    # A fixture autouse=True 'reset_api_client_module_state' já limpou o estado.
-    # A fixture autouse=True 'mock_dotenv_load_globally' já mockou load_dotenv.
+
+# Testes para initialize_genai_client (AC2 da Issue #48)
+@patch('scripts.llm_core.api_client.genai.Client')
+@patch.dict(os.environ, {"GEMINI_API_KEY": "env_init_key_for_ac2_test"}, clear=True)
+def test_initialize_genai_client_success(mock_genai_client_constructor, reset_module_globals_for_each_test):
+    mock_dotenv_load_fixture = reset_module_globals_for_each_test
     mock_client_instance = MagicMock()
     mock_genai_client_constructor.return_value = mock_client_instance
 
-    # Act
-    # initialize_genai_client chamará load_api_keys, que usará a chave de os.environ
     initialization_success = api_client.initialize_genai_client(verbose=True)
 
-    # Assert
-    assert initialization_success is True, "A inicialização do cliente GenAI falhou."
-    # Verifica se genai.Client() foi chamado com a chave correta do ambiente
+    assert initialization_success is True
     mock_genai_client_constructor.assert_called_once_with(api_key="env_init_key_for_ac2_test")
-    assert api_client.genai_client == mock_client_instance, "O cliente global genai_client não foi definido corretamente."
-    assert api_client.api_key_loaded_successfully is True, "api_key_loaded_successfully deveria ser True."
-    assert api_client.gemini_initialized_successfully is True, "gemini_initialized_successfully deveria ser True."
-    # Verifica que load_dotenv NÃO foi chamado, pois a chave foi encontrada em os.environ
-    # mock_dotenv_load_globally é a fixture injetada pela autouse=True.
-    # Se a chave estivesse no env, load_api_keys não chamaria self.load_dotenv.
-    api_client.load_dotenv.assert_not_called() # Acessa o mock através do módulo api_client
+    assert api_client.genai_client == mock_client_instance
+    assert api_client.api_key_loaded_successfully is True
+    assert api_client.gemini_initialized_successfully is True
+    mock_dotenv_load_fixture.assert_not_called()
 
 
-@patch.object(api_client, "genai_client", MagicMock()) # Mock para o cliente global
-@patch.object(api_client, "api_executor", MagicMock()) # Mock para o executor global
-def test_execute_gemini_call_success(mock_dotenv_load_globally): # mock_dotenv_load_globally é aplicado via autouse
-    # Setup
-    mock_future = MagicMock()
-    mock_response = MagicMock()
-    mock_response.text = "Mocked LLM Response Text"
-    mock_response.prompt_feedback = None # Simula sem bloqueio
-    mock_response.candidates = [MagicMock(finish_reason=api_client.types.FinishReason.STOP)] # Simula finalização normal
-    mock_future.result.return_value = mock_response
-    api_client.api_executor.submit.return_value = mock_future # type: ignore
-    api_client.gemini_initialized_successfully = True # Garante que está inicializado
+@pytest.fixture
+def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, monkeypatch):
+    mock_dotenv_load_fixture = reset_module_globals_for_each_test # Apenas para garantir que o mock de dotenv está ativo
+    
+    monkeypatch.setattr(api_client, "GEMINI_API_KEYS_LIST", ["test_api_key_for_execute_call"])
+    monkeypatch.setattr(api_client, "api_key_loaded_successfully", True)
+    monkeypatch.setattr(api_client, "current_api_key_index", 0)
 
-    contents = [api_client.types.Part(text="Test content for call")] # Usando api_client.types
-    response_text = api_client.execute_gemini_call(
-        model_name="gemini-test-model-exec", contents=contents, verbose=True
+    mock_client_instance = MagicMock(spec=api_client.genai.Client)
+    
+    # Mock para o método real que será chamado dentro de _api_call_task
+    mock_generate_content_on_models = MagicMock(spec=mock_client_instance.models.generate_content)
+    
+    mock_response_obj = MagicMock(spec=genai_types.GenerateContentResponse)
+    mock_response_obj.text = "Mocked LLM Response for execute_gemini_call"
+    mock_response_obj.prompt_feedback = None
+    mock_response_obj.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
+    mock_generate_content_on_models.return_value = mock_response_obj
+    
+    # Configura o mock_client_instance para que .models.generate_content seja nosso mock
+    mock_client_instance.models.generate_content = mock_generate_content_on_models
+    
+    mock_executor_instance = MagicMock(spec=api_client.concurrent.futures.ThreadPoolExecutor)
+    def immediate_submit(func, *args_func, **kwargs_func): # Renomeado para evitar conflito com args do teste
+        future = MagicMock(spec=api_client.concurrent.futures.Future)
+        try:
+            result = func(*args_func, **kwargs_func)
+            future.result.return_value = result
+            future.exception.return_value = None
+        except Exception as e:
+            future.result.side_effect = e 
+            future.exception.return_value = e
+        return future
+    mock_executor_instance.submit.side_effect = immediate_submit
+
+    with patch("scripts.llm_core.api_client.genai.Client", return_value=mock_client_instance) as mock_gen_client_ctor, \
+         patch("scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor", return_value=mock_executor_instance) as mock_thread_pool_ctor:
+        
+        api_client.genai_client = None 
+        api_client.gemini_initialized_successfully = False
+        api_client.api_executor = None 
+            
+        startup_success = api_client.startup_api_resources(verbose=False)
+        assert startup_success
+                
+        yield mock_generate_content_on_models # O teste vai verificar este mock
+
+
+# Testes para execute_gemini_call (AC3 da Issue #48)
+def test_execute_gemini_call_simple_payload(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-simple"
+    contents = [genai_types.Part(text="Simple test")]
+    
+    response_text = api_client.execute_gemini_call(model_name, contents, config=None, verbose=False)
+    
+    assert response_text == "Mocked LLM Response for execute_gemini_call"
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents,
+        config=None 
     )
 
-    assert response_text == "Mocked LLM Response Text"
-    api_client.api_executor.submit.assert_called_once() # type: ignore
-    # Para asserções mais detalhadas sobre a chamada a generate_content:
-    # api_client.genai_client.models.generate_content.assert_called_once_with(
-    #     model="gemini-test-model-exec",
-    #     contents=contents,
-    #     config= #verificar config
-    # )
+def test_execute_gemini_call_with_generate_content_config_obj(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-gcc-obj"
+    contents = [genai_types.Part(text="Test with GCC obj")]
+    config_obj = genai_types.GenerateContentConfig(temperature=0.8)
+
+    api_client.execute_gemini_call(model_name, contents, config=config_obj, verbose=False)
+
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents,
+        config=config_obj
+    )
+
+def test_execute_gemini_call_with_generation_config_obj(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-gc-obj"
+    contents = [genai_types.Part(text="Test with GenConf obj")]
+    gen_config_obj = genai_types.GenerationConfig(temperature=0.6, max_output_tokens=50)
+    
+    expected_api_config = genai_types.GenerateContentConfig(
+        temperature=0.6, max_output_tokens=50
+    )
+
+    api_client.execute_gemini_call(model_name, contents, config=gen_config_obj, verbose=False)
+    
+    called_args, called_kwargs = mock_generate_content_method.call_args
+    assert called_kwargs['model'] == model_name
+    assert called_kwargs['contents'] == contents
+    assert isinstance(called_kwargs['config'], genai_types.GenerateContentConfig)
+    assert called_kwargs['config'].temperature == expected_api_config.temperature
+    assert called_kwargs['config'].max_output_tokens == expected_api_config.max_output_tokens
+
+def test_execute_gemini_call_with_dict_config(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-dict-conf"
+    contents = [genai_types.Part(text="Test with dict config")]
+    config_dict = {"temperature": 0.3, "top_p": 0.7}
+    expected_api_config = genai_types.GenerateContentConfig(temperature=0.3, top_p=0.7)
+
+    api_client.execute_gemini_call(model_name, contents, config=config_dict, verbose=False)
+
+    called_args, called_kwargs = mock_generate_content_method.call_args
+    assert isinstance(called_kwargs['config'], genai_types.GenerateContentConfig)
+    assert called_kwargs['config'].temperature == expected_api_config.temperature
+    assert called_kwargs['config'].top_p == expected_api_config.top_p
+
+def test_execute_gemini_call_with_tools(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-tools"
+    contents = [genai_types.Part(text="Test with tools")]
+    tool_search = genai_types.Tool(google_search_retrieval=genai_types.GoogleSearchRetrieval())
+    config_with_tools = genai_types.GenerateContentConfig(tools=[tool_search])
+
+    api_client.execute_gemini_call(model_name, contents, config=config_with_tools, verbose=False)
+
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents,
+        config=config_with_tools
+    )
+    assert mock_generate_content_method.call_args[1]['config'].tools[0] == tool_search # type: ignore
+
+def test_execute_gemini_call_with_empty_tools_list(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-empty-tools"
+    contents = [genai_types.Part(text="Test with empty tools")]
+    config_with_empty_tools = genai_types.GenerateContentConfig(tools=[])
+
+    api_client.execute_gemini_call(model_name, contents, config=config_with_empty_tools, verbose=False)
+    
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents,
+        config=config_with_empty_tools
+    )
+    assert mock_generate_content_method.call_args[1]['config'].tools == [] # type: ignore
+
+def test_execute_gemini_call_with_multiple_contents(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    model_name = "gemini-test-multi-parts"
+    contents_multiple = [
+        genai_types.Part(text="First part."),
+        genai_types.Part(text="Second part, more text."),
+    ]
+    api_client.execute_gemini_call(model_name, contents_multiple, config=None, verbose=False)
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents_multiple,
+        config=None
+    )
 
 def teardown_module(module):
-    """Garante que o executor de threads seja desligado após todos os testes do módulo."""
     api_client.shutdown_api_resources(verbose=False)
