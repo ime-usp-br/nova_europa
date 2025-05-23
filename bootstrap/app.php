@@ -3,9 +3,6 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Foundation\Configuration\Events;
-use Illuminate\Auth\Events\Login;
-use App\Listeners\MarkEmailAsVerifiedAfterSenhaUnicaLogin;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return route('login.local');
         });
-        
+
         $middleware->redirectUsersTo(fn (Request $request) => route('dashboard'));
 
         // Example of other common middleware configurations that might exist:

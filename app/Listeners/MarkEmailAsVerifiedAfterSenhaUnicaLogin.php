@@ -2,17 +2,14 @@
 
 namespace App\Listeners;
 
-use Illuminate\Auth\Events\Login;
 use App\Models\User;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Log;
 
 class MarkEmailAsVerifiedAfterSenhaUnicaLogin
 {
     /**
      * Handle the event.
-     *
-     * @param  \Illuminate\Auth\Events\Login  $event
-     * @return void
      */
     public function handle(Login $event): void
     {
@@ -20,8 +17,10 @@ class MarkEmailAsVerifiedAfterSenhaUnicaLogin
             /** @var User $user */
             $user = $event->user;
 
-            if ($user->codpes && is_null($user->email_verified_at) && is_null($user->getAuthPassword())) {
-                $user->forceFill([ 
+            // Check if user has codpes (USP user), email is not verified,
+            // and local password is null (indicating a Senha Única user without a local password)
+            if ($user->codpes && is_null($user->email_verified_at) && $user->password === null) {
+                $user->forceFill([
                     'email_verified_at' => now(),
                 ])->save();
 
