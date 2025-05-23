@@ -3,12 +3,10 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Carrega variáveis de ambiente do arquivo .env na raiz do projeto, se existir.
-# Isso é útil para rodar testes localmente que podem depender de GEMINI_API_KEY.
-# Em CI, espera-se que as variáveis sejam configuradas diretamente no ambiente.
-dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env" # Vai para a raiz do projeto
+# Caminho para o .env na raiz do projeto, relativo a este conftest.py na raiz
+dotenv_path = Path(__file__).resolve().parent / ".env"
 if dotenv_path.is_file():
-    load_dotenv(dotenv_path=dotenv_path, verbose=True) # Esta é uma chamada real a load_dotenv
+    load_dotenv(dotenv_path=dotenv_path, verbose=True)
 
 
 def pytest_addoption(parser):

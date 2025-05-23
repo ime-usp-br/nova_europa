@@ -6,6 +6,8 @@ from scripts.llm_core import api_client
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
 from google.genai import types as genai_types # Importação explícita
+from scripts.llm_core import config as core_config_module # Para usar em teste live
+import traceback # Para o teste live
 
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
@@ -132,7 +134,7 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
         yield mock_generate_content_on_models # O teste vai verificar este mock
 
 
-# Testes para execute_gemini_call (AC3 da Issue #48)
+# Testes para execute_gemini_call (AC3 da Issue #48) - Modo Mock
 def test_execute_gemini_call_simple_payload(mock_gemini_services_for_execute_call):
     mock_generate_content_method = mock_gemini_services_for_execute_call
     model_name = "gemini-test-simple"
@@ -239,5 +241,55 @@ def test_execute_gemini_call_with_multiple_contents(mock_gemini_services_for_exe
         config=None
     )
 
+# Teste para AC4 da Issue #48 - Modo Live
+@pytest.mark.live # Marcador para execução condicional via conftest.py
+def test_execute_gemini_call_live_api_success(reset_module_globals_for_each_test):
+    """
+    Testa uma chamada real à API Gemini se a flag --live for fornecida
+    e a GEMINI_API_KEY estiver configurada no ambiente.
+    """
+    # A fixture reset_module_globals_for_each_test é autouse e já rodou.
+    # O conftest.py já deve ter carregado o .env para os.environ se existia.
+
+    # Se este teste não for pulado pelo conftest.py, significa que:
+    # 1. A flag --live FOI fornecida.
+    # 2. A variável de ambiente GEMINI_API_KEY ESTÁ definida.
+
+    # Inicializa os recursos da API (isso tentará carregar chaves e criar cliente real)
+    startup_success = api_client.startup_api_resources(verbose=True)
+    if not startup_success:
+        pytest.skip("Falha ao inicializar recursos da API para teste live. Verifique GEMINI_API_KEY e conexão.")
+
+    assert api_client.api_key_loaded_successfully, "API key deveria estar carregada para teste live."
+    assert api_client.gemini_initialized_successfully, "Cliente Gemini deveria estar inicializado para teste live."
+    assert api_client.genai_client is not None, "Instância do cliente Gemini não deveria ser None para teste live."
+    assert api_client.api_executor is not None, "Executor da API não deveria ser None para teste live."
+
+    model_name = core_config_module.GEMINI_MODEL_FLASH # Usar um modelo rápido e barato
+    contents = [genai_types.Part(text="Live test: Simply respond with the word 'TestOK'.")]
+    
+    response_text = None
+    try:
+        response_text = api_client.execute_gemini_call(
+            model_name=model_name,
+            contents=contents,
+            config=None, 
+            verbose=True
+        )
+    except Exception as e:
+        pytest.fail(f"execute_gemini_call levantou uma exceção inesperada no modo live: {e}\n{traceback.format_exc()}")
+
+    assert response_text is not None, "Resposta do LLM não deveria ser None no modo live."
+    assert isinstance(response_text, str), "Resposta do LLM deveria ser uma string no modo live."
+    assert len(response_text.strip()) > 0, "Resposta do LLM não deveria estar vazia no modo live."
+    
+    # Para um teste live, é difícil prever a resposta exata, mas podemos verificar se a palavra-chave está presente.
+    # O modelo pode adicionar formatação ou texto extra.
+    assert "TestOK" in response_text, f"Resposta do LLM ('{response_text}') deveria conter 'TestOK' como solicitado no prompt live."
+
+    print(f"\nResposta Live da API: '{response_text}'")
+
+
 def teardown_module(module):
+    """Desliga o executor da API após todos os testes no módulo."""
     api_client.shutdown_api_resources(verbose=False)
