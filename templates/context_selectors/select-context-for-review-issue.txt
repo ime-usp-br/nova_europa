@@ -1,10 +1,10 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Revisar a Issue GitHub `__NUMERO_DA_ISSUE__` e gerar um corpo Markdown atualizado e completo para ela. A revisão deve considerar o estado atual do projeto, possíveis mudanças de rumo desde a criação da issue, e garantir que a descrição e os Critérios de Aceite estejam alinhados com as práticas e documentação atuais.
 
 **Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
 
 **Seu Processo de Seleção:**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: revisar e atualizar o corpo da Issue `__NUMERO_DA_ISSUE__`.

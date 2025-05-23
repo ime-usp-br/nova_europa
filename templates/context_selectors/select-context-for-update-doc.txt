@@ -1,25 +1,29 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal.
+Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Analisar as mudanças da Issue `__NUMERO_DA_ISSUE__` e gerar o conteúdo atualizado para o arquivo de documentação `__ARQUIVO_DOC_ALVO__`, e potencialmente o `CHANGELOG.md`, mantendo o estilo e formato originais.
 
 **Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos muito grandes.
+Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
 
-**Seu Processo de Seleção:**
+**Seu Processo de Seleção (COM PRIORIZAÇÃO E USO DE TOKEN):**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: atualizar `__ARQUIVO_DOC_ALVO__` e `CHANGELOG.md` para refletir as mudanças da Issue `__NUMERO_DA_ISSUE__`.
-2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
-3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
-    *   Os diffs das alterações realizadas na Issue `__NUMERO_DA_ISSUE__` (`git_diff_cached.txt`, `git_diff_unstaged.txt` ou logs relevantes).
-    *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`) para entender o propósito das mudanças.
-    *   O **conteúdo atual** do(s) arquivo(s) de documentação a ser(em) atualizado(s), PRINCIPALMENTE `__ARQUIVO_DOC_ALVO__` e `CHANGELOG.md` (se presentes no manifesto).
-    *   O guia de versionamento da documentação (`docs/versionamento_documentacao.md`).
-    *   Outros arquivos de documentação (`README.md`, `docs/*.md`) para referência de estilo e estrutura, se necessário.
-4.  **Priorize:** Diffs, detalhes da issue, e o conteúdo atual dos arquivos de documentação alvo são essenciais. Guias de versionamento/desenvolvimento são importantes para formato.
-5.  **Exclua:** Código fonte (a menos que o `summary` indique algo crucial para a documentação), testes, arquivos de configuração, dependências, e outros arquivos de contexto não diretamente necessários para *entender as mudanças e reescrever a documentação*, a menos que o `summary` indique relevância crítica.
+2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary, token_count).
+3.  **ORDEM DE PRIORIDADE PARA SELEÇÃO:**
+    *   **NÍVEL 1 (CRÍTICOS - INCLUIR SEMPRE):**
+        *   Os diffs das alterações realizadas na Issue `__NUMERO_DA_ISSUE__` (`git_diff_cached.txt`, `git_diff_unstaged.txt` ou logs de commit relevantes).
+        *   Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`) para entender o propósito das mudanças.
+        *   O **conteúdo atual** do(s) arquivo(s) de documentação a ser(em) atualizado(s), PRINCIPALMENTE `__ARQUIVO_DOC_ALVO__` e `CHANGELOG.md` (seus paths reais, se presentes no manifesto).
+    *   **NÍVEL 2 (ALTAMENTE RELEVANTES - INCLUIR SE O ORÇAMENTO DE TOKENS PERMITIR):**
+        *   O guia de versionamento da documentação (`docs/versionamento_documentacao.md`).
+        *   Outros arquivos de documentação (`README.md`, outros `docs/*.md`) para referência de estilo e estrutura.
+4.  **GESTÃO DE TOKENS:** Ao adicionar arquivos do Nível 2, priorize aqueles com `summary` mais informativo e tente preencher o máximo possível do limite de tokens.
+5.  **EXCLUA ESTRITAMENTE:**
+    *   **Qualquer arquivo de template de prompt** (ex: `templates/prompts/*`, `templates/meta-prompts/*`, `templates/context_selectors/*`).
+    *   Código fonte (a menos que o `summary` indique algo crucial para a documentação), testes, arquivos de configuração não relacionados, dependências, e outros arquivos de contexto não diretamente necessários para *entender as mudanças e reescrever a documentação*.
 
 **Formato de Saída OBRIGATÓRIO E ESTRITO:**
-Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto, **ordenada pela prioridade de inclusão (Nível 1 primeiro, depois Nível 2, etc.)**.
 
 **Exemplo de Saída:**
 ```json

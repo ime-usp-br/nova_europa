@@ -24,7 +24,7 @@
 
             {{-- Container do Conteúdo Principal (Controla largura e cresce verticalmente) --}}
             {{-- Adicionado mx-auto para centralizar, max-w-7xl para largura, flex-grow para altura --}}
-            <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col flex-grow py-8 md:py-12"> {{-- Adicionado padding vertical aqui --}}
+            <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col flex-grow py-8 md:py-6"> {{-- Adicionado padding vertical aqui --}}
 
                 {{-- Área principal (O card em si) --}}
                 {{-- Removido <main>, o card agora é o elemento principal que cresce --}}
