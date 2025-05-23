@@ -6,9 +6,9 @@ from pathlib import Path
 # Carrega variáveis de ambiente do arquivo .env na raiz do projeto, se existir.
 # Isso é útil para rodar testes localmente que podem depender de GEMINI_API_KEY.
 # Em CI, espera-se que as variáveis sejam configuradas diretamente no ambiente.
-dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env"
+dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env" # Vai para a raiz do projeto
 if dotenv_path.is_file():
-    load_dotenv(dotenv_path=dotenv_path, verbose=True)
+    load_dotenv(dotenv_path=dotenv_path, verbose=True) # Esta é uma chamada real a load_dotenv
 
 
 def pytest_addoption(parser):
@@ -32,7 +32,7 @@ def pytest_configure(config):
     """
     config.addinivalue_line(
         "markers",
-        "live: mark test to run only when --live is provided and GEMINI_API_KEY is set",
+        "live: mark test as live to run only when --live is provided and GEMINI_API_KEY is set",
     )
 
 
