@@ -325,7 +325,7 @@ def execute_gemini_call(
             raise TimeoutError 
         except (
             google_api_core_exceptions.ResourceExhausted,
-            google_genai_errors.ServerError, 
+            google_genai_errors.ServerError,
             google_api_core_exceptions.DeadlineExceeded,
         ) as e:
             print(
@@ -372,7 +372,9 @@ def execute_gemini_call(
             )
             
             is_rate_limit_error = False
-            if hasattr(e, "response") and hasattr(e.response, "status_code") and e.response.status_code == 429: # type: ignore
+            # A verificação de e.response.status_code pode não ser aplicável a todas as APIError
+            # Por isso, usamos hasattr para checagem segura.
+            if hasattr(e, "response") and e.response and hasattr(e.response, "status_code") and e.response.status_code == 429: # type: ignore
                 is_rate_limit_error = True
             elif hasattr(e, 'message') and isinstance(e.message, str) and ('429' in e.message or "resource has been exhausted" in e.message.lower() or "quota" in e.message.lower()):
                 is_rate_limit_error = True

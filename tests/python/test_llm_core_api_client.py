@@ -280,7 +280,7 @@ def test_execute_gemini_call_live_api_success(reset_module_globals_for_each_test
     assert "TestOK" in response_text
     print(f"\nResposta Live da API: '{response_text}'")
 
-# Novo Teste para AC5 da Issue #48
+# Teste para AC5 da Issue #48
 @patch('scripts.llm_core.api_client.time.sleep')
 @patch('scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor') 
 @patch('scripts.llm_core.api_client.genai.Client') 
@@ -291,11 +291,6 @@ def test_execute_gemini_call_rotates_key_on_resource_exhausted(
     mock_time_sleep: MagicMock,
     reset_module_globals_for_each_test 
 ):
-    """
-    Testa se execute_gemini_call rotaciona a API key ao encontrar ResourceExhausted
-    e re-tenta a chamada com a nova chave.
-    AC5: Teste (mock) verifica a rotação de API key em scripts/llm_core/api_client.py em caso de google.api_core.exceptions.ResourceExhausted.
-    """
     mock_client_instance_key1 = MagicMock(spec=api_client.genai.Client)
     mock_client_instance_key1.models = MagicMock() 
     
@@ -318,7 +313,7 @@ def test_execute_gemini_call_rotates_key_on_resource_exhausted(
     mock_client_instance_key2.models.generate_content.return_value = mock_success_response
 
     mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
-    mock_executor_instance.submit = MagicMock() # Garante que 'submit' existe como mock
+    mock_executor_instance.submit = MagicMock() 
     def immediate_submit(func, *args_func_param, **kwargs_func_param): 
         future = MagicMock(spec=concurrent.futures.Future)
         try:
@@ -355,6 +350,124 @@ def test_execute_gemini_call_rotates_key_on_resource_exhausted(
     mock_client_instance_key1.models.generate_content.assert_called_once()
     mock_client_instance_key2.models.generate_content.assert_called_once()
         
+    assert api_client.current_api_key_index == 1
+
+# Novos Testes para AC6 da Issue #48
+@patch('scripts.llm_core.api_client.time.sleep')
+@patch('scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor')
+@patch('scripts.llm_core.api_client.genai.Client')
+@patch.dict(os.environ, {"GEMINI_API_KEY": "key_server_error|key_works_server"}, clear=True)
+def test_execute_gemini_call_rotates_key_on_server_error(
+    mock_genai_client_constructor: MagicMock,
+    mock_thread_pool_executor_constructor: MagicMock,
+    mock_time_sleep: MagicMock,
+    reset_module_globals_for_each_test
+):
+    mock_client_instance_key1 = MagicMock(spec=api_client.genai.Client)
+    mock_client_instance_key1.models = MagicMock()
+    mock_client_instance_key2 = MagicMock(spec=api_client.genai.Client)
+    mock_client_instance_key2.models = MagicMock()
+    mock_genai_client_constructor.side_effect = [mock_client_instance_key1, mock_client_instance_key2]
+
+    mock_success_response = MagicMock(spec=genai_types.GenerateContentResponse)
+    mock_success_response.text = "Success after server error"
+    mock_success_response.prompt_feedback = None
+    mock_success_response.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
+    
+    # Corrigido para instanciar ServerError corretamente conforme a API do google-genai
+    simulated_response_json_for_server_error = {
+        "error": { # Adicionando o nó 'error' que ServerError espera
+            "code": 500,
+            "message": "Simulated Server Error from test",
+            "status": "INTERNAL_SERVER_ERROR"
+        }
+    }
+    simulated_server_error_instance = google_genai_errors.ServerError(
+        code=500, 
+        response_json=simulated_response_json_for_server_error,
+        response=None 
+    )
+    mock_client_instance_key1.models.generate_content.side_effect = simulated_server_error_instance
+    mock_client_instance_key2.models.generate_content.return_value = mock_success_response
+
+    mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
+    mock_executor_instance.submit = MagicMock()
+    def immediate_submit(func, *args, **kwargs): # type: ignore
+        future = MagicMock(spec=concurrent.futures.Future)
+        try:
+            result = func(*args, **kwargs) # type: ignore
+            future.result.return_value = result
+            future.exception.return_value = None
+        except Exception as e:
+            future.result.side_effect = e 
+            future.exception.return_value = e 
+        return future
+    mock_executor_instance.submit.side_effect = immediate_submit # type: ignore
+    mock_thread_pool_executor_constructor.return_value = mock_executor_instance # type: ignore
+    
+    api_client.load_api_keys(verbose=True)
+    api_client.startup_api_resources(verbose=True)
+
+    response_text = api_client.execute_gemini_call(
+        "gemini-test-server-error", [genai_types.Part(text="Test ServerError")], config=None, verbose=True, sleep_on_retry=0.01 # type: ignore
+    )
+    assert response_text == "Success after server error"
+    assert mock_genai_client_constructor.call_count == 2
+    assert mock_genai_client_constructor.call_args_list[0] == call(api_key="key_server_error")
+    assert mock_genai_client_constructor.call_args_list[1] == call(api_key="key_works_server")
+    mock_client_instance_key1.models.generate_content.assert_called_once()
+    mock_client_instance_key2.models.generate_content.assert_called_once()
+    assert api_client.current_api_key_index == 1
+
+@patch('scripts.llm_core.api_client.time.sleep')
+@patch('scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor')
+@patch('scripts.llm_core.api_client.genai.Client')
+@patch.dict(os.environ, {"GEMINI_API_KEY": "key_deadline|key_works_deadline"}, clear=True)
+def test_execute_gemini_call_rotates_key_on_deadline_exceeded(
+    mock_genai_client_constructor: MagicMock,
+    mock_thread_pool_executor_constructor: MagicMock,
+    mock_time_sleep: MagicMock,
+    reset_module_globals_for_each_test
+):
+    mock_client_instance_key1 = MagicMock(spec=api_client.genai.Client); mock_client_instance_key1.models = MagicMock()
+    mock_client_instance_key2 = MagicMock(spec=api_client.genai.Client); mock_client_instance_key2.models = MagicMock()
+    mock_genai_client_constructor.side_effect = [mock_client_instance_key1, mock_client_instance_key2]
+
+    mock_success_response = MagicMock(spec=genai_types.GenerateContentResponse)
+    mock_success_response.text = "Success after deadline exceeded"
+    mock_success_response.prompt_feedback = None
+    mock_success_response.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
+
+    mock_client_instance_key1.models.generate_content.side_effect = google_api_core_exceptions.DeadlineExceeded("Simulated DeadlineExceeded")
+    mock_client_instance_key2.models.generate_content.return_value = mock_success_response
+    
+    mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
+    mock_executor_instance.submit = MagicMock()
+    def immediate_submit(func, *args, **kwargs): # type: ignore
+        future = MagicMock(spec=concurrent.futures.Future)
+        try:
+            result = func(*args, **kwargs) # type: ignore
+            future.result.return_value = result
+            future.exception.return_value = None
+        except Exception as e:
+            future.result.side_effect = e
+            future.exception.return_value = e
+        return future
+    mock_executor_instance.submit.side_effect = immediate_submit # type: ignore
+    mock_thread_pool_executor_constructor.return_value = mock_executor_instance # type: ignore
+
+    api_client.load_api_keys(verbose=True)
+    api_client.startup_api_resources(verbose=True)
+
+    response_text = api_client.execute_gemini_call(
+        "gemini-test-deadline", [genai_types.Part(text="Test DeadlineExceeded")], config=None, verbose=True, sleep_on_retry=0.01 # type: ignore
+    )
+    assert response_text == "Success after deadline exceeded"
+    assert mock_genai_client_constructor.call_count == 2
+    assert mock_genai_client_constructor.call_args_list[0] == call(api_key="key_deadline")
+    assert mock_genai_client_constructor.call_args_list[1] == call(api_key="key_works_deadline")
+    mock_client_instance_key1.models.generate_content.assert_called_once()
+    mock_client_instance_key2.models.generate_content.assert_called_once()
     assert api_client.current_api_key_index == 1
 
 
