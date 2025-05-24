@@ -1,14 +1,15 @@
 # tests/python/test_llm_core_api_client.py
 import pytest
 import os
-from unittest.mock import patch, MagicMock, call # Adicionado call
+from unittest.mock import patch, MagicMock, call 
+import sys 
 from scripts.llm_core import api_client
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
-from google.genai import types as genai_types # Importação explícita
-from scripts.llm_core import config as core_config_module # Renomeado para evitar conflito
-import traceback # Para o teste live
-import concurrent # Para mock de ThreadPoolExecutor
+from google.genai import types as genai_types 
+from scripts.llm_core import config as core_config_module 
+import traceback 
+import concurrent 
 
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
@@ -25,8 +26,6 @@ def reset_module_globals_for_each_test(monkeypatch):
     api_client.current_api_key_index = 0
     api_client.genai_client = None
     if api_client.api_executor:
-        # Usa wait=False para desligamento mais rápido nos testes,
-        # a menos que haja necessidade específica de esperar por tarefas.
         api_client.api_executor.shutdown(wait=False)
         api_client.api_executor = None
     api_client.api_key_loaded_successfully = False
@@ -45,7 +44,7 @@ def reset_module_globals_for_each_test(monkeypatch):
 
 # Testes para load_api_keys
 @patch.dict(os.environ, {"GEMINI_API_KEY": "env_key1|env_key2"}, clear=True)
-def test_load_api_keys_success(reset_module_globals_for_each_test): # Fixture autouse já aplicada
+def test_load_api_keys_success(reset_module_globals_for_each_test): 
     mock_dotenv_load_fixture = reset_module_globals_for_each_test
     assert api_client.load_api_keys(verbose=True) is True
     assert api_client.GEMINI_API_KEYS_LIST == ["env_key1", "env_key2"]
@@ -57,8 +56,6 @@ def test_load_api_keys_no_env_var_but_dotenv_has_it(reset_module_globals_for_eac
     mock_dotenv_load_fixture = reset_module_globals_for_each_test
     def getenv_side_effect(key, default=None):
         if key == "GEMINI_API_KEY":
-            # A primeira chamada a os.getenv("GEMINI_API_KEY") (para var de ambiente) retorna None.
-            # A segunda chamada (após load_dotenv) retorna o valor do .env.
             if getenv_side_effect.call_count == 1: # type: ignore
                 getenv_side_effect.call_count += 1 # type: ignore
                 return None
@@ -101,7 +98,6 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
 
     mock_client_instance = MagicMock(spec=api_client.genai.Client)
     
-    # Mock para o método real que será chamado dentro de _api_call_task
     mock_generate_content_on_models = MagicMock(spec=mock_client_instance.models.generate_content) # type: ignore
     
     mock_response_obj = MagicMock(spec=genai_types.GenerateContentResponse)
@@ -110,12 +106,11 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
     mock_response_obj.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
     mock_generate_content_on_models.return_value = mock_response_obj
     
-    # Configura o mock_client_instance para que .models.generate_content seja nosso mock
-    mock_client_instance.models = MagicMock() # Adiciona o atributo models mockado
+    mock_client_instance.models = MagicMock() 
     mock_client_instance.models.generate_content = mock_generate_content_on_models
     
     mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
-    mock_executor_instance.submit = MagicMock() # Garante que 'submit' existe
+    mock_executor_instance.submit = MagicMock() 
     def immediate_submit(func, *args_func, **kwargs_func):
         future = MagicMock(spec=concurrent.futures.Future)
         try:
@@ -127,7 +122,7 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
             future.exception.return_value = e 
         return future
     mock_executor_instance.submit.side_effect = immediate_submit
-
+    
     with patch("scripts.llm_core.api_client.genai.Client", return_value=mock_client_instance) as mock_gen_client_ctor, \
          patch("scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor", return_value=mock_executor_instance) as mock_thread_pool_ctor:
         
@@ -208,16 +203,17 @@ def test_execute_gemini_call_with_tools(mock_gemini_services_for_execute_call):
     model_name = "gemini-test-tools"
     contents = [genai_types.Part(text="Test with tools")]
     tool_search = genai_types.Tool(google_search_retrieval=genai_types.GoogleSearchRetrieval())
-    config_with_tools = genai_types.GenerateContentConfig(tools=[tool_search])
+    config_with_tools_dict = {"tools": [tool_search]} 
 
-    api_client.execute_gemini_call(model_name, contents, config=config_with_tools, verbose=False)
+    api_client.execute_gemini_call(model_name, contents, config=config_with_tools_dict, verbose=False)
 
-    mock_generate_content_method.assert_called_once_with(
-        model=model_name,
-        contents=contents,
-        config=config_with_tools
-    )
-    assert mock_generate_content_method.call_args[1]['config'].tools[0] == tool_search # type: ignore
+    called_args, called_kwargs = mock_generate_content_method.call_args
+    assert isinstance(called_kwargs['config'], genai_types.GenerateContentConfig)
+    assert called_kwargs['config'].tools is not None
+    assert len(called_kwargs['config'].tools) == 1
+    assert isinstance(called_kwargs['config'].tools[0], genai_types.Tool)
+    assert called_kwargs['config'].tools[0].google_search_retrieval is not None
+
 
 def test_execute_gemini_call_with_empty_tools_list(mock_gemini_services_for_execute_call):
     mock_generate_content_method = mock_gemini_services_for_execute_call
@@ -232,7 +228,7 @@ def test_execute_gemini_call_with_empty_tools_list(mock_gemini_services_for_exec
         contents=contents,
         config=config_with_empty_tools
     )
-    assert mock_generate_content_method.call_args[1]['config'].tools == [] # type: ignore
+    assert mock_generate_content_method.call_args[1]['config'].tools == [] 
 
 def test_execute_gemini_call_with_multiple_contents(mock_gemini_services_for_execute_call):
     mock_generate_content_method = mock_gemini_services_for_execute_call
@@ -374,9 +370,8 @@ def test_execute_gemini_call_rotates_key_on_server_error(
     mock_success_response.prompt_feedback = None
     mock_success_response.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
     
-    # Corrigido para instanciar ServerError corretamente conforme a API do google-genai
     simulated_response_json_for_server_error = {
-        "error": { # Adicionando o nó 'error' que ServerError espera
+        "error": { 
             "code": 500,
             "message": "Simulated Server Error from test",
             "status": "INTERNAL_SERVER_ERROR"
@@ -392,24 +387,24 @@ def test_execute_gemini_call_rotates_key_on_server_error(
 
     mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
     mock_executor_instance.submit = MagicMock()
-    def immediate_submit(func, *args, **kwargs): # type: ignore
+    def immediate_submit(func, *args, **kwargs): 
         future = MagicMock(spec=concurrent.futures.Future)
         try:
-            result = func(*args, **kwargs) # type: ignore
+            result = func(*args, **kwargs) 
             future.result.return_value = result
             future.exception.return_value = None
         except Exception as e:
             future.result.side_effect = e 
             future.exception.return_value = e 
         return future
-    mock_executor_instance.submit.side_effect = immediate_submit # type: ignore
-    mock_thread_pool_executor_constructor.return_value = mock_executor_instance # type: ignore
+    mock_executor_instance.submit.side_effect = immediate_submit 
+    mock_thread_pool_executor_constructor.return_value = mock_executor_instance 
     
     api_client.load_api_keys(verbose=True)
     api_client.startup_api_resources(verbose=True)
 
     response_text = api_client.execute_gemini_call(
-        "gemini-test-server-error", [genai_types.Part(text="Test ServerError")], config=None, verbose=True, sleep_on_retry=0.01 # type: ignore
+        "gemini-test-server-error", [genai_types.Part(text="Test ServerError")], config=None, verbose=True, sleep_on_retry=0.01 
     )
     assert response_text == "Success after server error"
     assert mock_genai_client_constructor.call_count == 2
@@ -443,24 +438,24 @@ def test_execute_gemini_call_rotates_key_on_deadline_exceeded(
     
     mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
     mock_executor_instance.submit = MagicMock()
-    def immediate_submit(func, *args, **kwargs): # type: ignore
+    def immediate_submit(func, *args, **kwargs): 
         future = MagicMock(spec=concurrent.futures.Future)
         try:
-            result = func(*args, **kwargs) # type: ignore
+            result = func(*args, **kwargs) 
             future.result.return_value = result
             future.exception.return_value = None
         except Exception as e:
             future.result.side_effect = e
             future.exception.return_value = e
         return future
-    mock_executor_instance.submit.side_effect = immediate_submit # type: ignore
-    mock_thread_pool_executor_constructor.return_value = mock_executor_instance # type: ignore
+    mock_executor_instance.submit.side_effect = immediate_submit 
+    mock_thread_pool_executor_constructor.return_value = mock_executor_instance 
 
     api_client.load_api_keys(verbose=True)
     api_client.startup_api_resources(verbose=True)
 
     response_text = api_client.execute_gemini_call(
-        "gemini-test-deadline", [genai_types.Part(text="Test DeadlineExceeded")], config=None, verbose=True, sleep_on_retry=0.01 # type: ignore
+        "gemini-test-deadline", [genai_types.Part(text="Test DeadlineExceeded")], config=None, verbose=True, sleep_on_retry=0.01 
     )
     assert response_text == "Success after deadline exceeded"
     assert mock_genai_client_constructor.call_count == 2
@@ -469,6 +464,39 @@ def test_execute_gemini_call_rotates_key_on_deadline_exceeded(
     mock_client_instance_key1.models.generate_content.assert_called_once()
     mock_client_instance_key2.models.generate_content.assert_called_once()
     assert api_client.current_api_key_index == 1
+
+# Novo Teste para AC7 da Issue #48
+def test_execute_gemini_call_handles_prompt_blocked_by_safety(mock_gemini_services_for_execute_call):
+    mock_generate_content_method = mock_gemini_services_for_execute_call
+    
+    mock_blocked_response = MagicMock(spec=genai_types.GenerateContentResponse)
+    mock_blocked_response.text = "" 
+    
+    # Simula o prompt_feedback com block_reason
+    # CORREÇÃO: Usar a classe correta para o spec de prompt_feedback
+    mock_prompt_feedback = MagicMock(spec=genai_types.GenerateContentResponsePromptFeedback) 
+    mock_prompt_feedback.block_reason = genai_types.BlockedReason.SAFETY 
+    mock_prompt_feedback.block_reason_message = "Blocked due to safety concerns." 
+    
+    mock_blocked_response.prompt_feedback = mock_prompt_feedback
+    mock_blocked_response.candidates = [] 
+
+    mock_generate_content_method.return_value = mock_blocked_response
+
+    model_name = "gemini-test-safety-block"
+    contents = [genai_types.Part(text="Potentially unsafe prompt")]
+
+    with pytest.raises(RuntimeError) as excinfo:
+        api_client.execute_gemini_call(model_name, contents, config=None, verbose=True)
+    
+    expected_block_reason_name = genai_types.BlockedReason(genai_types.BlockedReason.SAFETY).name
+    assert str(excinfo.value) == f"Prompt bloqueado: {expected_block_reason_name}"
+    
+    mock_generate_content_method.assert_called_once_with(
+        model=model_name,
+        contents=contents,
+        config=None
+    )
 
 
 def teardown_module(module):
