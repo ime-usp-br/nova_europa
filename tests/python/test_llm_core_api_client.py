@@ -1,13 +1,14 @@
 # tests/python/test_llm_core_api_client.py
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call # Adicionado call
 from scripts.llm_core import api_client
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
 from google.genai import types as genai_types # Importação explícita
-from scripts.llm_core import config as core_config_module # Para usar em teste live
+from scripts.llm_core import config as core_config_module # Renomeado para evitar conflito
 import traceback # Para o teste live
+import concurrent # Para mock de ThreadPoolExecutor
 
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
@@ -24,6 +25,8 @@ def reset_module_globals_for_each_test(monkeypatch):
     api_client.current_api_key_index = 0
     api_client.genai_client = None
     if api_client.api_executor:
+        # Usa wait=False para desligamento mais rápido nos testes,
+        # a menos que haja necessidade específica de esperar por tarefas.
         api_client.api_executor.shutdown(wait=False)
         api_client.api_executor = None
     api_client.api_key_loaded_successfully = False
@@ -54,6 +57,8 @@ def test_load_api_keys_no_env_var_but_dotenv_has_it(reset_module_globals_for_eac
     mock_dotenv_load_fixture = reset_module_globals_for_each_test
     def getenv_side_effect(key, default=None):
         if key == "GEMINI_API_KEY":
+            # A primeira chamada a os.getenv("GEMINI_API_KEY") (para var de ambiente) retorna None.
+            # A segunda chamada (após load_dotenv) retorna o valor do .env.
             if getenv_side_effect.call_count == 1: # type: ignore
                 getenv_side_effect.call_count += 1 # type: ignore
                 return None
@@ -88,7 +93,7 @@ def test_initialize_genai_client_success(mock_genai_client_constructor, reset_mo
 
 @pytest.fixture
 def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, monkeypatch):
-    mock_dotenv_load_fixture = reset_module_globals_for_each_test # Apenas para garantir que o mock de dotenv está ativo
+    mock_dotenv_load_fixture = reset_module_globals_for_each_test
     
     monkeypatch.setattr(api_client, "GEMINI_API_KEYS_LIST", ["test_api_key_for_execute_call"])
     monkeypatch.setattr(api_client, "api_key_loaded_successfully", True)
@@ -97,7 +102,7 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
     mock_client_instance = MagicMock(spec=api_client.genai.Client)
     
     # Mock para o método real que será chamado dentro de _api_call_task
-    mock_generate_content_on_models = MagicMock(spec=mock_client_instance.models.generate_content)
+    mock_generate_content_on_models = MagicMock(spec=mock_client_instance.models.generate_content) # type: ignore
     
     mock_response_obj = MagicMock(spec=genai_types.GenerateContentResponse)
     mock_response_obj.text = "Mocked LLM Response for execute_gemini_call"
@@ -106,18 +111,20 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
     mock_generate_content_on_models.return_value = mock_response_obj
     
     # Configura o mock_client_instance para que .models.generate_content seja nosso mock
+    mock_client_instance.models = MagicMock() # Adiciona o atributo models mockado
     mock_client_instance.models.generate_content = mock_generate_content_on_models
     
-    mock_executor_instance = MagicMock(spec=api_client.concurrent.futures.ThreadPoolExecutor)
-    def immediate_submit(func, *args_func, **kwargs_func): # Renomeado para evitar conflito com args do teste
-        future = MagicMock(spec=api_client.concurrent.futures.Future)
+    mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
+    mock_executor_instance.submit = MagicMock() # Garante que 'submit' existe
+    def immediate_submit(func, *args_func, **kwargs_func):
+        future = MagicMock(spec=concurrent.futures.Future)
         try:
             result = func(*args_func, **kwargs_func)
             future.result.return_value = result
-            future.exception.return_value = None
+            future.exception.return_value = None 
         except Exception as e:
             future.result.side_effect = e 
-            future.exception.return_value = e
+            future.exception.return_value = e 
         return future
     mock_executor_instance.submit.side_effect = immediate_submit
 
@@ -129,9 +136,9 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
         api_client.api_executor = None 
             
         startup_success = api_client.startup_api_resources(verbose=False)
-        assert startup_success
+        assert startup_success, "Falha no setup da fixture mock_gemini_services_for_execute_call: startup_api_resources falhou."
                 
-        yield mock_generate_content_on_models # O teste vai verificar este mock
+        yield mock_generate_content_on_models 
 
 
 # Testes para execute_gemini_call (AC3 da Issue #48) - Modo Mock
@@ -242,30 +249,18 @@ def test_execute_gemini_call_with_multiple_contents(mock_gemini_services_for_exe
     )
 
 # Teste para AC4 da Issue #48 - Modo Live
-@pytest.mark.live # Marcador para execução condicional via conftest.py
+@pytest.mark.live 
 def test_execute_gemini_call_live_api_success(reset_module_globals_for_each_test):
-    """
-    Testa uma chamada real à API Gemini se a flag --live for fornecida
-    e a GEMINI_API_KEY estiver configurada no ambiente.
-    """
-    # A fixture reset_module_globals_for_each_test é autouse e já rodou.
-    # O conftest.py já deve ter carregado o .env para os.environ se existia.
-
-    # Se este teste não for pulado pelo conftest.py, significa que:
-    # 1. A flag --live FOI fornecida.
-    # 2. A variável de ambiente GEMINI_API_KEY ESTÁ definida.
-
-    # Inicializa os recursos da API (isso tentará carregar chaves e criar cliente real)
     startup_success = api_client.startup_api_resources(verbose=True)
     if not startup_success:
         pytest.skip("Falha ao inicializar recursos da API para teste live. Verifique GEMINI_API_KEY e conexão.")
 
-    assert api_client.api_key_loaded_successfully, "API key deveria estar carregada para teste live."
-    assert api_client.gemini_initialized_successfully, "Cliente Gemini deveria estar inicializado para teste live."
-    assert api_client.genai_client is not None, "Instância do cliente Gemini não deveria ser None para teste live."
-    assert api_client.api_executor is not None, "Executor da API não deveria ser None para teste live."
+    assert api_client.api_key_loaded_successfully
+    assert api_client.gemini_initialized_successfully
+    assert api_client.genai_client is not None
+    assert api_client.api_executor is not None
 
-    model_name = core_config_module.GEMINI_MODEL_FLASH # Usar um modelo rápido e barato
+    model_name = core_config_module.GEMINI_MODEL_FLASH 
     contents = [genai_types.Part(text="Live test: Simply respond with the word 'TestOK'.")]
     
     response_text = None
@@ -279,17 +274,89 @@ def test_execute_gemini_call_live_api_success(reset_module_globals_for_each_test
     except Exception as e:
         pytest.fail(f"execute_gemini_call levantou uma exceção inesperada no modo live: {e}\n{traceback.format_exc()}")
 
-    assert response_text is not None, "Resposta do LLM não deveria ser None no modo live."
-    assert isinstance(response_text, str), "Resposta do LLM deveria ser uma string no modo live."
-    assert len(response_text.strip()) > 0, "Resposta do LLM não deveria estar vazia no modo live."
-    
-    # Para um teste live, é difícil prever a resposta exata, mas podemos verificar se a palavra-chave está presente.
-    # O modelo pode adicionar formatação ou texto extra.
-    assert "TestOK" in response_text, f"Resposta do LLM ('{response_text}') deveria conter 'TestOK' como solicitado no prompt live."
-
+    assert response_text is not None
+    assert isinstance(response_text, str)
+    assert len(response_text.strip()) > 0
+    assert "TestOK" in response_text
     print(f"\nResposta Live da API: '{response_text}'")
+
+# Novo Teste para AC5 da Issue #48
+@patch('scripts.llm_core.api_client.time.sleep')
+@patch('scripts.llm_core.api_client.concurrent.futures.ThreadPoolExecutor') 
+@patch('scripts.llm_core.api_client.genai.Client') 
+@patch.dict(os.environ, {"GEMINI_API_KEY": "key_limited|key_works"}, clear=True)
+def test_execute_gemini_call_rotates_key_on_resource_exhausted(
+    mock_genai_client_constructor: MagicMock,
+    mock_thread_pool_executor_constructor: MagicMock,
+    mock_time_sleep: MagicMock,
+    reset_module_globals_for_each_test 
+):
+    """
+    Testa se execute_gemini_call rotaciona a API key ao encontrar ResourceExhausted
+    e re-tenta a chamada com a nova chave.
+    AC5: Teste (mock) verifica a rotação de API key em scripts/llm_core/api_client.py em caso de google.api_core.exceptions.ResourceExhausted.
+    """
+    mock_client_instance_key1 = MagicMock(spec=api_client.genai.Client)
+    mock_client_instance_key1.models = MagicMock() 
+    
+    mock_client_instance_key2 = MagicMock(spec=api_client.genai.Client)
+    mock_client_instance_key2.models = MagicMock() 
+    
+    mock_genai_client_constructor.side_effect = [
+        mock_client_instance_key1, 
+        mock_client_instance_key2,
+    ]
+
+    mock_success_response = MagicMock(spec=genai_types.GenerateContentResponse)
+    mock_success_response.text = "Success after key rotation"
+    mock_success_response.prompt_feedback = None
+    mock_success_response.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
+
+    mock_client_instance_key1.models.generate_content.side_effect = \
+        google_api_core_exceptions.ResourceExhausted("Rate limit on key_limited")
+    
+    mock_client_instance_key2.models.generate_content.return_value = mock_success_response
+
+    mock_executor_instance = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
+    mock_executor_instance.submit = MagicMock() # Garante que 'submit' existe como mock
+    def immediate_submit(func, *args_func_param, **kwargs_func_param): 
+        future = MagicMock(spec=concurrent.futures.Future)
+        try:
+            result = func(*args_func_param, **kwargs_func_param)
+            future.result.return_value = result
+            future.exception.return_value = None
+        except Exception as e:
+            future.result.side_effect = e
+            future.exception.return_value = e
+        return future
+    mock_executor_instance.submit.side_effect = immediate_submit
+    mock_thread_pool_executor_constructor.return_value = mock_executor_instance
+
+    assert api_client.load_api_keys(verbose=True) is True
+    assert api_client.GEMINI_API_KEYS_LIST == ["key_limited", "key_works"]
+    assert api_client.current_api_key_index == 0
+
+    assert api_client.startup_api_resources(verbose=True)
+
+    model_name = "gemini-test-rotation"
+    contents = [genai_types.Part(text="Test rotation")]
+    
+    response_text = api_client.execute_gemini_call(
+        model_name, contents, config=None, verbose=True, sleep_on_retry=0.01
+    )
+
+    assert response_text == "Success after key rotation"
+    
+    assert mock_genai_client_constructor.call_count == 2
+    calls_to_client_ctor = mock_genai_client_constructor.call_args_list
+    assert calls_to_client_ctor[0] == call(api_key="key_limited")
+    assert calls_to_client_ctor[1] == call(api_key="key_works")
+        
+    mock_client_instance_key1.models.generate_content.assert_called_once()
+    mock_client_instance_key2.models.generate_content.assert_called_once()
+        
+    assert api_client.current_api_key_index == 1
 
 
 def teardown_module(module):
-    """Desliga o executor da API após todos os testes no módulo."""
     api_client.shutdown_api_resources(verbose=False)
