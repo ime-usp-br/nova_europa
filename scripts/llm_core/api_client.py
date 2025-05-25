@@ -13,7 +13,7 @@ from google import genai
 from google.genai import types
 from google.genai import errors as google_genai_errors
 from google.api_core import exceptions as google_api_core_exceptions
-from dotenv import load_dotenv  # Mantenha a importação de dotenv
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 from . import config as core_config
@@ -31,7 +31,7 @@ def load_api_keys(verbose: bool = False) -> bool:
     """Loads API keys from .env file or environment variables."""
     global GEMINI_API_KEYS_LIST, api_key_loaded_successfully, current_api_key_index
 
-    if api_key_loaded_successfully:
+    if api_key_loaded_successfully:  # Evita recarregar se já carregado
         return True
 
     # Prioriza variáveis de ambiente do sistema
@@ -45,14 +45,8 @@ def load_api_keys(verbose: bool = False) -> bool:
                 print(
                     f"  Tentando carregar variáveis de ambiente de: {dotenv_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
-            # load_dotenv pode ser chamado aqui, mas a fixture já mocka a nível de módulo
-            # Se o .env não definir GEMINI_API_KEY, api_key_string continuará None.
-            # A fixture mock_load_dotenv_globally garante que load_dotenv não faça I/O real nos testes.
-            # A chamada real de load_dotenv é feita aqui se o .env existir.
             load_dotenv(dotenv_path=dotenv_path, verbose=verbose, override=True)
-            api_key_string = os.getenv(
-                "GEMINI_API_KEY"
-            )  # Tenta ler novamente após carregar .env
+            api_key_string = os.getenv("GEMINI_API_KEY")
         elif verbose:
             print(
                 f"  Arquivo .env não encontrado em {dotenv_path}. Usando apenas variáveis de ambiente do sistema (se houver)."
@@ -90,9 +84,10 @@ def initialize_genai_client(verbose: bool = False) -> bool:
     """Initializes or reinitializes the global genai_client using the current API key."""
     global genai_client, gemini_initialized_successfully, GEMINI_API_KEYS_LIST, current_api_key_index
 
+    # Garante que as chaves sejam carregadas antes de tentar inicializar o cliente
     if not api_key_loaded_successfully:
         if not load_api_keys(verbose):
-            return False
+            return False  # Falha ao carregar chaves, não pode inicializar
 
     if not GEMINI_API_KEYS_LIST or not (
         0 <= current_api_key_index < len(GEMINI_API_KEYS_LIST)
@@ -110,7 +105,9 @@ def initialize_genai_client(verbose: bool = False) -> bool:
             print(
                 f"  Inicializando Google GenAI Client com Key Index {current_api_key_index}..."
             )
-        genai_client = genai.Client(api_key=active_key)
+        genai_client = genai.Client(
+            api_key=active_key
+        )  # Usa o genai importado globalmente
         if verbose:
             print("  Google GenAI Client inicializado com sucesso.")
         gemini_initialized_successfully = True
@@ -129,10 +126,12 @@ def initialize_genai_client(verbose: bool = False) -> bool:
 def startup_api_resources(verbose: bool = False) -> bool:
     """Initializes API keys, client, and executor."""
     global api_executor
-    if not api_key_loaded_successfully:
+    if not api_key_loaded_successfully:  # Tenta carregar chaves se ainda não o fez
         if not load_api_keys(verbose):
             return False
-    if not gemini_initialized_successfully:
+    if (
+        not gemini_initialized_successfully
+    ):  # Tenta inicializar cliente se ainda não o fez
         if not initialize_genai_client(verbose):
             return False
     if not api_executor:
@@ -148,7 +147,9 @@ def shutdown_api_resources(verbose: bool = False):
     if api_executor:
         if verbose:
             print("  Encerrando API ThreadPoolExecutor...")
-        api_executor.shutdown(wait=False)
+        api_executor.shutdown(
+            wait=False
+        )  # Não espera por tarefas pendentes ao encerrar
         api_executor = None
         if verbose:
             print("  API ThreadPoolExecutor encerrado.")
@@ -170,7 +171,9 @@ def rotate_api_key_and_reinitialize(verbose: bool = False) -> bool:
     print(
         f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n"
     )
-    gemini_initialized_successfully = False
+    gemini_initialized_successfully = (
+        False  # Marca como não inicializado antes de tentar a nova chave
+    )
 
     if current_api_key_index == start_index:
         print(
@@ -201,12 +204,13 @@ def execute_gemini_call(
     global genai_client, api_executor
 
     if not gemini_initialized_successfully or not genai_client:
-        raise RuntimeError(
-            "GenAI client não inicializado. Chame startup_api_resources() primeiro."
-        )
+        if not startup_api_resources(verbose):
+            raise RuntimeError(
+                "GenAI client ou executor não pôde ser inicializado. Verifique as chaves de API e a conexão."
+            )
     if not api_executor:
         raise RuntimeError(
-            "API Executor não inicializado. Chame startup_api_resources() primeiro."
+            "API Executor não inicializado. Chame startup_api_resources() primeiro ou verifique a inicialização."
         )
 
     initial_key_index = current_api_key_index
@@ -220,7 +224,26 @@ def execute_gemini_call(
 
             api_config_obj: Optional[types.GenerateContentConfig] = None
             if isinstance(config, dict):
-                api_config_obj = types.GenerateContentConfig(**config)
+                tools_list_from_dict = []
+                if "tools" in config and config["tools"] is not None:
+                    # Ensure tools are correctly formatted for GenerateContentConfig
+                    for tool_item_config in config["tools"]:  # type: ignore
+                        if isinstance(tool_item_config, types.Tool):
+                            tools_list_from_dict.append(tool_item_config)
+                        elif isinstance(tool_item_config, dict) and "google_search_retrieval" in tool_item_config:  # type: ignore
+                            tools_list_from_dict.append(types.Tool(google_search_retrieval=types.GoogleSearchRetrieval(**tool_item_config["google_search_retrieval"])))  # type: ignore
+                        # Add other tool types if necessary
+
+                config_copy = config.copy()
+                if tools_list_from_dict or (
+                    "tools" in config and config["tools"] is None
+                ):  # Only set if tools were processed or explicitly None
+                    config_copy["tools"] = (
+                        tools_list_from_dict if tools_list_from_dict else None
+                    )
+
+                api_config_obj = types.GenerateContentConfig(**config_copy)  # type: ignore
+
             elif isinstance(config, types.GenerateContentConfig):
                 api_config_obj = config
             elif isinstance(config, types.GenerationConfig):
@@ -241,7 +264,7 @@ def execute_gemini_call(
                 return genai_client.models.generate_content(
                     model=model_name,
                     contents=contents,
-                    config=api_config_obj,  # Corrected parameter name
+                    config=api_config_obj,
                 )
             except Exception as inner_e:
                 if verbose:
@@ -356,11 +379,24 @@ def execute_gemini_call(
                 f"  Erro de API GenAI ({type(e).__name__}) com Key Index {current_api_key_index}: {e}",
                 file=sys.stderr,
             )
-            if (
-                hasattr(e, "response")
-                and hasattr(e.response, "status_code")
-                and e.response.status_code == 429
-            ):  # Check for specific status code
+
+            is_rate_limit_error = False
+            # A verificação de e.response.status_code pode não ser aplicável a todas as APIError
+            # Por isso, usamos hasattr para checagem segura.
+            if hasattr(e, "response") and e.response and hasattr(e.response, "status_code") and e.response.status_code == 429:  # type: ignore
+                is_rate_limit_error = True
+            elif (
+                hasattr(e, "message")
+                and isinstance(e.message, str)
+                and (
+                    "429" in e.message
+                    or "resource has been exhausted" in e.message.lower()
+                    or "quota" in e.message.lower()
+                )
+            ):
+                is_rate_limit_error = True
+
+            if is_rate_limit_error:
                 print(
                     f"  Erro 429 (Rate Limit) detectado. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...",
                     file=sys.stderr,

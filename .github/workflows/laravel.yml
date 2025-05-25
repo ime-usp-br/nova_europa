@@ -13,7 +13,7 @@ jobs:
       matrix:
         php-versions: ['8.2']
         node-version: ['20.x']
-        python-version: ['3.10'] # Adicionado para clareza
+        python-version: ['3.10']
 
     steps:
     - name: Checkout código
@@ -77,34 +77,27 @@ jobs:
         DB_DATABASE: database/database.sqlite
       run: php artisan test --env=testing
 
-    # # --- START: Passos para Testes Python (Issue #45 AC5) ---
-    # - name: Setup Python v${{ matrix.python-version }}
-    #   uses: actions/setup-python@v5
-    #   with:
-    #     python-version: ${{ matrix.python-version }}
+    - name: Setup Python v${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
-    # - name: Cache Dependências Pip
-    #   uses: actions/cache@v4
-    #   with:
-    #     path: ~/.cache/pip # Diretório padrão de cache do pip
-    #     # Chave de cache baseada no SO, versão Python e hash do requirements-dev.txt
-    #     key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
-    #     restore-keys: |
-    #       ${{ runner.os }}-python-${{ matrix.python-version }}-pip-
+    - name: Cache Dependências Pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-python-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-python-${{ matrix.python-version }}-pip-
 
-    # - name: Instalar Dependências Python
-    #   run: |
-    #     python -m pip install --upgrade pip
-    #     # Instala as dependências de desenvolvimento (incluindo pytest)
-    #     pip install -r requirements-dev.txt
+    - name: Instalar Dependências Python
+      run: |
+        python -m pip install --upgrade pip
+        # Instala as dependências de desenvolvimento (incluindo pytest)
+        pip install -r requirements-dev.txt
 
-    # # (Nota: Local para adicionar verificações de qualidade Python - Black, Mypy - para AC futuro #45-AC6)
-
-    # - name: Executar Testes Python (pytest)
-    #   # Executa pytest a partir do diretório raiz, encontrando testes em tests/python/
-    #   # O arquivo pytest.ini configura o pythonpath = .
-    #   run: python -m pytest tests/python/
-    # # --- END: Passos para Testes Python (Issue #45 AC5) ---
+    - name: Executar Testes Python (pytest)
+      run: python -m pytest tests/python/test_llm_core_*
 
     - name: Executar Testes de Browser (Dusk)
       run: |

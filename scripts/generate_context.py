@@ -840,7 +840,7 @@ def run_python_tests(output_dir: Path, step_num: int, total_steps: int):
 
     # Comando para executar pytest no diretório específico
     # Usar `python -m pytest` é geralmente mais robusto
-    test_cmd = [PYTHON_CMD, "-m", "pytest", "-v", "tests/python"]
+    test_cmd = [PYTHON_CMD, "-m", "pytest", "--live", "-v", "tests/python"]
 
     # Executa o comando, check=False para capturar saída mesmo em falha
     exit_code, stdout, stderr = run_command(
