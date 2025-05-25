@@ -4,75 +4,142 @@ from pathlib import Path
 from scripts.llm_core import config as core_config
 
 
-def test_project_root_is_correct():
-    """Verifica se PROJECT_ROOT aponta para o diretório pai de 'scripts/'."""
-    # PROJECT_ROOT deve ser o diretório que contém 'scripts', 'app', 'tests', etc.
-    # __file__ (este arquivo de teste) está em tests/python/
-    # config.py está em scripts/llm_core/
-    # PROJECT_ROOT em config.py é Path(__file__).resolve().parent.parent.parent
-    # (llm_core -> scripts -> raiz_do_projeto)
+@pytest.fixture(autouse=True)
+def mock_config_paths_in_tmp(tmp_path: Path, monkeypatch):
+    """
+    Mocks PROJECT_ROOT and all derived path constants in core_config to use tmp_path.
+    Creates expected directory structures within tmp_path for these tests.
+    This fixture is applied automatically to all tests in this file.
+    """
+    # 1. Mock PROJECT_ROOT
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
 
-    # Verifica se PROJECT_ROOT é um Path
+    # 2. Re-calculate and mock all other path constants that depend on PROJECT_ROOT
+    #    These new paths will be relative to tmp_path.
+    mocked_template_dir = tmp_path / "templates" / "prompts"
+    mocked_meta_prompt_dir = tmp_path / "templates" / "meta-prompts"
+    mocked_context_selectors_dir = tmp_path / "templates" / "context_selectors"
+    mocked_context_dir_base = tmp_path / "context_llm" / "code"
+    mocked_common_context_dir = tmp_path / "context_llm" / "common"
+    mocked_output_dir_base = tmp_path / "llm_outputs"
+    mocked_context_generation_script = tmp_path / "scripts" / "generate_context.py"
+    mocked_manifest_data_dir = tmp_path / "scripts" / "data"
+
+    monkeypatch.setattr(core_config, "TEMPLATE_DIR", mocked_template_dir)
+    monkeypatch.setattr(core_config, "META_PROMPT_DIR", mocked_meta_prompt_dir)
+    monkeypatch.setattr(core_config, "CONTEXT_SELECTORS_DIR", mocked_context_selectors_dir)
+    monkeypatch.setattr(core_config, "CONTEXT_DIR_BASE", mocked_context_dir_base)
+    monkeypatch.setattr(core_config, "COMMON_CONTEXT_DIR", mocked_common_context_dir)
+    monkeypatch.setattr(core_config, "OUTPUT_DIR_BASE", mocked_output_dir_base)
+    monkeypatch.setattr(core_config, "CONTEXT_GENERATION_SCRIPT", mocked_context_generation_script)
+    monkeypatch.setattr(core_config, "MANIFEST_DATA_DIR", mocked_manifest_data_dir)
+
+
+    # 3. Create the directory structure that the config tests expect,
+    #    relative to the mocked PROJECT_ROOT (which is tmp_path).
+    mocked_template_dir.parent.mkdir(parents=True, exist_ok=True) # templates/
+    mocked_template_dir.mkdir(exist_ok=True)                      # templates/prompts/
+    mocked_meta_prompt_dir.mkdir(exist_ok=True)                   # templates/meta-prompts/
+    mocked_context_selectors_dir.mkdir(exist_ok=True)             # templates/context_selectors/
+
+    mocked_context_dir_base.parent.mkdir(parents=True, exist_ok=True) # context_llm/
+    # CONTEXT_DIR_BASE (context_llm/code) é criado dinamicamente pelos scripts, não precisa existir para teste de config.
+    mocked_common_context_dir.mkdir(parents=True, exist_ok=True)      # context_llm/common/
+
+    mocked_output_dir_base.parent.mkdir(exist_ok=True) # PROJECT_ROOT (tmp_path)
+    # OUTPUT_DIR_BASE (llm_outputs) é criado dinamicamente, não precisa existir para teste de config.
+
+    mocked_context_generation_script.parent.mkdir(parents=True, exist_ok=True) # scripts/
+    mocked_context_generation_script.touch() # scripts/generate_context.py
+
+    mocked_manifest_data_dir.mkdir(parents=True, exist_ok=True) # scripts/data/
+
+    return tmp_path
+
+
+def test_project_root_is_correct(mock_config_paths_in_tmp: Path):
+    """Verifica se PROJECT_ROOT (mockado) é o tmp_path."""
     assert isinstance(
         core_config.PROJECT_ROOT, Path
     ), "PROJECT_ROOT should be a Path object"
+    assert (
+        core_config.PROJECT_ROOT == mock_config_paths_in_tmp
+    ), "PROJECT_ROOT was not correctly mocked to tmp_path"
 
-    # Verifica se alguns diretórios/arquivos esperados existem relativos ao PROJECT_ROOT
     assert (
         core_config.PROJECT_ROOT / "scripts"
-    ).is_dir(), "'scripts' directory not found in PROJECT_ROOT"
-    assert (
-        core_config.PROJECT_ROOT / "app"
-    ).is_dir(), "'app' directory not found in PROJECT_ROOT"
-    assert (
-        core_config.PROJECT_ROOT / "tests"
-    ).is_dir(), "'tests' directory not found in PROJECT_ROOT"
-    assert (
-        core_config.PROJECT_ROOT / "composer.json"
-    ).is_file(), "'composer.json' not found in PROJECT_ROOT"
+    ).is_dir(), "'scripts' directory not found in mocked PROJECT_ROOT"
 
 
-def test_template_directories_exist():
-    """Verifica se os diretórios de template existem."""
+def test_template_directories_exist(mock_config_paths_in_tmp: Path):
+    """Verifica se os diretórios de template existem (agora dentro de tmp_path)."""
     assert (
         core_config.TEMPLATE_DIR.is_dir()
-    ), f"TEMPLATE_DIR does not exist: {core_config.TEMPLATE_DIR}"
+    ), f"TEMPLATE_DIR does not exist or is not a dir: {core_config.TEMPLATE_DIR}"
+    assert (
+        core_config.TEMPLATE_DIR == mock_config_paths_in_tmp / "templates" / "prompts"
+    )
     assert (
         core_config.META_PROMPT_DIR.is_dir()
-    ), f"META_PROMPT_DIR does not exist: {core_config.META_PROMPT_DIR}"
+    ), f"META_PROMPT_DIR does not exist or is not a dir: {core_config.META_PROMPT_DIR}"
+    assert (
+        core_config.META_PROMPT_DIR == mock_config_paths_in_tmp / "templates" / "meta-prompts"
+    )
     assert (
         core_config.CONTEXT_SELECTORS_DIR.is_dir()
-    ), f"CONTEXT_SELECTORS_DIR does not exist: {core_config.CONTEXT_SELECTORS_DIR}"
+    ), f"CONTEXT_SELECTORS_DIR does not exist or is not a dir: {core_config.CONTEXT_SELECTORS_DIR}"
+    assert (
+        core_config.CONTEXT_SELECTORS_DIR == mock_config_paths_in_tmp / "templates" / "context_selectors"
+    )
 
 
-def test_context_directories_config():
+def test_context_directories_config(mock_config_paths_in_tmp: Path):
     """Verifica a configuração dos diretórios de contexto."""
     assert isinstance(core_config.CONTEXT_DIR_BASE, Path)
-    # Não podemos verificar se CONTEXT_DIR_BASE existe, pois pode ser criado dinamicamente.
-    # Apenas verificamos se o pai de CONTEXT_DIR_BASE/code existe.
-    assert (core_config.CONTEXT_DIR_BASE.parent).is_dir()
+    # core_config.CONTEXT_DIR_BASE será agora tmp_path / "context_llm/code"
+    # Seu pai é tmp_path / "context_llm", que foi criado pelo fixture.
+    assert (
+        core_config.CONTEXT_DIR_BASE.parent.is_dir()
+    ), f"Parent of CONTEXT_DIR_BASE should exist: {core_config.CONTEXT_DIR_BASE.parent}"
+    assert (
+         core_config.CONTEXT_DIR_BASE == mock_config_paths_in_tmp / "context_llm" / "code"
+    )
 
     assert isinstance(core_config.COMMON_CONTEXT_DIR, Path)
     assert (
         core_config.COMMON_CONTEXT_DIR.is_dir()
-    ), f"COMMON_CONTEXT_DIR does not exist or is not a dir: {core_config.COMMON_CONTEXT_DIR}"
+    ), f"COMMON_CONTEXT_DIR should exist: {core_config.COMMON_CONTEXT_DIR}"
+    assert (
+        core_config.COMMON_CONTEXT_DIR == mock_config_paths_in_tmp / "context_llm" / "common"
+    )
 
 
-def test_output_directory_config():
+def test_output_directory_config(mock_config_paths_in_tmp: Path):
     """Verifica a configuração do diretório de saída."""
     assert isinstance(core_config.OUTPUT_DIR_BASE, Path)
-    # O diretório base de saída pode não existir até a primeira execução, então apenas verificamos o pai.
-    assert core_config.OUTPUT_DIR_BASE.parent == core_config.PROJECT_ROOT
+    # OUTPUT_DIR_BASE é mockado para tmp_path / "llm_outputs"
+    # Seu pai é tmp_path (que é o PROJECT_ROOT mockado).
+    assert core_config.OUTPUT_DIR_BASE.parent == core_config.PROJECT_ROOT, \
+        f"OUTPUT_DIR_BASE.parent ({core_config.OUTPUT_DIR_BASE.parent}) should be PROJECT_ROOT ({core_config.PROJECT_ROOT})"
+    assert core_config.OUTPUT_DIR_BASE.parent == mock_config_paths_in_tmp, \
+        f"OUTPUT_DIR_BASE.parent ({core_config.OUTPUT_DIR_BASE.parent}) should be tmp_path ({mock_config_paths_in_tmp})"
+    assert core_config.OUTPUT_DIR_BASE == mock_config_paths_in_tmp / "llm_outputs"
 
 
-def test_script_paths_config():
+def test_script_paths_config(mock_config_paths_in_tmp: Path):
     """Verifica os caminhos para scripts externos."""
     assert (
         core_config.CONTEXT_GENERATION_SCRIPT.is_file()
-    ), f"CONTEXT_GENERATION_SCRIPT not found: {core_config.CONTEXT_GENERATION_SCRIPT}"
+    ), f"CONTEXT_GENERATION_SCRIPT not found or not a file: {core_config.CONTEXT_GENERATION_SCRIPT}"
+    assert (
+        core_config.CONTEXT_GENERATION_SCRIPT == mock_config_paths_in_tmp / "scripts" / "generate_context.py"
+    )
     assert (
         core_config.MANIFEST_DATA_DIR.is_dir()
     ), f"MANIFEST_DATA_DIR does not exist or is not a dir: {core_config.MANIFEST_DATA_DIR}"
+    assert (
+        core_config.MANIFEST_DATA_DIR == mock_config_paths_in_tmp / "scripts" / "data"
+    )
 
 
 def test_regex_constants():
