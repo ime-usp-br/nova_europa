@@ -9,7 +9,7 @@ from google.api_core import exceptions as google_api_core_exceptions
 from google.genai import types as genai_types
 from scripts.llm_core import config as core_config_module
 import traceback
-import concurrent
+import concurrent.futures # Adicionado para o teste de TimeoutError
 
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
@@ -120,12 +120,12 @@ def mock_gemini_services_for_execute_call(reset_module_globals_for_each_test, mo
         future = MagicMock(spec=concurrent.futures.Future)
         try:
             result = func(*args_func, **kwargs_func)
-            future.result.return_value = result
+            future.result.return_value = result # Se a função da task retorna normalmente
             future.exception.return_value = None
         except Exception as e:
-            future.result.side_effect = e
+            future.result.side_effect = e # Se a função da task levanta exceção
             future.exception.return_value = e
-        return future
+        return future # O mock_executor_instance.submit retorna este future mockado
     mock_executor_instance.submit.side_effect = immediate_submit
 
     with patch("scripts.llm_core.api_client.genai.Client", return_value=mock_client_instance) as mock_gen_client_ctor, \
@@ -521,20 +521,17 @@ def test_execute_gemini_call_rotates_key_on_api_error_429_by_message(
     mock_success_response.prompt_feedback = None
     mock_success_response.candidates = [MagicMock(finish_reason=genai_types.FinishReason.STOP)]
 
-    # Simula a APIError com mensagem indicando rate limit/quota
     simulated_response_json_for_api_error = {
         "error": {
-            "code": 429, # Código interno do JSON, não o da exceção principal
-            "message": "Quota limit exceeded for this API key.", # Contém "quota"
+            "code": 429,
+            "message": "Quota limit exceeded for this API key.",
             "status": "RESOURCE_EXHAUSTED"
         }
     }
-    # Instancia APIError; o code da exceção aqui pode ser diferente do HTTP status code real,
-    # a lógica de `api_client.py` vai olhar a mensagem ou o e.response.status_code se existir
     api_error_to_raise = google_genai_errors.APIError(
-        code=500, # Um código genérico para a exceção, a lógica deve pegar pela mensagem
+        code=500,
         response_json=simulated_response_json_for_api_error,
-        response=None # Importante: sem e.response.status_code para forçar a checagem da mensagem
+        response=None
     )
 
     mock_client_instance_key1.models.generate_content.side_effect = api_error_to_raise
@@ -592,14 +589,14 @@ def test_execute_gemini_call_reraises_non_rate_limit_api_error(
         }
     }
     generic_api_error_to_raise = google_genai_errors.APIError(
-        code=400, # Este é o código da exceção, não necessariamente o HTTP status code da resposta
+        code=400, 
         response_json=simulated_response_json_for_generic_error,
         response=None
     )
     mock_client_instance.models.generate_content.side_effect = generic_api_error_to_raise
 
     mock_executor_returned_by_constructor = MagicMock(spec=concurrent.futures.ThreadPoolExecutor)
-    mock_executor_returned_by_constructor.submit = MagicMock() # Adicionado para corrigir o AttributeError
+    mock_executor_returned_by_constructor.submit = MagicMock() 
     mock_thread_pool_executor_constructor.return_value = mock_executor_returned_by_constructor
 
     def immediate_submit_for_test(func_to_call, *call_args, **call_kwargs):
@@ -627,7 +624,58 @@ def test_execute_gemini_call_reraises_non_rate_limit_api_error(
     assert excinfo.value == generic_api_error_to_raise
     mock_genai_client_constructor.assert_called_once_with(api_key="key_generic_api_error_no_rotate")
     mock_client_instance.models.generate_content.assert_called_once()
-    assert api_client.current_api_key_index == 0 # Chave não deve ter rotacionado
+    assert api_client.current_api_key_index == 0 
+
+# Teste para AC9 da Issue #48
+@patch('scripts.llm_core.api_client.time.sleep')
+def test_execute_gemini_call_handles_concurrent_futures_timeout(
+    mock_time_sleep: MagicMock,
+    reset_module_globals_for_each_test,
+    mock_gemini_services_for_execute_call # Fixture que já mocka Client e ThreadPoolExecutor
+):
+    # O fixture mock_gemini_services_for_execute_call já fez startup_api_resources
+    # e configurou api_client.api_executor para ser um mock.
+
+    mock_future_that_timeouts = MagicMock(spec=concurrent.futures.Future)
+    # Configura o método result() do mock_future_that_timeouts para levantar TimeoutError
+    # quando chamado com timeout.
+    mock_future_that_timeouts.result.side_effect = concurrent.futures.TimeoutError("Simulated future.result() timeout")
+
+    # Sobrescreve o side_effect do método submit do api_executor mockado
+    # para retornar nosso future especificamente configurado.
+    api_client.api_executor.submit.side_effect = lambda func, *args, **kwargs: mock_future_that_timeouts
+
+    model_name = "gemini-test-concurrent-timeout"
+    contents = [genai_types.Part(text="Test content that should lead to timeout")]
+    test_timeout_seconds = 0.01 # Um timeout muito curto para garantir que seja atingido no mock
+
+    with pytest.raises(TimeoutError) as excinfo: # Esperamos a built-in TimeoutError
+        api_client.execute_gemini_call(
+            model_name,
+            contents,
+            config=None,
+            timeout_seconds=test_timeout_seconds, # Passa o timeout para execute_gemini_call
+            verbose=True
+        )
+
+    # Verifica se a mensagem impressa no stderr foi feita (isso requer capsys)
+    # Opcional, mas bom para confirmar o log interno da função.
+    # captured = capsys.readouterr()
+    # assert f"Chamada API excedeu o tempo limite de {test_timeout_seconds}s" in captured.err
+
+    # Verifica se o método submit do executor foi chamado (indicando que a task foi submetida)
+    api_client.api_executor.submit.assert_called_once()
+    # Pega a função que foi submetida (a _api_call_task interna)
+    submitted_callable = api_client.api_executor.submit.call_args[0][0]
+    assert callable(submitted_callable)
+
+    # Verifica se o método result do future mockado foi chamado com o timeout correto
+    mock_future_that_timeouts.result.assert_called_once_with(timeout=test_timeout_seconds)
+
+    # Verifica se a rotação de chaves NÃO ocorreu, pois TimeoutError do future.result
+    # não deve acionar a lógica de rotação de chave por ResourceExhausted/ServerError.
+    assert api_client.current_api_key_index == 0 # Assumindo que começou em 0
+    mock_time_sleep.assert_not_called() # O sleep é para rotação de chave, não para este tipo de timeout
 
 def teardown_module(module):
     api_client.shutdown_api_resources(verbose=False)
