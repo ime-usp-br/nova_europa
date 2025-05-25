@@ -13,6 +13,7 @@ import subprocess
 from unittest import mock # Import mock
 from typing import List, Dict, Any, Tuple, Optional
 import json
+import time
 
 # Add script directory to sys.path to allow importing
 # Assuming tests are run from the project root (e.g., using `python -m pytest`)
@@ -26,6 +27,8 @@ create_issue_module = importlib.import_module("scripts.create_issue")
 # Functions/Classes to test from the imported module
 parse_plan_file = create_issue_module.parse_plan_file
 prepare_issue_body = create_issue_module.prepare_issue_body
+# Explicitamente importar/atribuir run_command para o escopo do módulo de teste
+run_command = create_issue_module.run_command
 find_existing_issue = create_issue_module.find_existing_issue
 create_github_issue = create_issue_module.create_github_issue
 edit_github_issue = create_issue_module.edit_github_issue
@@ -570,7 +573,7 @@ class TestGitHubInteraction:
 
         # 3. Clean up (optional but good practice)
         print(f"[Live Test] Deleting label '{label_name}'...")
-        exit_code, _, stderr = run_command(["gh", "label", "delete", label_name] + repo_flags + ["--yes"], check=False)
+        exit_code, _, stderr = create_issue_module.run_command(["gh", "label", "delete", label_name] + repo_flags + ["--yes"], check=False)
         if exit_code != 0:
             print(f"  Warning: Failed to delete test label '{label_name}'. Stderr: {stderr.strip()}", file=sys.stderr)
 
@@ -601,13 +604,14 @@ class TestGitHubInteraction:
         print(f"[Live Test] Deleting milestone '{milestone_title}'...")
         jq_filter = f'.[] | select(.title == "{create_issue_module.escape_for_jq_string(milestone_title)}") | .number'
         cmd_list_num = ["gh", "milestone", "list"] + repo_flags + ["--json", "title,number", "--jq", jq_filter]
-        exit_code_num, stdout_num, _ = run_command(cmd_list_num, check=False)
+        exit_code_num, stdout_num, _ = create_issue_module.run_command(cmd_list_num, check=False)
         milestone_num_str = stdout_num.strip()
 
         if exit_code_num == 0 and milestone_num_str:
             try:
                  milestone_num = int(milestone_num_str)
-                 exit_code_del, _, stderr_del = run_command(["gh", "milestone", "delete", str(milestone_num)] + repo_flags, check=False)
+                 # Use create_issue_module.run_command
+                 exit_code_del, _, stderr_del = create_issue_module.run_command(["gh", "milestone", "delete", str(milestone_num)] + repo_flags, check=False)
                  if exit_code_del != 0:
                       print(f"  Warning: Failed to delete test milestone '{milestone_title}' (Number: {milestone_num}). Stderr: {stderr_del.strip()}", file=sys.stderr)
             except ValueError:

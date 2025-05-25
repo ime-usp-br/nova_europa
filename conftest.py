@@ -56,3 +56,41 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "live" in item.keywords:
                 item.add_marker(pytest.mark.skip(reason=skip_live_no_key_reason))
+
+# Fixture to make the --live flag available to tests
+@pytest.fixture(scope="session")
+def live_run(request):
+    return request.config.getoption("--live")
+
+# Fixture to get the test repository URL from environment variable
+@pytest.fixture(scope="session")
+def test_repo():
+    repo = os.getenv("GH_TEST_REPO")
+    if not repo:
+        # Skip tests marked 'live' if the environment variable is not set
+        pytest.skip("GH_TEST_REPO environment variable not set. Skipping live tests.")
+    # Basic validation - should be in owner/repo format
+    if "/" not in repo or len(repo.split("/")) != 2:
+         pytest.fail(f"Invalid GH_TEST_REPO format: '{repo}'. Expected 'owner/repo'.")
+    return repo
+
+# Fixture to construct repo flags for gh commands
+@pytest.fixture(scope="session")
+def repo_flags(live_run, test_repo):
+    if live_run:
+        return ["-R", test_repo]
+    else:
+        # In mock mode, repo flags are not strictly needed for command execution,
+        # but we might pass them to verify the command construction.
+        # Use a placeholder or the actual test_repo if available for verification.
+        return ["-R", test_repo if test_repo else "mock/repo"]
+
+# Fixture to change the project root for tests that write files
+@pytest.fixture
+def change_project_root(tmp_path: Path, monkeypatch):
+    """ Temporarily change the BASE_DIR for file writing tests """
+    monkeypatch.setattr("scripts.update_project.BASE_DIR", tmp_path)
+    # Also patch for create_issue if it uses BASE_DIR for templates/output
+    # (Assuming create_issue might need patching in the future for file ops)
+    # monkeypatch.setattr("scripts.create_issue.BASE_DIR", tmp_path)
+    return tmp_path
