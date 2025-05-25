@@ -103,7 +103,7 @@ jobs:
     - name: Executar Testes Python (pytest)
       # Executa pytest a partir do diretório raiz, encontrando testes em tests/python/
       # O arquivo pytest.ini configura o pythonpath = .
-      run: python -m pytest tests/python/test_llm_core_*
+      run: python -m pytest tests/python/
     # --- END: Passos para Testes Python (Issue #45 AC5) ---
 
     - name: Executar Testes de Browser (Dusk)
