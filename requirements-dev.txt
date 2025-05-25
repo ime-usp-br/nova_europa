@@ -1,1 +1,7 @@
-pytest
+google_auth==2.39.0
+pytest==8.3.5
+pytest-mock
+tqdm==4.66.3
+google-genai
+google-api-core
+python-dotenv

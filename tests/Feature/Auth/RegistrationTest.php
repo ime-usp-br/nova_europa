@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -9,6 +10,12 @@ use Tests\TestCase;
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RoleSeeder::class);
+    }
 
     public function test_registration_screen_can_be_rendered(): void
     {
@@ -24,8 +31,8 @@ class RegistrationTest extends TestCase
         $component = Volt::test('pages.auth.register')
             ->set('name', 'Test User')
             ->set('email', 'test@example.com')
-            ->set('password', 'password')
-            ->set('password_confirmation', 'password');
+            ->set('password', 'Password123!')
+            ->set('password_confirmation', 'Password123!');
 
         $component->call('register');
 

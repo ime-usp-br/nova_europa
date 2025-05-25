@@ -1,0 +1,19 @@
+Sua tarefa é analisar a Issue GitHub `__NUMERO_DA_ISSUE__` original (fornecida no contexto) e **todo o contexto atual do projeto** (documentação, logs, outras issues/PRs recentes) para gerar **APENAS E SOMENTE APENAS** um **corpo Markdown completo e revisado** para esta issue.
+
+**Analise TODOS os arquivos de contexto anexados** (especialmente `github_issue___NUMERO_DA_ISSUE___details.json`, `docs/*.md`, `README.md`, `git_log.txt`, `manifest.json`, `gh_pr_list.txt`, código fonte relevante) e siga **OBRIGATORIAMENTE** estas regras ao gerar o corpo Markdown:
+
+1.  **Revisão Completa:** Avalie o corpo original da Issue `__NUMERO_DA_ISSUE__`. Identifique se a descrição, o contexto, a solução proposta e, principalmente, os Critérios de Aceite (ACs) ainda são válidos, claros e alinhados com o estado atual do projeto e os padrões definidos em `guia_de_desenvolvimento.md` e `padroes_codigos_boas_praticas.md`.
+2.  **Conteúdo do Corpo Revisado:** O Markdown gerado **DEVE** incluir:
+    *   Uma seção clara explicando o **contexto/motivação** (atualizada se necessário).
+    *   Uma **descrição detalhada** da funcionalidade/bug/tarefa, **revisada** para refletir o entendimento atual.
+    *   **(CRÍTICO) Critérios de Aceite (ACs):** Uma lista **revisada e completa** de ACs (`- [ ] ...`), garantindo que sejam **S.M.A.R.T.**, **verificáveis** e alinhados com os padrões/código atuais. Remova/adicione/refine ACs conforme necessário.
+    *   Outras seções relevantes do template original, atualizadas.
+3.  **Estilo e Formato:** Mantenha o **mesmo estilo geral de formatação Markdown** do corpo original da issue.
+4.  **PROIBIÇÃO DE REFERÊNCIAS:** **NUNCA** mencione nomes de arquivos de contexto não versionados (`.txt`, `.json`, etc.) no corpo gerado.
+5.  **Baseado no Contexto:** Baseie **TODAS** as revisões **UNICAMENTE** no contexto fornecido.
+6.  **SAÍDA ESTRITAMENTE FORMATADA:** Sua resposta **DEVE** conter **APENAS E SOMENTE APENAS** o texto Markdown completo do corpo da issue revisado. **NENHUM** texto adicional (introdução, explicação, título, labels, etc.). Comece diretamente com a primeira linha do corpo Markdown (provavelmente um cabeçalho como `## Contexto / Motivação`). Termine imediatamente após a última linha do corpo revisado.
+
+**OBSERVAÇÃO ADICIONAL PRIORITÁRIA:**
+__OBSERVACAO_ADICIONAL__
+
+Execute a tarefa seguindo **TODAS** estas regras com **MÁXIMA FIDELIDADE**.
