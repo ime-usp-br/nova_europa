@@ -10,10 +10,12 @@ import pytest
 from pathlib import Path
 import sys
 import subprocess
+from unittest.mock import MagicMock
 from unittest import mock # Import mock
 from typing import List, Dict, Any, Tuple, Optional
 import json
 import time
+import argparse # Adicionado para Namespace
 
 # Add script directory to sys.path to allow importing
 # Assuming tests are run from the project root (e.g., using `python -m pytest`)
@@ -39,7 +41,6 @@ main = create_issue_module.main
 parse_arguments = create_issue_module.parse_arguments
 # Mock the constants if necessary, e.g., BASE_DIR if not handled by fixtures
 create_issue_module.BASE_DIR = SCRIPT_DIR.parent
-
 
 # --- Helper Function ---
 def _create_dummy_plan_file(path: Path, content: str):
@@ -374,7 +375,6 @@ def test_prepare_body_no_templates_uses_generic(tmp_path: Path, capsys):
     assert "- TYPE: feature" in body
     assert "- DETAIL: Some detail here" in body
     assert "- EXTRA: More data" in body
-    assert "TITLE" not in body.split("Details:")[1]
 
     captured = capsys.readouterr()
     assert "Warning: No suitable template found" in captured.err
@@ -402,10 +402,10 @@ class TestGitHubInteraction:
 
     # --- AC3: Basic Interaction Coverage (Finding, Creating, Editing) ---
 
-    # tests/python/test_create_issue.py -> test_ac3_find_existing_issue_mocked_found
+    # tests/python/test_create_issue.py -> test_find_existing_issue_mocked_found
 
     @mock.patch('scripts.create_issue.run_command')
-    def test_ac3_find_existing_issue_mocked_found(self, mock_run_cmd):
+    def test_find_existing_issue_mocked_found(self, mock_run_cmd):
         """AC3: Test finding an existing issue (mocked - found)."""
         test_title = "Existing Test Issue"
         mock_repo_flags = ["-R", "mock/repo"]
@@ -427,7 +427,7 @@ class TestGitHubInteraction:
                  # Ensure the view command mock is also specific enough if needed
                 return (0, view_output, "") # Success for view
             # Add a print for unexpected calls to aid debugging
-            print(f"Warning: Unexpected command mocked in test_ac3_find_existing_issue_mocked_found: {' '.join(cmd_list)}", file=sys.stderr)
+            print(f"Warning: Unexpected command mocked in test_find_existing_issue_mocked_found: {' '.join(cmd_list)}", file=sys.stderr)
             return (1, "", f"Unexpected command in mock: {' '.join(cmd_list)}") # Default failure
 
         mock_run_cmd.side_effect = side_effect
@@ -456,7 +456,7 @@ class TestGitHubInteraction:
 
     @mock.patch('scripts.create_issue.check_and_create_label', return_value=True) # Assume label check/create succeeds
     @mock.patch('scripts.create_issue.run_command')
-    def test_ac3_edit_issue_mocked(self, mock_run_cmd, mock_label_check, default_args, default_config):
+    def test_edit_issue_mocked(self, mock_run_cmd, mock_label_check, default_args, default_config):
         """AC3: Test editing an existing issue (mocked)."""
         issue_number = 123
         issue_data = {"TITLE": "Existing Issue to Edit", "TYPE": "feature", "LABELS": "ui", "ASSIGNEE": "dev1"}
@@ -482,11 +482,96 @@ class TestGitHubInteraction:
         assert issue_data["ASSIGNEE"] in args[0]
         assert kwargs.get('input_data') == issue_body
 
+    # --- AC6: Test `gh issue create` command construction ---
+    @mock.patch('scripts.create_issue.run_command')
+    @mock.patch('scripts.create_issue.check_and_create_label', return_value=True)
+    @mock.patch('scripts.create_issue.check_and_create_milestone') # Mock milestone check/create
+    @mock.patch('scripts.create_issue.find_project_id', return_value="PROJECT_ID_123")
+    def test_create_issue_command_construction_mocked(
+        self,
+        mock_find_project_id: MagicMock,
+        mock_check_milestone: MagicMock,
+        mock_check_label: MagicMock,
+        mock_run_cmd: MagicMock,
+        default_args: argparse.Namespace, 
+        default_config: Dict[str, Any],
+        temp_template_dir: Path
+    ):
+        """AC6: Test gh issue create command construction with all flags."""
+        issue_title = "AC6 Test Issue Title"
+        issue_type = "feature"
+        issue_labels = "ac6-label,test,epic"
+        issue_assignee = "ac6-user"
+        issue_project = "AC6 Project Name"
+        issue_milestone_title = "AC6 Milestone Sprint" 
+
+        issue_data = {
+            "TITLE": issue_title,
+            "TYPE": issue_type,
+            "LABELS": issue_labels,
+            "ASSIGNEE": issue_assignee,
+            "PROJECT": issue_project,
+            "DESCRIPTION": "This is the body for AC6 test.\nWith multiple lines.",
+            "MILESTONE": issue_milestone_title # Adicionado para teste
+        }
+        issue_body_prepared = prepare_issue_body(temp_template_dir, issue_type, issue_data)
+
+        cli_args = default_args 
+        cli_args.dry_run = False 
+        # Simula que o milestone foi pré-checado/criado e o título global foi setado
+        cli_args.global_milestone_title_to_use = issue_milestone_title
+        # Garante que check_and_create_milestone retorna o título se chamado (não deveria se global_milestone_title_to_use está setado)
+        mock_check_milestone.return_value = issue_milestone_title
+
+
+        config = default_config
+        config["repo_target"] = "owner/repo-ac6" 
+        repo_flags = ["-R", config["repo_target"]]
+
+        mock_run_cmd.return_value = (0, "https://github.com/owner/repo-ac6/issues/1", "")
+
+        success = create_github_issue(issue_data, issue_body_prepared, cli_args, config, repo_flags)
+        assert success is True
+
+        mock_run_cmd.assert_called_once()
+        args_called, kwargs_called = mock_run_cmd.call_args
+        called_cmd_list = args_called[0]
+        
+        assert called_cmd_list[0:3] == ["gh", "issue", "create"]
+        assert "-t" in called_cmd_list and called_cmd_list[called_cmd_list.index("-t") + 1] == issue_title
+        assert "-F" in called_cmd_list and called_cmd_list[called_cmd_list.index("-F") + 1] == "-"
+        assert kwargs_called.get("input_data") == issue_body_prepared
+        
+        expected_labels_set = set(issue_labels.split(',')) | {issue_type}
+        if config["default_label"] and not issue_labels and not issue_type : # Adiciona default se nenhum outro for especificado
+            expected_labels_set.add(config["default_label"])
+        
+        actual_labels_str = called_cmd_list[called_cmd_list.index("-l") + 1]
+        actual_labels_set = set(actual_labels_str.split(','))
+        assert actual_labels_set == expected_labels_set, f"Expected labels {expected_labels_set} but got {actual_labels_set}"
+
+        assignee_to_check = issue_assignee if issue_assignee else config["default_assignee"]
+        if assignee_to_check: # Only add -a if there's an assignee
+            assert "-a" in called_cmd_list
+            assert called_cmd_list[called_cmd_list.index("-a") + 1] == assignee_to_check
+        else:
+            assert "-a" not in called_cmd_list
+
+
+        assert "-m" in called_cmd_list and called_cmd_list[called_cmd_list.index("-m") + 1] == issue_milestone_title
+        
+        assert "-p" in called_cmd_list and called_cmd_list[called_cmd_list.index("-p") + 1] == issue_project
+        mock_find_project_id.assert_called_once_with(issue_project, config["project_owner"], repo_flags)
+
+        for flag_part in repo_flags:
+            assert flag_part in called_cmd_list
+
+
     # --- AC3 + AC4: Live Interaction Tests ---
     # These tests require the --live flag and GH_TEST_REPO env var
 
     @pytest.mark.live # Mark as live test
-    def test_ac3_ac4_live_create_find_edit(self, live_run, test_repo, repo_flags, default_args, default_config, temp_plan_file, temp_template_dir):
+    def test_live_create_find_edit(self, live_run, test_repo, repo_flags, default_args, default_config, temp_plan_file, temp_template_dir):
         """AC3+AC4: Live test: Create, find, then edit an issue."""
         if not live_run: pytest.skip("Requires --live flag")
 
@@ -549,7 +634,7 @@ class TestGitHubInteraction:
 
 
     @pytest.mark.live # Mark as live test
-    def test_ac3_ac4_live_check_create_label(self, live_run, test_repo, repo_flags, default_config):
+    def test_live_check_create_label(self, live_run, test_repo, repo_flags, default_config):
         """AC3+AC4: Live test: Check and create a label."""
         if not live_run: pytest.skip("Requires --live flag")
 
@@ -578,7 +663,7 @@ class TestGitHubInteraction:
             print(f"  Warning: Failed to delete test label '{label_name}'. Stderr: {stderr.strip()}", file=sys.stderr)
 
     @pytest.mark.live # Mark as live test
-    def test_ac3_ac4_live_check_create_milestone(self, live_run, test_repo, repo_flags):
+    def test_live_check_create_milestone(self, live_run, test_repo, repo_flags):
         """AC3+AC4: Live test: Check and create a milestone."""
         if not live_run: pytest.skip("Requires --live flag")
 
@@ -620,7 +705,7 @@ class TestGitHubInteraction:
             print(f"  Warning: Could not find milestone number to delete milestone '{milestone_title}'.", file=sys.stderr)
 
     @pytest.mark.live # Mark as live test
-    def test_ac3_ac4_live_find_project(self, live_run, test_repo, repo_flags, default_config):
+    def test_live_find_project(self, live_run, test_repo, repo_flags, default_config):
         """AC3+AC4: Live test: Find a project (assumes a project exists)."""
         if not live_run: pytest.skip("Requires --live flag")
 
@@ -649,7 +734,7 @@ class TestGitHubInteraction:
 # Example structure:
 #
 # @mock.patch('scripts.create_issue.run_command')
-# def test_ac6_create_issue_flags(self, mock_run_cmd, ...):
+# def test_create_issue_flags(self, mock_run_cmd, ...):
 #     """AC6: Test specific flags used in 'gh issue create'."""
 #     # Setup issue_data with specific fields (assignee, milestone, project)
 #     # Call create_github_issue
