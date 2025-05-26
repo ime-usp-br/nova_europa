@@ -96,8 +96,11 @@ jobs:
         # Instala as dependências de desenvolvimento (incluindo pytest)
         pip install -r requirements-dev.txt
 
-    - name: Executar Testes Python (pytest)
+    - name: Executar Testes Python do script de interação com o LLM (pytest)
       run: python -m pytest tests/python/test_llm_core_*
+
+    - name: Executar Testes Python do script de criação de issues (pytest)
+      run: python -m pytest tests/python/test_create_issue.py
 
     - name: Executar Testes de Browser (Dusk)
       run: |
