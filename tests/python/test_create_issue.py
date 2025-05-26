@@ -400,87 +400,98 @@ def test_prepare_body_handles_none_values(setup_templates: Path):
 @pytest.mark.integration # Mark as integration tests
 class TestGitHubInteraction:
 
-    # --- AC3: Basic Interaction Coverage (Finding, Creating, Editing) ---
-
-    # tests/python/test_create_issue.py -> test_find_existing_issue_mocked_found
-
+    # --- AC3 & AC5: Finding an existing issue ---
     @mock.patch('scripts.create_issue.run_command')
     def test_find_existing_issue_mocked_found(self, mock_run_cmd):
-        """AC3: Test finding an existing issue (mocked - found)."""
+        """AC3 & AC5: Test finding an existing issue (mocked - found)."""
         test_title = "Existing Test Issue"
         mock_repo_flags = ["-R", "mock/repo"]
         issue_number = 123
 
-        # Mock gh search issues response (finding the issue)
-        # search_output = json.dumps([{"number": issue_number, "title": test_title, "state": "OPEN", "updatedAt": "..."}]) # We don't need the full json anymore for the search mock
-        # Mock gh issue view response (confirming the title)
         view_output = json.dumps({"title": test_title})
 
-        # Configure side_effect based on command args
         def side_effect(*args, **kwargs):
             cmd_list = args[0]
-            # Check more specifically for the search command with the jq filter
             if "search" in cmd_list and "issues" in cmd_list and "--jq" in cmd_list and ".[0].number // empty" in cmd_list:
-                # CORRECT: Return *only* the issue number as a string, simulating the jq filter
                 return (0, str(issue_number), "")
             elif "issue" in cmd_list and "view" in cmd_list and str(issue_number) in cmd_list:
-                 # Ensure the view command mock is also specific enough if needed
-                return (0, view_output, "") # Success for view
-            # Add a print for unexpected calls to aid debugging
-            print(f"Warning: Unexpected command mocked in test_find_existing_issue_mocked_found: {' '.join(cmd_list)}", file=sys.stderr)
-            return (1, "", f"Unexpected command in mock: {' '.join(cmd_list)}") # Default failure
+                return (0, view_output, "")
+            return (1, "", f"Unexpected command in mock: {' '.join(cmd_list)}")
 
         mock_run_cmd.side_effect = side_effect
-
         found_num = find_existing_issue(test_title, mock_repo_flags)
+        assert found_num == issue_number
 
-        assert found_num == issue_number # Should now pass
-        # Verify search command was called (checking the specific call args is good practice)
-        # Note: the mock.call object might be complex due to the list structure.
-        # We already verified the side_effect logic handles the expected command.
+        # Verify search command was called
+        search_call_args = [
+            'gh', 'search', 'issues', f'"{test_title}" in:title is:open is:issue',
+            '-R', 'mock/repo',
+            '--json', 'number,title,state,updatedAt',
+            '--order', 'desc', '--sort', 'updated',
+            '--limit', '1',
+            '--jq', '.[0].number // empty'
+        ]
+        search_call_found = any(call_args[0] == search_call_args for call_args, _ in mock_run_cmd.call_args_list)
+        assert search_call_found, "Expected 'gh search issues ... --jq .[0].number // empty' to be called"
 
-        # Verify view command was called (assert_has_calls is robust)
-        view_call = mock.call(
-             ['gh', 'issue', 'view', str(issue_number), '-R', 'mock/repo', '--json', 'title'],
-             check=False, capture=True
-        )
-        # Combine the expected calls if needed
-        # search_call = mock.call(...) # Construct the expected search call if you want to assert it too
-        # mock_run_cmd.assert_has_calls([search_call, view_call], any_order=False)
 
-        # Check that the view command was actually called
-        assert any(
-            "view" in call.args[0] and str(issue_number) in call.args[0]
-            for call in mock_run_cmd.call_args_list
-        ), f"Expected 'gh issue view {issue_number}' to be called"
+        # Verify view command was called
+        view_call_args = ['gh', 'issue', 'view', str(issue_number), '-R', 'mock/repo', '--json', 'title']
+        view_call_found = any(call_args[0] == view_call_args for call_args, _ in mock_run_cmd.call_args_list)
+        assert view_call_found, f"Expected 'gh issue view {issue_number} ...' to be called"
 
-    @mock.patch('scripts.create_issue.check_and_create_label', return_value=True) # Assume label check/create succeeds
+
+    # --- AC3 & AC7: Test `gh issue edit` command construction (labels, assignee, milestone) ---
+    @mock.patch('scripts.create_issue.check_and_create_label', return_value=True)
     @mock.patch('scripts.create_issue.run_command')
     def test_edit_issue_mocked(self, mock_run_cmd, mock_label_check, default_args, default_config):
-        """AC3: Test editing an existing issue (mocked)."""
+        """AC3 & AC7: Test gh issue edit command construction (labels, assignee, milestone)."""
         issue_number = 123
-        issue_data = {"TITLE": "Existing Issue to Edit", "TYPE": "feature", "LABELS": "ui", "ASSIGNEE": "dev1"}
-        issue_body = "Updated Body"
-        mock_repo_flags = ["-R", "mock/repo"] # Assume repo flags determined
+        test_milestone_title = "Q2 Milestone" # Test milestone
+        issue_data = {
+            "TITLE": "Existing Issue to Edit",
+            "TYPE": "feature",
+            "LABELS": "ui,ux",
+            "ASSIGNEE": "dev1",
+            # MILESTONE for issue_data isn't directly used by edit for -m, it uses cli_args.global_milestone_title_to_use
+        }
+        issue_body = "Updated Body for AC7"
+        mock_repo_flags = ["-R", "mock/repo"]
 
-        # Mock the 'gh issue edit' call to succeed
         mock_run_cmd.return_value = (0, "", "") # Success for edit command
+
+        # Simulate that a milestone was passed via CLI and verified/created
+        default_args.global_milestone_title_to_use = test_milestone_title
+        # Ensure milestone_title is None so it doesn't trigger the "mandated but failed pre-check" error path
+        default_args.milestone_title = None
 
         success = edit_github_issue(issue_number, issue_data, issue_body, default_args, default_config, mock_repo_flags)
 
         assert success is True
         mock_run_cmd.assert_called_once()
-        args, kwargs = mock_run_cmd.call_args
-        assert args[0][0:3] == ['gh', 'issue', 'edit']
-        assert str(issue_number) in args[0]
-        assert "--body-file" in args[0]
-        assert "-" in args[0] # Body from stdin
-        assert "--add-label" in args[0]
-        assert "feature" in args[0] # TYPE becomes a label
-        assert "ui" in args[0]      # Specific label
-        assert "--add-assignee" in args[0]
-        assert issue_data["ASSIGNEE"] in args[0]
-        assert kwargs.get('input_data') == issue_body
+        args_called, kwargs_called = mock_run_cmd.call_args
+        called_cmd_list = args_called[0]
+
+        assert called_cmd_list[0:3] == ['gh', 'issue', 'edit']
+        assert str(issue_number) in called_cmd_list
+        assert "--body-file" in called_cmd_list
+        assert "-" in called_cmd_list # Body from stdin
+        assert kwargs_called.get('input_data') == issue_body
+
+        # Verify labels (TYPE becomes a label, plus LABELS)
+        expected_labels_to_add = {"feature", "ui", "ux"}
+        added_labels_in_cmd = [called_cmd_list[i+1] for i, x in enumerate(called_cmd_list) if x == "--add-label"]
+        assert set(added_labels_in_cmd) == expected_labels_to_add
+
+        # Verify assignee
+        assignee_to_check = issue_data.get("ASSIGNEE", default_config["default_assignee"])
+        assert "--add-assignee" in called_cmd_list
+        assert assignee_to_check in called_cmd_list
+
+        # AC7 - Verify Milestone flag
+        assert "-m" in called_cmd_list, "'-m' flag for milestone not found in edit command"
+        assert called_cmd_list[called_cmd_list.index("-m") + 1] == test_milestone_title, "Milestone title not correctly passed to edit command"
+
 
     # --- AC6: Test `gh issue create` command construction ---
     @mock.patch('scripts.create_issue.run_command')
@@ -493,7 +504,7 @@ class TestGitHubInteraction:
         mock_check_milestone: MagicMock,
         mock_check_label: MagicMock,
         mock_run_cmd: MagicMock,
-        default_args: argparse.Namespace, 
+        default_args: argparse.Namespace,
         default_config: Dict[str, Any],
         temp_template_dir: Path
     ):
@@ -503,7 +514,7 @@ class TestGitHubInteraction:
         issue_labels = "ac6-label,test,epic"
         issue_assignee = "ac6-user"
         issue_project = "AC6 Project Name"
-        issue_milestone_title = "AC6 Milestone Sprint" 
+        issue_milestone_title = "AC6 Milestone Sprint"
 
         issue_data = {
             "TITLE": issue_title,
@@ -512,20 +523,18 @@ class TestGitHubInteraction:
             "ASSIGNEE": issue_assignee,
             "PROJECT": issue_project,
             "DESCRIPTION": "This is the body for AC6 test.\nWith multiple lines.",
-            "MILESTONE": issue_milestone_title # Adicionado para teste
+            "MILESTONE": issue_milestone_title
         }
         issue_body_prepared = prepare_issue_body(temp_template_dir, issue_type, issue_data)
 
-        cli_args = default_args 
-        cli_args.dry_run = False 
-        # Simula que o milestone foi pré-checado/criado e o título global foi setado
+        cli_args = default_args
+        cli_args.dry_run = False
         cli_args.global_milestone_title_to_use = issue_milestone_title
-        # Garante que check_and_create_milestone retorna o título se chamado (não deveria se global_milestone_title_to_use está setado)
         mock_check_milestone.return_value = issue_milestone_title
 
 
         config = default_config
-        config["repo_target"] = "owner/repo-ac6" 
+        config["repo_target"] = "owner/repo-ac6"
         repo_flags = ["-R", config["repo_target"]]
 
         mock_run_cmd.return_value = (0, "https://github.com/owner/repo-ac6/issues/1", "")
@@ -536,16 +545,16 @@ class TestGitHubInteraction:
         mock_run_cmd.assert_called_once()
         args_called, kwargs_called = mock_run_cmd.call_args
         called_cmd_list = args_called[0]
-        
+
         assert called_cmd_list[0:3] == ["gh", "issue", "create"]
         assert "-t" in called_cmd_list and called_cmd_list[called_cmd_list.index("-t") + 1] == issue_title
         assert "-F" in called_cmd_list and called_cmd_list[called_cmd_list.index("-F") + 1] == "-"
         assert kwargs_called.get("input_data") == issue_body_prepared
-        
+
         expected_labels_set = set(issue_labels.split(',')) | {issue_type}
         if config["default_label"] and not issue_labels and not issue_type : # Adiciona default se nenhum outro for especificado
             expected_labels_set.add(config["default_label"])
-        
+
         actual_labels_str = called_cmd_list[called_cmd_list.index("-l") + 1]
         actual_labels_set = set(actual_labels_str.split(','))
         assert actual_labels_set == expected_labels_set, f"Expected labels {expected_labels_set} but got {actual_labels_set}"
@@ -559,7 +568,7 @@ class TestGitHubInteraction:
 
 
         assert "-m" in called_cmd_list and called_cmd_list[called_cmd_list.index("-m") + 1] == issue_milestone_title
-        
+
         assert "-p" in called_cmd_list and called_cmd_list[called_cmd_list.index("-p") + 1] == issue_project
         mock_find_project_id.assert_called_once_with(issue_project, config["project_owner"], repo_flags)
 
