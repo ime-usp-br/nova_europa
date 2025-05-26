@@ -27,7 +27,7 @@ try:
     BASE_DIR = Path(__file__).resolve().parent.parent
 except NameError:
     # Fallback for interactive testing or different execution context
-    BASE_DIR = Path('.').resolve() # Adjust if needed
+    BASE_DIR = Path(".").resolve()  # Adjust if needed
 
 DEFAULT_INPUT_FILE = BASE_DIR / "planos/plano_dev.txt"
 TEMPLATE_DIR = BASE_DIR / "templates/issue_bodies"
@@ -54,6 +54,7 @@ def command_exists(cmd: str) -> bool:
     """Check if a command exists on the system."""
     # Use shutil.which for a more robust check
     import shutil
+
     return shutil.which(cmd) is not None
 
 
@@ -129,7 +130,7 @@ def load_env_vars(args: argparse.Namespace) -> Dict[str, Any]:
     """Loads config from .env, returning a dict of relevant settings."""
     config = {}
     # Use args.base_dir if available, otherwise use script's BASE_DIR
-    base_dir_to_use = getattr(args, 'base_dir', BASE_DIR)
+    base_dir_to_use = getattr(args, "base_dir", BASE_DIR)
     dotenv_path = base_dir_to_use / ".env"
     if dotenv_path.is_file():
         print(
@@ -138,7 +139,8 @@ def load_env_vars(args: argparse.Namespace) -> Dict[str, Any]:
         load_dotenv(dotenv_path=dotenv_path, verbose=True)
     else:
         print(
-            f"No .env file found at {dotenv_path}, using script defaults and CLI args.", file=sys.stderr
+            f"No .env file found at {dotenv_path}, using script defaults and CLI args.",
+            file=sys.stderr,
         )
     config["repo_target"] = args.repo or os.getenv("GH_REPO_TARGET", REPO_TARGET)
     config["project_owner"] = args.project_owner or os.getenv(
@@ -229,7 +231,10 @@ def check_and_create_label(label_name: str, repo_flags: List[str], color: str) -
     else:
         # Check stderr case-insensitively for "already exists" or similar GH CLI output
         stderr_lower = stderr_create.lower()
-        if "already exists" in stderr_lower or "name has already been taken" in stderr_lower:
+        if (
+            "already exists" in stderr_lower
+            or "name has already been taken" in stderr_lower
+        ):
             print(
                 f"      Label '{label_name}' likely already exists (creation failed, but error indicates existence)."
             )
@@ -277,12 +282,15 @@ def check_and_create_milestone(
             checked_milestones[title] = num
             return title  # Return the title for association
         except ValueError:
-            print(f"    Warning: Found milestone '{title}' but failed to parse number '{milestone_num}'. Assuming found.", file=sys.stderr)
-            checked_milestones[title] = -1 # Mark as found, number unknown
+            print(
+                f"    Warning: Found milestone '{title}' but failed to parse number '{milestone_num}'. Assuming found.",
+                file=sys.stderr,
+            )
+            checked_milestones[title] = -1  # Mark as found, number unknown
             return title
 
     print(f"    Milestone '{title}' not found.")
-    if description is not None: # Allow empty description for creation
+    if description is not None:  # Allow empty description for creation
         print(f"    Attempting to create milestone '{title}'...")
         cmd_create = [
             "gh",
@@ -291,19 +299,24 @@ def check_and_create_milestone(
             "--title",
             title,
             "--description",
-            description, # Pass description even if empty
+            description,  # Pass description even if empty
         ] + repo_flags
         exit_code_create, stdout_create, stderr_create = run_command(
             cmd_create, check=False, capture=True
         )
         if exit_code_create == 0:
             print(f"    Milestone '{title}' created.")
-            checked_milestones[title] = -1  # Mark as created (number not immediately needed)
+            checked_milestones[title] = (
+                -1
+            )  # Mark as created (number not immediately needed)
             return title
         else:
             # Check stderr case-insensitively
             stderr_lower = stderr_create.lower()
-            if "already exists" in stderr_lower or "title has already been taken" in stderr_lower:
+            if (
+                "already exists" in stderr_lower
+                or "title has already been taken" in stderr_lower
+            ):
                 print(
                     f"    Milestone '{title}' likely already exists (creation failed, but error indicates existence). Using title."
                 )
@@ -333,13 +346,19 @@ def find_existing_issue(title: str, repo_flags: List[str]) -> Optional[int]:
         ["gh", "search", "issues", search_query]
         + repo_flags
         + [
-            "--json", "number,title,state,updatedAt",
-             # Sort by updated date descending directly in the search
-             "--order", "desc", "--sort", "updated",
-             # Limit results early
-             "--limit", "1",
-             # Extract just the number if found
-             "--jq", ".[0].number // empty"
+            "--json",
+            "number,title,state,updatedAt",
+            # Sort by updated date descending directly in the search
+            "--order",
+            "desc",
+            "--sort",
+            "updated",
+            # Limit results early
+            "--limit",
+            "1",
+            # Extract just the number if found
+            "--jq",
+            ".[0].number // empty",
         ]
     )
     exit_code, stdout, stderr = run_command(cmd_list, check=False, capture=True)
@@ -347,7 +366,7 @@ def find_existing_issue(title: str, repo_flags: List[str]) -> Optional[int]:
     if exit_code != 0:
         # Handle common search error: Needs login/scopes
         if "authentication required" in stderr.lower():
-             print(
+            print(
                 f"    Error: Failed to search issues. Authentication required. Please run `gh auth login` or check token scopes. Stderr: {stderr.strip()}",
                 file=sys.stderr,
             )
@@ -364,23 +383,39 @@ def find_existing_issue(title: str, repo_flags: List[str]) -> Optional[int]:
             issue_number = int(issue_number_str)
             # Double check title match because search can be fuzzy
             # We only need to check this specific issue now
-            cmd_check = ["gh", "issue", "view", str(issue_number)] + repo_flags + ["--json", "title"]
-            code_check, out_check, err_check = run_command(cmd_check, check=False, capture=True)
+            cmd_check = (
+                ["gh", "issue", "view", str(issue_number)]
+                + repo_flags
+                + ["--json", "title"]
+            )
+            code_check, out_check, err_check = run_command(
+                cmd_check, check=False, capture=True
+            )
             if code_check == 0:
                 try:
                     actual_title = json.loads(out_check).get("title")
                     if actual_title == title:
-                        print(f"    Found existing open issue with exact title match: #{issue_number}")
+                        print(
+                            f"    Found existing open issue with exact title match: #{issue_number}"
+                        )
                         return issue_number
                     else:
-                        print(f"    Found issue #{issue_number} via search, but title ('{actual_title}') doesn't match '{title}' exactly. Treating as not found.")
+                        print(
+                            f"    Found issue #{issue_number} via search, but title ('{actual_title}') doesn't match '{title}' exactly. Treating as not found."
+                        )
                         return None
                 except json.JSONDecodeError:
-                     print(f"    Warning: Could not parse JSON checking title for issue #{issue_number}. Assuming mismatch.", file=sys.stderr)
-                     return None
+                    print(
+                        f"    Warning: Could not parse JSON checking title for issue #{issue_number}. Assuming mismatch.",
+                        file=sys.stderr,
+                    )
+                    return None
             else:
-                print(f"    Warning: Found issue #{issue_number} via search, but failed to verify title. Stderr: {err_check.strip()}", file=sys.stderr)
-                return None # Treat as not found if verification fails
+                print(
+                    f"    Warning: Found issue #{issue_number} via search, but failed to verify title. Stderr: {err_check.strip()}",
+                    file=sys.stderr,
+                )
+                return None  # Treat as not found if verification fails
 
         except ValueError:
             print(
@@ -407,7 +442,7 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
         blocks = re.split(r"\n------\s*\n", content.strip())
 
         # Compile regex for efficiency
-        key_regex = re.compile(r"^\s*([A-Z_]+)\s*:\s*(.*)") # Allow space before colon
+        key_regex = re.compile(r"^\s*([A-Z_]+)\s*:\s*(.*)")  # Allow space before colon
 
         for i, block in enumerate(blocks):
             block_content = block.strip()
@@ -418,15 +453,19 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
             current_key: Optional[str] = None
             first_line_value: Optional[str] = None
             continuation_lines: List[str] = []
-            processed_content_before_first_key = False # Flag to warn only once per block
+            processed_content_before_first_key = (
+                False  # Flag to warn only once per block
+            )
 
             def save_previous_value():
                 """Helper to save the accumulated value for the previous key."""
                 nonlocal current_key, first_line_value, continuation_lines, issue_data
-                if current_key is None: return
+                if current_key is None:
+                    return
 
                 all_lines = []
-                if first_line_value is not None: all_lines.append(first_line_value)
+                if first_line_value is not None:
+                    all_lines.append(first_line_value)
                 all_lines.extend(continuation_lines)
 
                 if not all_lines:
@@ -440,10 +479,13 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
                     processed_lines = []
                     # Regex to find trailing comments starting with " # "
                     # It captures the content before the comment marker in group 1.
-                    comment_regex = re.compile(r"^(.*?)(\s#\s+.*)$") # Non-greedy match before " # "
+                    comment_regex = re.compile(
+                        r"^(.*?)(\s#\s+.*)$"
+                    )  # Non-greedy match before " # "
 
                     for line in all_lines:
-                        if re.match(r"^\s*#", line): continue # Skip full comment lines
+                        if re.match(r"^\s*#", line):
+                            continue  # Skip full comment lines
 
                         match = comment_regex.match(line)
                         if match:
@@ -454,37 +496,46 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
                             processed_line = line.rstrip()
                         processed_lines.append(processed_line)
 
-                    final_value = "\n".join(processed_lines).strip() # Strip block ends
+                    final_value = "\n".join(processed_lines).strip()  # Strip block ends
 
                 issue_data[current_key] = final_value
 
             # --- Start processing lines in block ---
-            lines_in_block = block_content.split('\n')
-            current_key = None # Reset state for new block
+            lines_in_block = block_content.split("\n")
+            current_key = None  # Reset state for new block
             first_line_value = None
             continuation_lines = []
             processed_content_before_first_key = False
 
             for line_num, line in enumerate(lines_in_block):
-                match = key_regex.match(line) # Use compiled regex
+                match = key_regex.match(line)  # Use compiled regex
 
-                if match: # Found a new KEY:
-                    if current_key is not None: # Save previous key's data first
+                if match:  # Found a new KEY:
+                    if current_key is not None:  # Save previous key's data first
                         save_previous_value()
                     # Set state for the newly found key
                     current_key = match.group(1)
                     raw_value = match.group(2)
                     if current_key in ["TITLE", "PARENT_ISSUE"]:
-                        first_line_value = raw_value # Keep raw first line
+                        first_line_value = raw_value  # Keep raw first line
                     else:
-                        first_line_value = raw_value.rstrip() # Strip trailing space for non-raw
-                    continuation_lines = [] # Reset continuation lines
-                    processed_content_before_first_key = False # Reset warning flag
-                elif current_key is not None: # It's a continuation line for the active key
+                        first_line_value = (
+                            raw_value.rstrip()
+                        )  # Strip trailing space for non-raw
+                    continuation_lines = []  # Reset continuation lines
+                    processed_content_before_first_key = False  # Reset warning flag
+                elif (
+                    current_key is not None
+                ):  # It's a continuation line for the active key
                     continuation_lines.append(line)
-                elif line.strip(): # Line has content, but no key active and doesn't start a key
+                elif (
+                    line.strip()
+                ):  # Line has content, but no key active and doesn't start a key
                     if not processed_content_before_first_key:
-                        print(f"  Warning: Ignoring content before the first KEY: in block {i+1}.", file=sys.stderr)
+                        print(
+                            f"  Warning: Ignoring content before the first KEY: in block {i+1}.",
+                            file=sys.stderr,
+                        )
                         processed_content_before_first_key = True
             # --- End processing lines in block ---
 
@@ -496,9 +547,10 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
             title = issue_data.get("TITLE")
             if title:
                 issues.append(issue_data)
-            elif issue_data: # Only warn if block had *some* data but no title
-                 print(
-                    f"  Warning: Skipping block {i+1} - Missing or empty TITLE field.", file=sys.stderr
+            elif issue_data:  # Only warn if block had *some* data but no title
+                print(
+                    f"  Warning: Skipping block {i+1} - Missing or empty TITLE field.",
+                    file=sys.stderr,
                 )
 
     except Exception as e:
@@ -506,6 +558,8 @@ def parse_plan_file(filepath: Path) -> List[Dict[str, Any]]:
         traceback.print_exc()
 
     return issues
+
+
 # --- End of FIXED parse_plan_file function ---
 
 
@@ -535,7 +589,7 @@ def prepare_issue_body(
         generic_body += "\n".join(
             f"- {k}: {v}"
             for k, v in issue_data.items()
-            if k != "TITLE" and v # Only include keys with non-empty values
+            if k != "TITLE" and v  # Only include keys with non-empty values
         )
         return generic_body
 
@@ -567,11 +621,11 @@ def create_github_issue(
     repo_flags: List[str],
 ) -> bool:
     """Creates a new GitHub issue using gh CLI."""
-    global repo_owner # Used for project search fallback
+    global repo_owner  # Used for project search fallback
     print("  Attempting to create new issue...")
     cmd_create = ["gh", "issue", "create"]
     cmd_create.extend(["-t", issue_data["TITLE"]])
-    cmd_create.extend(["-F", "-"]) # Pass body via stdin
+    cmd_create.extend(["-F", "-"])  # Pass body via stdin
 
     # Assignee
     assignee = issue_data.get("ASSIGNEE", config["default_assignee"])
@@ -592,7 +646,7 @@ def create_github_issue(
     final_labels = []
     if labels_to_add:
         print("    Checking/creating labels...")
-        for label in sorted(list(labels_to_add)): # Process consistently
+        for label in sorted(list(labels_to_add)):  # Process consistently
             if check_and_create_label(label, repo_flags, config["default_label_color"]):
                 final_labels.append(label)
             else:
@@ -606,36 +660,51 @@ def create_github_issue(
         print(f"    Applying labels: {', '.join(final_labels)}")
 
     # Milestone (use pre-checked/created title from args)
-    milestone_title = getattr(cli_args, 'global_milestone_title_to_use', None)
+    milestone_title = getattr(cli_args, "global_milestone_title_to_use", None)
     if milestone_title:
         print(f"    Applying milestone: '{milestone_title}'")
         cmd_create.extend(["-m", milestone_title])
-    elif cli_args.milestone_title is not None: # Check if a milestone was mandated but failed pre-check
-         print(f"    Error: Cannot assign mandatory milestone '{cli_args.milestone_title}' during creation (pre-check failed).", file=sys.stderr)
-         return False
+    elif (
+        cli_args.milestone_title is not None
+    ):  # Check if a milestone was mandated but failed pre-check
+        print(
+            f"    Error: Cannot assign mandatory milestone '{cli_args.milestone_title}' during creation (pre-check failed).",
+            file=sys.stderr,
+        )
+        return False
 
     # Project
     project_name_or_num = issue_data.get("PROJECT")
-    project_id_found = None # Store ID if found for logging
+    project_id_found = None  # Store ID if found for logging
     if project_name_or_num:
         # Try primary owner first
         project_id_found = find_project_id(
             project_name_or_num, config["project_owner"], repo_flags
         )
         # If not found and primary owner is different from repo owner, try repo owner
-        if not project_id_found and repo_owner and config["project_owner"] != repo_owner:
-             print(f"    Project not found under '{config['project_owner']}', trying repo owner '{repo_owner}'...")
-             project_id_found = find_project_id(project_name_or_num, repo_owner, repo_flags)
+        if (
+            not project_id_found
+            and repo_owner
+            and config["project_owner"] != repo_owner
+        ):
+            print(
+                f"    Project not found under '{config['project_owner']}', trying repo owner '{repo_owner}'..."
+            )
+            project_id_found = find_project_id(
+                project_name_or_num, repo_owner, repo_flags
+            )
 
         if project_id_found:
-             print(f"    Associating with project '{project_name_or_num}' (ID: {project_id_found}).")
-             # Use project name/number for gh cli, it handles the lookup
-             cmd_create.extend(["-p", project_name_or_num])
+            print(
+                f"    Associating with project '{project_name_or_num}' (ID: {project_id_found})."
+            )
+            # Use project name/number for gh cli, it handles the lookup
+            cmd_create.extend(["-p", project_name_or_num])
         else:
             # Construct appropriate error message
-            owners_searched = [config['project_owner']]
-            if repo_owner and config['project_owner'] != repo_owner:
-                 owners_searched.append(repo_owner)
+            owners_searched = [config["project_owner"]]
+            if repo_owner and config["project_owner"] != repo_owner:
+                owners_searched.append(repo_owner)
             owner_str = "' or '".join(owners_searched)
             print(
                 f"    Error: Project '{project_name_or_num}' not found under owner(s) '{owner_str}'. Cannot create issue.",
@@ -668,11 +737,17 @@ def create_github_issue(
         )
         # Provide specific feedback if possible
         if "Could not resolve to a ProjectV2" in stderr:
-            print("  Hint: Check if the project name/number is correct and accessible.", file=sys.stderr)
+            print(
+                "  Hint: Check if the project name/number is correct and accessible.",
+                file=sys.stderr,
+            )
         elif "Could not resolve to a Milestone" in stderr:
-             print("  Hint: Check if the milestone title is correct.", file=sys.stderr)
+            print("  Hint: Check if the milestone title is correct.", file=sys.stderr)
         elif "Invalid input" in stderr:
-             print("  Hint: Check assignee format (@username) or label characters.", file=sys.stderr)
+            print(
+                "  Hint: Check assignee format (@username) or label characters.",
+                file=sys.stderr,
+            )
         return False
 
 
@@ -694,7 +769,7 @@ def edit_github_issue(
     # Assignee: Use --add-assignee to avoid removing existing ones unintentionally
     assignee = issue_data.get("ASSIGNEE", config["default_assignee"])
     if assignee:
-        cmd_edit.extend(["--add-assignee", assignee]) # Adds if not already assigned
+        cmd_edit.extend(["--add-assignee", assignee])  # Adds if not already assigned
 
     # Labels: Use --add-label for specified labels
     labels_str = issue_data.get("LABELS", "")
@@ -710,7 +785,7 @@ def edit_github_issue(
         print("    Checking/creating labels for edit...")
         for label in sorted(list(labels_to_add)):
             if check_and_create_label(label, repo_flags, config["default_label_color"]):
-                cmd_edit.extend(["--add-label", label]) # Adds if not already present
+                cmd_edit.extend(["--add-label", label])  # Adds if not already present
                 added_labels_count += 1
             else:
                 print(
@@ -721,13 +796,18 @@ def edit_github_issue(
         print(f"    Will attempt to add {added_labels_count} label(s).")
 
     # Milestone (use pre-checked/created title from args)
-    milestone_title = getattr(cli_args, 'global_milestone_title_to_use', None)
+    milestone_title = getattr(cli_args, "global_milestone_title_to_use", None)
     if milestone_title:
         print(f"    Applying milestone: '{milestone_title}'")
-        cmd_edit.extend(["-m", milestone_title]) # Sets the milestone
-    elif cli_args.milestone_title is not None: # Check if a milestone was mandated but failed pre-check
-         print(f"    Error: Cannot assign mandatory milestone '{cli_args.milestone_title}' during edit (pre-check failed).", file=sys.stderr)
-         return False
+        cmd_edit.extend(["-m", milestone_title])  # Sets the milestone
+    elif (
+        cli_args.milestone_title is not None
+    ):  # Check if a milestone was mandated but failed pre-check
+        print(
+            f"    Error: Cannot assign mandatory milestone '{cli_args.milestone_title}' during edit (pre-check failed).",
+            file=sys.stderr,
+        )
+        return False
 
     # Project association is NOT handled by `gh issue edit`.
     # Requires `gh project item-add` which needs the project ID and issue ID (not number).
@@ -762,11 +842,19 @@ def edit_github_issue(
         )
         # Provide hints if possible
         if "Could not resolve to a Milestone" in stderr:
-             print("  Hint: Check if the milestone title exists in the repository.", file=sys.stderr)
+            print(
+                "  Hint: Check if the milestone title exists in the repository.",
+                file=sys.stderr,
+            )
         elif "Could not resolve label" in stderr:
-             print("  Hint: Label check/creation might have failed silently before edit attempt.", file=sys.stderr)
+            print(
+                "  Hint: Label check/creation might have failed silently before edit attempt.",
+                file=sys.stderr,
+            )
         elif "Could not resolve user" in stderr:
-             print("  Hint: Check assignee username format (@username).", file=sys.stderr)
+            print(
+                "  Hint: Check assignee username format (@username).", file=sys.stderr
+            )
         return False
 
 
@@ -776,7 +864,7 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
     global repo_owner
     # Ensure BASE_DIR is set correctly based on args if provided (e.g. from tests)
     global BASE_DIR
-    if hasattr(args, 'base_dir'):
+    if hasattr(args, "base_dir"):
         BASE_DIR = args.base_dir
         print(f"Using Base Directory: {BASE_DIR}")
 
@@ -784,15 +872,17 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
     # Resolve template dir relative to potentially overridden BASE_DIR
     template_dir_path = BASE_DIR / "templates/issue_bodies"
 
-
     if not input_file_path.is_file():
         # Try resolving relative to BASE_DIR if it's not absolute
         if not input_file_path.is_absolute():
-             input_file_path = BASE_DIR / args.input_file # Use original arg if relative
+            input_file_path = BASE_DIR / args.input_file  # Use original arg if relative
         if not input_file_path.is_file():
-             # Use the string representation that was resolved/passed in args for error
-             print(f"Error: Input file '{args.input_file}' not found (checked absolute and relative to {BASE_DIR}).", file=sys.stderr)
-             return 1
+            # Use the string representation that was resolved/passed in args for error
+            print(
+                f"Error: Input file '{args.input_file}' not found (checked absolute and relative to {BASE_DIR}).",
+                file=sys.stderr,
+            )
+            return 1
 
     if not template_dir_path.is_dir():
         print(
@@ -808,7 +898,7 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
         print(f"Targeting repository: {config['repo_target']}")
         try:
             if "/" not in config["repo_target"]:
-                 raise ValueError("Invalid format")
+                raise ValueError("Invalid format")
             repo_owner = config["repo_target"].split("/")[0]
         except Exception:
             print(
@@ -821,7 +911,8 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
         # Use --jq with error handling
         exit_code, stdout, stderr = run_command(
             ["gh", "repo", "view", "--json", "owner", "--jq", ".owner.login"],
-            check=False, capture=True # Capture stderr
+            check=False,
+            capture=True,  # Capture stderr
         )
         if exit_code != 0 or not stdout.strip():
             print(
@@ -836,13 +927,17 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
     args.global_milestone_title_to_use = None
     if args.milestone_title:
         # Pass description only if provided, otherwise pass None
-        milestone_desc = args.milestone_desc if args.milestone_desc is not None else None
+        milestone_desc = (
+            args.milestone_desc if args.milestone_desc is not None else None
+        )
         verified_milestone_title = check_and_create_milestone(
             args.milestone_title, milestone_desc, repo_flags
         )
         if verified_milestone_title:
             args.global_milestone_title_to_use = verified_milestone_title
-            print(f"Successfully verified/created milestone: '{args.global_milestone_title_to_use}'")
+            print(
+                f"Successfully verified/created milestone: '{args.global_milestone_title_to_use}'"
+            )
         else:
             # If milestone was required but failed, abort early.
             print(
@@ -852,12 +947,11 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
             return 1
     # --- End Milestone Pre-check ---
 
-
     # --- Parse Plan File ---
-    parsed_issues = parse_plan_file(input_file_path) # Chama a função corrigida
+    parsed_issues = parse_plan_file(input_file_path)  # Chama a função corrigida
     if not parsed_issues:
         print("No issues found or parsed from the plan file.")
-        return 0 # Not an error if the file was empty or only contained invalid blocks
+        return 0  # Not an error if the file was empty or only contained invalid blocks
     # --- End Parse Plan File ---
 
     total_issues = len(parsed_issues)
@@ -865,13 +959,15 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
     created_count = 0
     edited_count = 0
     error_count = 0
-    skipped_count = 0 # For issues skipped due to missing title etc. before API calls
+    skipped_count = 0  # For issues skipped due to missing title etc. before API calls
 
-    print(f"\nStarting GitHub Issue processing for {total_issues} valid blocks found...")
+    print(
+        f"\nStarting GitHub Issue processing for {total_issues} valid blocks found..."
+    )
     for i, issue_data in enumerate(parsed_issues):
         print("-" * 40)
         title = issue_data.get("TITLE")
-        if not title: # Should have been caught by parser, but double-check
+        if not title:  # Should have been caught by parser, but double-check
             print(f"Skipping block {i+1}: TITLE is missing or empty.", file=sys.stderr)
             skipped_count += 1
             continue
@@ -895,13 +991,15 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
             success = edit_github_issue(
                 existing_issue_num, issue_data, issue_body, args, config, repo_flags
             )
-            if success and not args.dry_run: edited_count += 1
+            if success and not args.dry_run:
+                edited_count += 1
         else:
             action_taken = "Create"
             success = create_github_issue(
                 issue_data, issue_body, args, config, repo_flags
             )
-            if success and not args.dry_run: created_count += 1
+            if success and not args.dry_run:
+                created_count += 1
 
         # Update Counts
         if success:
@@ -913,7 +1011,7 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
 
         # Optional delay between API calls
         if not args.dry_run and total_issues > 1 and i < total_issues - 1:
-            time.sleep(1) # 1 second delay
+            time.sleep(1)  # 1 second delay
 
     # --- Summary ---
     print("-" * 40)
@@ -923,15 +1021,17 @@ def main(args: argparse.Namespace, config: Dict[str, Any]) -> int:
         summary_parts.append(f"Skipped (no title): {skipped_count}")
     summary_parts.append(f"Processed: {processed_count}")
     if not args.dry_run:
-         summary_parts.append(f"Created: {created_count}")
-         summary_parts.append(f"Edited: {edited_count}")
+        summary_parts.append(f"Created: {created_count}")
+        summary_parts.append(f"Edited: {edited_count}")
     summary_parts.append(f"Errors: {error_count}")
     if args.dry_run:
-         summary_parts.append("(Dry Run Mode)")
+        summary_parts.append("(Dry Run Mode)")
 
     print(f"Summary: {', '.join(summary_parts)}.")
     # Return error code if any errors occurred during processing
     return 0 if error_count == 0 else 1
+
+
 # --- End main ---
 
 
@@ -961,7 +1061,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "input_file",
         nargs="?",
-        default=str(DEFAULT_INPUT_FILE.relative_to(BASE_DIR)), # Show relative path in help
+        default=str(
+            DEFAULT_INPUT_FILE.relative_to(BASE_DIR)
+        ),  # Show relative path in help
         help=f"Path to the structured plan file (default: relative path '{DEFAULT_INPUT_FILE.relative_to(BASE_DIR)}'). Can be absolute.",
     )
     parser.add_argument(
@@ -1001,10 +1103,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     # Add hidden args for testing if needed, e.g., base_dir
     parser.add_argument(
-        "--base-dir", help=argparse.SUPPRESS # Hidden arg for tests to override BASE_DIR
+        "--base-dir",
+        help=argparse.SUPPRESS,  # Hidden arg for tests to override BASE_DIR
     )
     parser.add_argument(
-        "--live", action="store_true", help=argparse.SUPPRESS # Keep hidden live flag if used by tests
+        "--live",
+        action="store_true",
+        help=argparse.SUPPRESS,  # Keep hidden live flag if used by tests
     )
 
     # Perform initial parsing
@@ -1019,14 +1124,14 @@ def parse_arguments() -> argparse.Namespace:
     if not input_path.is_absolute():
         resolved_path = (base_dir_context / input_path).resolve()
     else:
-        resolved_path = input_path # Already absolute
+        resolved_path = input_path  # Already absolute
 
-    args.input_file = str(resolved_path) # Store resolved path as string
+    args.input_file = str(resolved_path)  # Store resolved path as string
     print(f"Using resolved input file path: {args.input_file}")
 
     # Set base_dir on args namespace if it wasn't explicitly passed, useful for load_env_vars
     if not args.base_dir:
-         args.base_dir = base_dir_context # Use the same context dir
+        args.base_dir = base_dir_context  # Use the same context dir
 
     return args
 
@@ -1034,7 +1139,7 @@ def parse_arguments() -> argparse.Namespace:
 # --- Ponto de Entrada ---
 if __name__ == "__main__":
     if not command_exists("gh"):
-        suggest_install("gh", "gh") # Suggest package name 'gh' explicitly
+        suggest_install("gh", "gh")  # Suggest package name 'gh' explicitly
         sys.exit(1)
     if not command_exists("jq"):
         # jq is now optional, only used fallback project search and label check
@@ -1042,7 +1147,7 @@ if __name__ == "__main__":
         print(
             "Warning: 'jq' command not found. Some operations like project finding might rely on 'gh' built-in JSON/jq capabilities.",
             file=sys.stderr,
-        ) # Less critical now
+        )  # Less critical now
 
     parsed_args = parse_arguments()
     loaded_config = load_env_vars(parsed_args)  # Load .env and merge with defaults/args
