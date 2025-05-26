@@ -10,12 +10,13 @@ import pytest
 from pathlib import Path
 import sys
 import subprocess
-from unittest.mock import MagicMock
+from unittest.mock import patch, MagicMock
 from unittest import mock # Import mock
 from typing import List, Dict, Any, Tuple, Optional
 import json
 import time
 import argparse # Adicionado para Namespace
+import runpy 
 
 # Add script directory to sys.path to allow importing
 # Assuming tests are run from the project root (e.g., using `python -m pytest`)
@@ -737,6 +738,83 @@ class TestGitHubInteraction:
         assert project_id is not None, f"Failed to find project '{project_to_find}' under '{owner_to_check}' or repo owner. Ensure project exists."
         print(f"[Live Test] Found project ID: {project_id}")
 
+
+    # --- AC11: Error Handling Tests ---
+    @patch('shutil.which') # Mock shutil.which, which is used by command_exists
+    @patch('scripts.create_issue.suggest_install') # Mock suggest_install at module level
+    def test_ac11_gh_cli_not_found(self, mock_suggest_install: MagicMock, mock_shutil_which: MagicMock, capsys, tmp_path: Path, monkeypatch):
+        """AC11: Test script exits if 'gh' CLI is not found, using runpy."""
+        original_sys_argv = list(sys.argv)
+        dummy_plan_file_path = tmp_path / "dummy_plan_for_gh_test.txt"
+        dummy_plan_file_path.write_text("TITLE: Test GH Not Found\nTYPE: chore")
+        script_path_obj = SCRIPT_DIR / "create_issue.py"
+        script_path = str(script_path_obj)
+
+        # Pass --base-dir to the script being run by runpy
+        sys.argv = [script_path, str(dummy_plan_file_path), "--base-dir", str(tmp_path)]
+
+        # Configure shutil.which mock
+        mock_shutil_which.side_effect = lambda cmd: None if cmd == "gh" else "/usr/bin/" + cmd
+
+        # Mock sys.exit directly in the 'sys' module that runpy will use for the script's execution
+        with patch('sys.exit') as mock_global_sys_exit:
+            mock_global_sys_exit.side_effect = SystemExit(1)
+
+            with pytest.raises(SystemExit) as excinfo:
+                # run_name="__main__" is crucial for the if __name__ == "__main__": block to execute
+                runpy.run_path(script_path, run_name="__main__")
+
+        assert excinfo.value.code == 1
+
+        captured = capsys.readouterr()
+        # The error message from suggest_install should be in stderr.
+        assert "AVISO: Comando 'gh' não encontrado." in captured.err
+        # Ensure the "Input file not found" error is NOT present, as the gh check should exit first.
+        assert "Error: Input file" not in captured.err
+        assert "Error: Input file" not in captured.out
+
+        sys.argv = original_sys_argv
+
+
+    @mock.patch('scripts.create_issue.run_command') # Mock at the module level
+    @mock.patch('scripts.create_issue.find_project_id', return_value=None) # Project not found
+    def test_project_not_found(self, mock_find_project: MagicMock, mock_run_cmd: MagicMock, default_args: argparse.Namespace, default_config: Dict[str, Any], temp_plan_file: Path, temp_template_dir: Path, capsys):
+        """AC11: Test script handles project not found error during issue creation."""
+        plan_content = "TITLE: Test No Project\nTYPE: feature\nPROJECT: NonExistentProject"
+        _create_dummy_plan_file(temp_plan_file, plan_content)
+        default_args.input_file = str(temp_plan_file) # Ensure main uses the temp file
+
+        # Simulate repo owner determination
+        mock_run_cmd.side_effect = lambda cmd_list, **kwargs: (0, "test_owner", "") if "repo" in cmd_list and "view" in cmd_list else (0, "", "")
+
+        exit_code = main(default_args, default_config)
+        assert exit_code == 1 # Expect error exit
+
+        captured = capsys.readouterr()
+        assert "Project not found" in captured.out
+        mock_find_project.assert_called() # Ensure find_project_id was called
+
+
+    @mock.patch('scripts.create_issue.run_command')
+    @mock.patch('scripts.create_issue.check_and_create_milestone', return_value=None) # Milestone creation fails
+    def test_milestone_creation_failure(self, mock_check_milestone: MagicMock, mock_run_cmd: MagicMock, default_args: argparse.Namespace, default_config: Dict[str, Any], temp_plan_file: Path, capsys):
+        """AC11: Test script aborts if a CLI-specified milestone cannot be verified/created."""
+        _create_dummy_plan_file(temp_plan_file, "TITLE: Test Milestone Fail") # Simple plan
+        default_args.input_file = str(temp_plan_file)
+        default_args.milestone_title = "MandatoryMilestone"
+        default_args.milestone_desc = "Must exist or be created"
+
+        # Simulate repo owner determination
+        mock_run_cmd.side_effect = lambda cmd_list, **kwargs: (0, "test_owner", "") if "repo" in cmd_list and "view" in cmd_list else (0, "", "")
+
+        exit_code = main(default_args, default_config) # Call main directly
+        assert exit_code == 1 # Expect script to abort
+
+        captured = capsys.readouterr()
+        assert "Error: Failed to find or create the mandatory milestone 'MandatoryMilestone'. Aborting." in captured.err
+        mock_check_milestone.assert_called_once_with("MandatoryMilestone", "Must exist or be created", mock.ANY)
+        # Ensure no issues were processed if milestone was mandatory
+        assert "GitHub Issue processing finished." not in captured.out  # Or check error_count if it gets there
 
 # --- Placeholder for Future Tests ---
 # Add tests for AC5, AC6, AC7, AC8, AC9, AC10, AC11, AC12 as development progresses.
