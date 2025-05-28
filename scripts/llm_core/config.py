@@ -29,10 +29,6 @@ GEMINI_MODEL_RESOLVE = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_SUMMARY = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
 
-# Known model input token limits (approximate, check official docs for exact values)
-# https://ai.google.dev/gemini-api/docs/models/gemini
-# gemini-1.5-flash has 1M input tokens context window
-# gemini-1.5-pro has 1M input tokens context window (can be 2M on request)
 MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
     "gemini-2.5-flash-preview-05-20": 250000,
     "gemini-2.5-pro-preview-05-06": 250000,
@@ -45,6 +41,7 @@ MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
 }
 DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192 # Default estimate for model output tokens
 DEFAULT_TOKEN_SAFETY_BUFFER = 2048   # Buffer to avoid hitting hard limits
+
 
 # Delimiters and Constants
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
