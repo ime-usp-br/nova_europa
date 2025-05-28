@@ -8,7 +8,7 @@ import json
 import argparse
 import dataclasses # Adicionado para FileProcessUnit
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Set, Tuple
+from typing import List, Optional, Dict, Any, Set, Tuple, Union # Adicionado Union
 
 from google.genai import types
 
@@ -296,55 +296,85 @@ def get_essential_files_for_task(
 
 
 def load_essential_files_content(
-    essential_file_paths_abs: List[Path], 
-    max_tokens_for_essentials: int,
+    essential_file_paths_abs: List[Path],
+    max_tokens_for_essentials_payload: int,
     verbose: bool = False
-) -> Tuple[str, List[Path]]: 
+) -> Tuple[str, List[Path]]:
     """
     Carrega o conteúdo integral dos arquivos essenciais (caminhos absolutos),
-    respeitando um limite de tokens estimado.
+    aplicando truncamento se necessário para respeitar um limite de tokens estimado.
     Retorna o conteúdo concatenado e formatado, e a lista de caminhos relativos dos arquivos carregados.
     """
     concatenated_content_parts: List[str] = []
     current_tokens_estimate = 0
-    loaded_files_relative_paths: List[Path] = [] 
+    loaded_files_relative_paths: List[Path] = []
 
     if verbose and essential_file_paths_abs:
-        print(f"  Carregando conteúdo de {len(essential_file_paths_abs)} arquivo(s) essencial(is) (limite est.: {max_tokens_for_essentials} tokens):")
+        print(f"  Carregando conteúdo de {len(essential_file_paths_abs)} arquivo(s) essencial(is) (limite est. payload: {max_tokens_for_essentials_payload} tokens):")
 
     for file_path_abs in essential_file_paths_abs:
+        if current_tokens_estimate >= max_tokens_for_essentials_payload:
+            if verbose:
+                print(f"    Limite de tokens para payload essencial ({max_tokens_for_essentials_payload}) atingido. Pulando arquivos restantes.")
+            break
+
         try:
-            
             relative_path = file_path_abs.relative_to(core_config.PROJECT_ROOT)
             relative_path_str = relative_path.as_posix()
             
             content = file_path_abs.read_text(encoding="utf-8", errors="ignore")
+            estimated_tokens_current_file = max(1, len(content) // 4) if content else 0
             
-            estimated_tokens = max(1, len(content) // 4) if content else 0
+            content_to_add = content
+            tokens_to_add = estimated_tokens_current_file
+            was_truncated = False
 
-            if current_tokens_estimate + estimated_tokens > max_tokens_for_essentials and concatenated_content_parts:
-                if verbose:
-                    print(f"    Aviso: Limite de tokens para conteúdo essencial ({max_tokens_for_essentials}) atingido. '{relative_path_str}' ({estimated_tokens} tokens est.) não será totalmente incluído ou será pulado.")
+            if current_tokens_estimate + estimated_tokens_current_file > max_tokens_for_essentials_payload:
+                remaining_token_budget = max_tokens_for_essentials_payload - current_tokens_estimate
+                if remaining_token_budget < 50: 
+                    if verbose:
+                        print(f"    AVISO (AC3.4): Arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) pulado. Orçamento restante ({remaining_token_budget} tokens) muito pequeno para conteúdo útil.")
+                    continue 
                 
-                break 
-            
-            formatted_block = (
-                f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{relative_path_str} ---\n"
-                f"{content}\n"
-                f"{core_config.ESSENTIAL_CONTENT_DELIMITER_END}{relative_path_str} ---\n\n"
-            )
-            concatenated_content_parts.append(formatted_block)
-            current_tokens_estimate += estimated_tokens
-            loaded_files_relative_paths.append(relative_path) 
-            if verbose:
-                print(f"    + Conteúdo essencial de '{relative_path_str}' pré-injetado ({estimated_tokens} tokens est.).")
+                if verbose:
+                     print(f"    AVISO (AC3.4): Conteúdo do arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) foi truncado para caber no orçamento de {remaining_token_budget} tokens.")
+                
+                content_to_add, tokens_to_add = _truncate_content(content, remaining_token_budget, verbose)
+                was_truncated = True
+                
+                if tokens_to_add == 0 and content_to_add: 
+                    tokens_to_add = 1 
+
+            if tokens_to_add > 0 or not content_to_add: 
+                formatted_block = (
+                    f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{relative_path_str} ---\n"
+                    f"{content_to_add}\n" 
+                    f"{core_config.ESSENTIAL_CONTENT_DELIMITER_END}{relative_path_str} ---\n\n"
+                )
+                concatenated_content_parts.append(formatted_block)
+                current_tokens_estimate += tokens_to_add
+                loaded_files_relative_paths.append(relative_path)
+                
+                log_action = "pré-injetado"
+                if was_truncated:
+                    log_action = "TRUNCADO e pré-injetado"
+                
+                if verbose:
+                    print(f"    + Conteúdo essencial de '{relative_path_str}' {log_action} ({tokens_to_add} tokens est.). Total acumulado: {current_tokens_estimate}")
+
+                # Removido o break que estava aqui após was_truncated = True
+                # A lógica de `if current_tokens_estimate >= max_tokens_for_essentials_payload:` no início do loop
+                # já cuidará de parar se o limite for atingido após este arquivo truncado.
+            elif verbose:
+                 print(f"    AVISO (AC3.4): Arquivo essencial '{relative_path_str}' resultou em 0 tokens após tentativa de truncamento e não foi adicionado.")
+
 
         except ValueError: 
              if verbose:
                 print(f"    Aviso: Arquivo essencial '{file_path_abs}' não parece estar dentro do PROJECT_ROOT. Pulando.", file=sys.stderr)
         except Exception as e:
             if verbose:
-                print(f"  Aviso: Não foi possível ler o arquivo essencial '{file_path_abs.name}': {e}", file=sys.stderr)
+                print(f"  Aviso: Não foi possível ler ou processar o arquivo essencial '{file_path_abs.name}': {e}", file=sys.stderr)
     
     return "".join(concatenated_content_parts), loaded_files_relative_paths
 
@@ -548,18 +578,17 @@ def prepare_context_parts(
         
         
         if current_total_tokens > max_input_tokens_for_call:
-            # Prioritize non-essential files for truncation first
+            
             units_to_truncate_non_essential = sorted(
                 [unit for unit in processed_units if not unit.is_essential_from_map and not unit.is_reduced_to_summary],
-                key=lambda u: u.token_count, reverse=True # Truncate largest first
+                key=lambda u: u.token_count, reverse=True 
             )
             for unit in units_to_truncate_non_essential:
                 if current_total_tokens <= max_input_tokens_for_call: break
                 
                 needed_reduction_overall = current_total_tokens - max_input_tokens_for_call
-                # How much can this specific file be reduced?
-                # Don't reduce more than what's needed overall, and don't reduce below a minimum token count (e.g., 50)
-                max_reduction_for_this_file = max(0, unit.token_count - 50) # Can reduce by at most this much
+                
+                max_reduction_for_this_file = max(0, unit.token_count - 50) 
                 reduction_to_apply = min(needed_reduction_overall, max_reduction_for_this_file)
 
                 if reduction_to_apply > 0:
@@ -573,15 +602,15 @@ def prepare_context_parts(
         
         
         if current_total_tokens > max_input_tokens_for_call:
-            # If still over limit, truncate essential files as a last resort
+            
             units_to_truncate_essential = sorted(
-                [unit for unit in processed_units if unit.is_essential_from_map and not unit.is_reduced_to_summary], # Should not be a summary
+                [unit for unit in processed_units if unit.is_essential_from_map and not unit.is_reduced_to_summary], 
                 key=lambda u: u.token_count, reverse=True
             )
             for unit in units_to_truncate_essential:
                 if current_total_tokens <= max_input_tokens_for_call: break
                 needed_reduction_overall = current_total_tokens - max_input_tokens_for_call
-                max_reduction_for_this_file = max(0, unit.token_count - 100) # Keep at least 100 for essentials
+                max_reduction_for_this_file = max(0, unit.token_count - 100) 
                 reduction_to_apply = min(needed_reduction_overall, max_reduction_for_this_file)
 
                 if reduction_to_apply > 0:
@@ -590,7 +619,8 @@ def prepare_context_parts(
                     unit.content, unit.token_count = _truncate_content(unit.original_content, target_token_for_this_file, verbose)
                     current_total_tokens -= (original_tokens_before_trunc - unit.token_count)
                     unit.is_truncated = True
-                    if verbose: print(f"    AC2.2.2 (SUPER ESSENCIAL): Truncando '{unit.relative_path}' de {original_tokens_before_trunc} para {unit.token_count} tokens. (AC3.4 LOG)")
+                    if verbose: print(f"    AVISO (AC3.4): Conteúdo do arquivo essencial '{unit.relative_path}' ({original_tokens_before_trunc} tokens est.) foi truncado para {unit.token_count} tokens para caber no limite da chamada principal.")
+
 
     
     for unit in processed_units:

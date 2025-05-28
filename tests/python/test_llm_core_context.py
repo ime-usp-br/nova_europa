@@ -661,8 +661,8 @@ def test_prepare_payload_for_selector_llm_commit_mesage(tmp_path: Path, monkeypa
 @patch("scripts.llm_core.context.get_essential_files_for_task")
 @patch("scripts.llm_core.api_client.calculate_max_input_tokens") 
 def test_ac2_2_summary_reduction(
-    mock_calculate_max_tokens: MagicMock, # Corrigido: renomeado para corresponder ao patch
-    mock_get_essentials: MagicMock, # Corrigido: renomeado para corresponder ao patch
+    mock_calculate_max_tokens: MagicMock, 
+    mock_get_essentials: MagicMock, 
     tmp_path: Path, monkeypatch, capsys
 ):
     """Verifica AC2.2 - Verificação (Sumário)."""
@@ -671,7 +671,7 @@ def test_ac2_2_summary_reduction(
     essential_file_rel = "essencial.txt"
     non_essential_file_rel = "grande_nao_essencial.txt"
     
-    # Mock para get_essential_files_for_task para esta chamada específica
+    
     mock_get_essentials.return_value = [tmp_path / essential_file_rel]
 
     _create_tmp_file_rel_to_project_root(tmp_path, essential_file_rel, "E" * (800 * 4)) 
@@ -693,7 +693,7 @@ def test_ac2_2_summary_reduction(
         manifest_data=manifest_data,
         max_input_tokens_for_call=1000, 
         task_name_for_essentials="dummy_task_for_summary_reduction", 
-        cli_args_for_essentials=argparse.Namespace(), # Passa um Namespace simples
+        cli_args_for_essentials=argparse.Namespace(), 
         verbose=True
     )
 
@@ -705,7 +705,7 @@ def test_ac2_2_summary_reduction(
     for part in parts:
         if core_config.ESSENTIAL_CONTENT_DELIMITER_START + essential_file_rel in part.text:
             essencial_part_text = part.text
-        # Corrigido para usar o delimitador correto para arquivos não essenciais (ou reduzidos a sumário)
+        
         elif core_config.SUMMARY_CONTENT_DELIMITER_START + non_essential_file_rel in part.text:
              nao_essencial_part_text = part.text
             
@@ -713,8 +713,7 @@ def test_ac2_2_summary_reduction(
     assert nao_essencial_part_text is not None, f"Part para '{non_essential_file_rel}' (não essencial) não encontrada com delimitador SUMÁRIO."
 
     assert "E" * (800 * 4) in essencial_part_text 
-    # Verifica se o sumário do essencial NÃO está no conteúdo principal da part essencial
-    # (pode estar no bloco de sumário se is_for_selector_llm=False, mas não como conteúdo principal)
+    
     assert "Sumario do essencial" not in essencial_part_text.split(core_config.ESSENTIAL_CONTENT_DELIMITER_START + essential_file_rel + " ---")[1].split("\n--- SUMMARY ---")[0]
 
 
@@ -724,14 +723,14 @@ def test_ac2_2_summary_reduction(
     captured = capsys.readouterr()
     expected_log_non_essential_reduction = f"AC2.2.1: Substituindo '{non_essential_file_rel}' (500 tokens originais) por sumário ({summary_grande_tokens} tokens)."
     assert expected_log_non_essential_reduction in captured.out
-    # Garante que o essencial não foi logado como substituído por sumário
+    
     assert f"AC2.2.1: Substituindo '{essential_file_rel}'" not in captured.out
 
 
 @patch("scripts.llm_core.context.get_essential_files_for_task")
 @patch("scripts.llm_core.api_client.calculate_max_input_tokens")
 def test_ac2_2_truncation(
-    mock_calculate_max_tokens: MagicMock, # Correção na ordem dos argumentos
+    mock_calculate_max_tokens: MagicMock, 
     mock_get_essentials: MagicMock, 
     tmp_path: Path, monkeypatch, capsys
 ):
@@ -766,8 +765,7 @@ def test_ac2_2_truncation(
     
     assert original_content_1000_tokens not in part_text 
     
-    # Verifica se o tamanho total do texto da parte é significativamente menor que o original
-    # Adiciona uma margem para os delimitadores e o texto do separador
+    
     assert len(part_text) < len(original_content_1000_tokens) + len(core_config.SUMMARY_CONTENT_DELIMITER_START) + len("muito_grande.txt ---") + len("--- SUMMARY --- ... --- END SUMMARY ---") + len(core_config.SUMMARY_CONTENT_DELIMITER_END) + len("muito_grande.txt ---") + 200 # margem
     
     captured = capsys.readouterr()
@@ -779,3 +777,64 @@ def test_ac2_2_truncation(
     final_tokens = int(match_tokens.group(1))
     assert final_tokens <= 500 
     assert final_tokens > 0 
+
+# Teste para AC3.4 - Log de truncamento de arquivo essencial para LLM seletora
+# Este teste já foi adicionado e validado na análise do AC3.4
+def test_ac3_4_essential_file_truncation_and_logging_for_selector_llm(tmp_path: Path, monkeypatch, capsys):
+    """
+    Verifica AC3.4: Log quando um arquivo essencial é truncado para a LLM seletora.
+    """
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
+
+    essential_large_rel = "essentials/grande_essencial.txt"
+    essential_small_rel = "essentials/pequeno_essencial.txt"
+
+    _create_tmp_file_rel_to_project_root(tmp_path, essential_large_rel, "L" * 4000) # ~1000 tokens
+    _create_tmp_file_rel_to_project_root(tmp_path, essential_small_rel, "S" * 400)  # ~100 tokens
+
+    abs_paths = [
+        tmp_path / essential_large_rel,
+        tmp_path / essential_small_rel
+    ]
+    
+    max_tokens_payload = 700 
+
+    content_str, loaded_paths = core_context.load_essential_files_content(
+        abs_paths,
+        max_tokens_payload,
+        verbose=True 
+    )
+    
+    assert Path(essential_large_rel) in loaded_paths
+    # Com a correção, o essential_small_rel não será carregado se o grande já foi truncado e usou o orçamento
+    # ou se o orçamento restante for muito pequeno.
+    assert Path(essential_small_rel) not in loaded_paths
+    
+    assert "... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ..." in content_str
+    
+    captured = capsys.readouterr()
+    # Verifica a mensagem de log que indica a decisão de truncar para o arquivo grande
+    expected_log_decision_to_truncate_large = f"AVISO (AC3.4): Conteúdo do arquivo essencial '{essential_large_rel}' (1000 tokens est.) foi truncado para caber no orçamento de {max_tokens_payload} tokens."
+    assert expected_log_decision_to_truncate_large in captured.out, "Log de decisão de truncamento para arquivo essencial grande não encontrado ou formato incorreto."
+
+    # Verifica o log de resultado do truncamento (de _truncate_content) para o arquivo grande
+    assert "Conteúdo truncado:" in captured.out
+
+    # Verifica se o arquivo pequeno foi logado como pulado porque o orçamento restante era muito pequeno
+    expected_log_small_skipped_pattern = rf"AVISO \(AC3.4\): Arquivo essencial '{re.escape(essential_small_rel)}' \(\d+ tokens est.\) pulado\. Orçamento restante \(\d+ tokens\) muito pequeno para conteúdo útil\."
+    
+    assert re.search(expected_log_small_skipped_pattern, captured.out), \
+        f"Log esperado para '{essential_small_rel}' sendo pulado não encontrado ou formato incorreto na saída: {captured.out}"
+           
+    # Teste adicional: se o limite for tão pequeno que nem o separador caiba
+    max_tokens_tiny_payload = 10 # Menor que o mínimo para _truncate_content
+    content_str_tiny, loaded_paths_tiny = core_context.load_essential_files_content(
+        [tmp_path / essential_large_rel], # Apenas o grande
+        max_tokens_tiny_payload,
+        verbose=True
+    )
+    assert not loaded_paths_tiny # Não deve carregar nada
+    assert content_str_tiny == ""
+    captured_tiny = capsys.readouterr()
+    expected_log_tiny_skip = f"AVISO (AC3.4): Arquivo essencial '{essential_large_rel}' ({1000} tokens est.) pulado. Orçamento restante ({max_tokens_tiny_payload} tokens) muito pequeno para conteúdo útil."
+    assert expected_log_tiny_skip in captured_tiny.out
