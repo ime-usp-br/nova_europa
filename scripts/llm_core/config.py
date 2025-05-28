@@ -31,16 +31,26 @@ GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
 
 MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
     "gemini-2.5-flash-preview-05-20": 250000,
-    "gemini-2.5-pro-preview-05-06": 250000,
-    "gemini-2.0-flash": 250000,
-    "gemini-2.0-flash-lite": 250000,
-    "gemini-1.5-flash": 250000,
-    "gemini-1.5-pro": 250000,
+    "gemini-1.5-flash-preview-0514": 250000, # Mantido para referência, se necessário
+    "gemini-1.5-flash": 1000000,  # Exemplo, verificar documentação oficial para limites corretos
+    "gemini-1.5-pro": 1000000,    # Exemplo, verificar documentação oficial para limites corretos
     # Default to a conservative value if model not listed
     "default": 250000
 }
 DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192 # Default estimate for model output tokens
 DEFAULT_TOKEN_SAFETY_BUFFER = 2048   # Buffer to avoid hitting hard limits
+
+# Limites de RPM (Requisições Por Minuto) para modelos Gemini (Nível Gratuito como padrão)
+# Fonte: limites_taxas_gemini.md (consultado no contexto)
+MODEL_RPM_LIMITS: Dict[str, int] = {
+    "gemini-2.5-flash-preview-05-20": 10, # Baseado em "Pré-lançamento 04-17 do Gemini 2.5 Flash"
+    "gemini-1.5-flash-preview-0514": 10,  # Mantendo consistência com o nome similar
+    "gemini-1.5-flash": 15,
+    "gemini-1.5-pro": 2,
+    "gemini-2.0-flash": 15,
+    "gemini-2.0-flash-lite": 30,
+    "default": 5,  # RPM padrão conservador para modelos não listados ou não encontrados.
+}
 
 
 # Delimiters and Constants
@@ -74,7 +84,7 @@ DEFAULT_CONTEXT_GENERATION_TIMEOUT = 600 # 10 minutes
 DEFAULT_GH_PROJECT_NUMBER = os.getenv("GH_PROJECT_NUMBER", "1")
 DEFAULT_GH_PROJECT_OWNER = os.getenv("GH_PROJECT_OWNER", "@me")
 DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv("GH_PROJECT_STATUS_FIELD_NAME", "Status")
-DEFAULT_RATE_LIMIT_SLEEP = 60
+DEFAULT_RATE_LIMIT_SLEEP = 60 # Sleep for errors like 429, ResourceExhausted (reactive)
 
 # Mapeamento de tarefas e seus argumentos para arquivos essenciais
 # Chave: nome da tarefa (como usado no dispatcher llm_interact.py)

@@ -25,6 +25,7 @@ genai_client: Optional[genai.Client] = None
 api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 api_key_loaded_successfully: bool = False
 gemini_initialized_successfully: bool = False
+last_call_timestamps: Dict[str, float] = {} # AC2.3: Para rastrear timestamps por modelo
 
 
 def load_api_keys(verbose: bool = False) -> bool:
@@ -258,7 +259,7 @@ def execute_gemini_call(
     Executes a call to the Gemini API with provided model, contents, and config.
     Handles rate limiting with key rotation and timeouts.
     """
-    global genai_client, api_executor
+    global genai_client, api_executor, last_call_timestamps
 
     if not gemini_initialized_successfully or not genai_client:
         if not startup_api_resources(verbose):
@@ -274,6 +275,27 @@ def execute_gemini_call(
     keys_tried_in_this_call = {initial_key_index}
 
     while True:
+        # --- Rate Limiting (AC 2.3) ---
+        # Só aplica se o modelo estiver configurado para RPM e tiver um RPM > 0
+        model_rpm = core_config.MODEL_RPM_LIMITS.get(model_name, core_config.MODEL_RPM_LIMITS.get("default"))
+        if model_rpm and model_rpm > 0:
+            min_interval = 60.0 / model_rpm
+            time_now = time.monotonic()
+            last_call = last_call_timestamps.get(model_name)
+
+            if last_call is not None:
+                elapsed = time_now - last_call
+                if elapsed < min_interval:
+                    wait_time = min_interval - elapsed
+                    if verbose:
+                        print(
+                            f"  Rate Limiter (RPM): Esperando {wait_time:.3f}s para '{model_name}'. "
+                            f"Intervalo min: {min_interval:.3f}s, decorrido: {elapsed:.3f}s."
+                        )
+                    time.sleep(wait_time)
+            # Atualiza o timestamp ANTES da tentativa de chamada
+            last_call_timestamps[model_name] = time.monotonic()
+        # --- Fim Rate Limiting ---
 
         def _api_call_task() -> types.GenerateContentResponse:
             if not genai_client:
