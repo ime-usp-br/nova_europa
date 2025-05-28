@@ -11,7 +11,6 @@ from scripts.llm_core import config as core_config_module
 import traceback
 import concurrent.futures  # Adicionado para o teste de TimeoutError
 
-
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
 def reset_module_globals_for_each_test(monkeypatch):
@@ -823,6 +822,54 @@ def test_execute_gemini_call_handles_concurrent_futures_timeout(
     # não deve acionar a lógica de rotação de chave por ResourceExhausted/ServerError.
     assert api_client.current_api_key_index == 0  # Assumindo que começou em 0
     mock_time_sleep.assert_not_called()  # O sleep é para rotação de chave, não para este tipo de timeout
+
+
+def test_calculate_max_input_tokens_default_values():
+    """Testa o cálculo com valores padrão de config."""
+    model_name = "gemini-1.5-flash-preview-0520" # Modelo conhecido
+    core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 100000
+    core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 5000
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 1000
+
+    expected = 100000 - 5000 - 1000
+    assert api_client.calculate_max_input_tokens(model_name) == expected
+
+def test_calculate_max_input_tokens_with_overrides():
+    """Testa o cálculo com overrides para estimativa de saída e buffer."""
+    model_name = "gemini-1.5-pro-preview-0520" # Modelo conhecido
+    core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 200000
+    
+    expected = 200000 - 10000 - 2000 # 10k saida, 2k buffer
+    assert api_client.calculate_max_input_tokens(
+        model_name, estimated_output_tokens=10000, safety_buffer=2000
+    ) == expected
+
+def test_calculate_max_input_tokens_unknown_model():
+    """Testa o cálculo para um modelo não listado, usando o default do config."""
+    model_name = "unknown-model-for-test"
+    # Não está em MODEL_INPUT_TOKEN_LIMITS, então deve usar o "default"
+    # Supondo que "default" seja 30000
+    core_config_module.MODEL_INPUT_TOKEN_LIMITS["default"] = 30000
+    core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 2000
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 1000
+    expected = 30000 - 2000 - 1000
+    assert api_client.calculate_max_input_tokens(model_name) == expected
+
+def test_calculate_max_input_tokens_prevents_non_positive():
+    """Testa se o cálculo retorna um mínimo positivo se o resultado for <= 0."""
+    model_name = "small-model"
+    core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 1000
+    core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 800
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 300 # 1000 - 800 - 300 = -100
+
+    # Espera-se que retorne o mínimo (100, conforme definido na função)
+    assert api_client.calculate_max_input_tokens(model_name) == 100
+
+    # Teste com estimativa e buffer exatamente iguais ao limite
+    core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 1000
+    core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 800
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 200 # 1000 - 800 - 200 = 0
+    assert api_client.calculate_max_input_tokens(model_name) == 100
 
 
 def teardown_module(module):

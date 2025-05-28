@@ -189,6 +189,63 @@ GenerateContentConfigType = Union[
 ]
 
 
+def calculate_max_input_tokens(
+    model_name: str,
+    estimated_output_tokens: Optional[int] = None,
+    safety_buffer: Optional[int] = None,
+    verbose: bool = False
+) -> int:
+    """
+    Calcula o número máximo de tokens de entrada permitidos para uma chamada à API Gemini.
+
+    Args:
+        model_name: O nome do modelo Gemini a ser usado (ex: "gemini-1.5-flash-preview-0520").
+        estimated_output_tokens: Uma estimativa de quantos tokens a resposta da API irá gerar.
+                                 Se None, usa core_config.DEFAULT_OUTPUT_TOKEN_ESTIMATE.
+        safety_buffer: Um buffer de segurança para subtrair do limite total.
+                       Se None, usa core_config.DEFAULT_TOKEN_SAFETY_BUFFER.
+        verbose: Se True, imprime informações detalhadas sobre o cálculo.
+
+    Returns:
+        O número máximo de tokens de entrada calculados. Retorna um valor mínimo (ex: 100)
+        se o cálculo resultar em um valor não positivo.
+    """
+    model_total_limit = core_config.MODEL_INPUT_TOKEN_LIMITS.get(
+        model_name, core_config.MODEL_INPUT_TOKEN_LIMITS.get("default", 30000)
+    )
+
+    output_estimate = (
+        estimated_output_tokens
+        if estimated_output_tokens is not None
+        else core_config.DEFAULT_OUTPUT_TOKEN_ESTIMATE
+    )
+    buffer = (
+        safety_buffer
+        if safety_buffer is not None
+        else core_config.DEFAULT_TOKEN_SAFETY_BUFFER
+    )
+
+    max_input = model_total_limit - output_estimate - buffer
+
+    if verbose:
+        print(f"  Cálculo MAX_INPUT_TOKENS_PER_CALL para modelo '{model_name}':")
+        print(f"    Limite total do modelo: {model_total_limit}")
+        print(f"    Estimativa de saída: -{output_estimate}")
+        print(f"    Buffer de segurança: -{buffer}")
+        print(f"    ------------------------------------")
+        print(f"    MAX_INPUT_TOKENS_PER_CALL calculado: {max_input}")
+
+    # Garante que o valor retornado seja pelo menos um mínimo razoável (ex: 100)
+    # para evitar problemas se o buffer/estimativa de saída forem muito grandes.
+    # Um valor mínimo também previne zero ou negativo se o limite do modelo for muito pequeno.
+    calculated_max_input = max(100, max_input)
+
+    if verbose and calculated_max_input != max_input:
+        print(f"    MAX_INPUT_TOKENS_PER_CALL ajustado para mínimo: {calculated_max_input}")
+
+    return calculated_max_input
+
+
 def execute_gemini_call(
     model_name: str,
     contents: List[types.Part],

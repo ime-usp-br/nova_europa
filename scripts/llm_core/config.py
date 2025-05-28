@@ -23,11 +23,28 @@ MANIFEST_DATA_DIR = PROJECT_ROOT / "scripts" / "data"
 TIMESTAMP_DIR_REGEX = r"^\d{8}_\d{6}$"
 TIMESTAMP_MANIFEST_REGEX = r"^\d{8}_\d{6}_manifest\.json$"
 
-# Gemini API Model Names
+# Gemini API Model Names & Limits
 GEMINI_MODEL_GENERAL_TASKS = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_RESOLVE = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_SUMMARY = "gemini-2.5-flash-preview-05-20"
 GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
+
+# Known model input token limits (approximate, check official docs for exact values)
+# https://ai.google.dev/gemini-api/docs/models/gemini
+# gemini-1.5-flash has 1M input tokens context window
+# gemini-1.5-pro has 1M input tokens context window (can be 2M on request)
+MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
+    "gemini-2.5-flash-preview-05-20": 250000,
+    "gemini-2.5-pro-preview-05-06": 250000,
+    "gemini-2.0-flash": 250000,
+    "gemini-2.0-flash-lite": 250000,
+    "gemini-1.5-flash": 250000,
+    "gemini-1.5-pro": 250000,
+    # Default to a conservative value if model not listed
+    "default": 250000
+}
+DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192 # Default estimate for model output tokens
+DEFAULT_TOKEN_SAFETY_BUFFER = 2048   # Buffer to avoid hitting hard limits
 
 # Delimiters and Constants
 WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, sinta-se à vontade para pesquisar na internet usando a ferramenta de busca disponível."
@@ -41,8 +58,8 @@ ESSENTIAL_CONTENT_DELIMITER_END = "--- END OF ESSENTIAL FILE "
 
 
 # Numeric Constants
-SUMMARY_TOKEN_LIMIT_PER_CALL = 200000  # Example limit
-ESTIMATED_TOKENS_PER_SUMMARY = 200  # Rough estimate
+SUMMARY_TOKEN_LIMIT_PER_CALL = 200000  # Example limit for batching summaries
+ESTIMATED_TOKENS_PER_SUMMARY = 200  # Rough estimate for a single summary
 SLEEP_DURATION_SECONDS = 1  # Default sleep duration for rate limiting
 DEFAULT_API_TIMEOUT_SECONDS = 300 # Default timeout for Gemini API calls
 MANIFEST_MAX_TOKEN_FILTER = 200000
