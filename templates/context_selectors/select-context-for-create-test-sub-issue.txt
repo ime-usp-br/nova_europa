@@ -1,40 +1,47 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
+Com base na descrição da tarefa principal, no conteúdo essencial pré-injetado e no manifesto JSON dos demais arquivos fornecido, selecione os arquivos **ADICIONAIS MAIS RELEVANTES** do manifesto JSON que, *juntamente com o conteúdo essencial já fornecido*, fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Gerar o texto completo (formato `KEY: VALUE`) para um arquivo de plano `.txt`, definindo uma sub-issue do GitHub focada em testes (Unitários, Feature, Dusk) e CI para a funcionalidade da Issue pai `#__PARENT_ISSUE_NUMBER__`.
 
-**Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
+**Contexto Fornecido:**
+Você receberá:
+1.  O conteúdo integral de arquivos "essenciais" para a tarefa, pré-injetados diretamente abaixo.
+2.  Um manifesto JSON (aninhado sob a chave `files`) contendo sumários e metadados de *outros* arquivos do projeto.
+
+**Conteúdo Essencial Pré-Injetado:**
+{{ESSENTIAL_FILES_CONTENT}}
+
+**Manifesto JSON dos Demais Arquivos:**
+```json
+{{REMAINING_MANIFEST_JSON}}
+```
 
 **Seu Processo de Seleção (COM PRIORIZAÇÃO E USO DE TOKEN):**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: gerar a definição de uma sub-issue de teste para a Issue `#__PARENT_ISSUE_NUMBER__`.
-2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary, token_count).
-3.  **ORDEM DE PRIORIDADE PARA SELEÇÃO:**
-    *   **NÍVEL 1 (CRÍTICOS - INCLUIR SEMPRE):**
-        *   Os detalhes completos da Issue pai `#__PARENT_ISSUE_NUMBER__` (`github_issue___PARENT_ISSUE_NUMBER___details.json`) para entender a funcionalidade a ser testada e seus ACs originais.
+2.  Analise o **Conteúdo Essencial Pré-Injetado** E os metadados/sumários de CADA arquivo no **Manifesto JSON dos Demais Arquivos**.
+3.  **ORDEM DE PRIORIDADE PARA SELEÇÃO (a partir do Manifesto JSON dos Demais Arquivos):**
+    *   **NÍVEL 1 (CRÍTICOS - INCLUIR SEMPRE, SE NÃO ESTIVEREM NOS ESSENCIAIS):**
+        *   Os detalhes completos da Issue pai `#__PARENT_ISSUE_NUMBER__` (`github_issue___PARENT_ISSUE_NUMBER___details.json`) - *se não foi pré-injetado*.
     *   **NÍVEL 2 (ALTAMENTE RELEVANTES - INCLUIR SE O ORÇAMENTO DE TOKENS PERMITIR):**
-        *   O código fonte principal relacionado à funcionalidade da Issue pai (Controllers, Models, Services, Views relevantes, inferidos do manifesto ou diffs associados à issue pai, se disponíveis).
+        *   O código fonte principal relacionado à funcionalidade da Issue pai (Controllers, Models, Services, Views relevantes, inferidos do manifesto ou diffs associados à issue pai, se disponíveis) - *se não foram pré-injetados*.
         *   Arquivos de teste existentes (`tests/Feature/*`, `tests/Unit/*`, `tests/Browser/*`) para referência de estilo e cobertura atual.
-        *   O workflow de CI (`.github/workflows/laravel.yml`) para entender os steps de teste atuais.
-        *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões de teste e qualidade.
+        *   O workflow de CI (`.github/workflows/laravel.yml`) para entender os steps de teste atuais - *se não foi pré-injetado*.
+        *   Os guias de desenvolvimento (`guia_de_desenvolvimento.md`, `padroes_codigos_boas_praticas.md`) que definem os padrões de teste e qualidade - *se não foram pré-injetados*.
 4.  **GESTÃO DE TOKENS:** Ao adicionar arquivos do Nível 2, priorize aqueles com `summary` mais informativo e tente preencher o máximo possível do limite de tokens.
 5.  **EXCLUA ESTRITAMENTE:**
     *   **Qualquer arquivo de template de prompt** (ex: `templates/prompts/*`, `templates/meta-prompts/*`, `templates/context_selectors/*`).
     *   Diffs de commits, logs genéricos, arquivos de configuração não relacionados, dependências, e outros arquivos de contexto não diretamente necessários para *definir o escopo, a abordagem e os critérios de aceite* dos testes para a funcionalidade da issue pai.
+    *   **NÃO** inclua arquivos que já foram fornecidos no **Conteúdo Essencial Pré-Injetado**.
 
 **Formato de Saída OBRIGATÓRIO E ESTRITO:**
-Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto, **ordenada pela prioridade de inclusão (Nível 1 primeiro, depois Nível 2, etc.)**.
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do **Manifesto JSON dos Demais Arquivos**, **ordenada pela prioridade de inclusão (Nível 1 primeiro, depois Nível 2, etc.)**.
 
 **Exemplo de Saída:**
 ```json
 {
   "relevant_files": [
-    "context_llm/code/YYYYMMDD_HHMMSS/github_issue___PARENT_ISSUE_NUMBER___details.json",
     "app/Http/Controllers/RelatedController.php",
-    "app/Models/RelatedModel.php",
-    "tests/Feature/RelatedFeatureTest.php",
-    ".github/workflows/laravel.yml",
-    "docs/guia_de_desenvolvimento.md"
+    "tests/Feature/RelatedFeatureTest.php"
   ]
 }
 ```
@@ -42,4 +49,4 @@ Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contend
 **REGRAS ADICIONAIS:**
 -   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
 -   Sua resposta completa DEVE começar com `{` e terminar com `}`.
--   Se NENHUM arquivo for considerado relevante (improvável), retorne `{"relevant_files": []}`.
+-   Se NENHUM arquivo *adicional* do manifesto JSON for considerado relevante, retorne `{"relevant_files": []}`.

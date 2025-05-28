@@ -2,6 +2,7 @@
 import pytest
 import json
 import re
+import argparse # Adicionado para Namespace
 from pathlib import Path
 from unittest.mock import patch, mock_open, call, MagicMock
 from google.genai import types as genai_types
@@ -309,7 +310,6 @@ def test_prepare_context_parts_default_loading(
     common_context_dir_exists: bool,
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
-    # CORREÇÃO: Usar o nome correto da constante do módulo config
     monkeypatch.setattr(
         core_config, "COMMON_CONTEXT_DIR", tmp_path / "context_llm" / "common"
     )
@@ -364,9 +364,7 @@ def test_prepare_context_parts_default_loading(
 
 
 # --- Testes para _load_files_from_dir (que é chamado por prepare_context_parts) ---
-# @patch("pathlib.Path.read_text") # Removido o mock de read_text
 def test_load_files_from_dir_basic_loading_and_exclusion(
-    # mock_read_text: MagicMock, # Removido o parâmetro
     tmp_path: Path,
     monkeypatch,
 ):
@@ -501,7 +499,7 @@ def test_prepare_context_parts_with_include_list(
         ),
     ],
 )
-def test_prepare_context_parts_with_include_list(
+def test_prepare_context_parts_with_include_list_parametrized( # Renomeado para evitar conflito
     tmp_path: Path,
     monkeypatch,
     scenario_name: str,
@@ -530,3 +528,120 @@ def test_prepare_context_parts_with_include_list(
         manifest_data,
         tmp_path,
     )
+
+# --- Testes para get_essential_files_for_task (AC1.2a) ---
+def test_get_essential_files_for_task_resolve_ac(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
+    latest_dir = "20230101_000000"
+    (tmp_path / "context_llm" / "code" / latest_dir).mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs").mkdir(exist_ok=True)
+
+    # Criar arquivos essenciais mockados
+    issue_file_rel = f"context_llm/code/{latest_dir}/github_issue_123_details.json"
+    _create_tmp_file_rel_to_project_root(tmp_path, issue_file_rel, '{"title": "Issue 123"}')
+    _create_tmp_file_rel_to_project_root(tmp_path, "docs/guia_de_desenvolvimento.md", "Guia dev")
+    
+    args = argparse.Namespace(issue="123", ac="1") # Simula argumentos da CLI
+
+    essential_paths = core_context.get_essential_files_for_task("resolve-ac", args, latest_dir, verbose=True)
+    
+    essential_paths_relative_str = {p.relative_to(tmp_path).as_posix() for p in essential_paths}
+    
+    expected_paths_str = {
+        issue_file_rel,
+        "docs/guia_de_desenvolvimento.md",
+        # phpunit_test_results.txt e phpstan_analysis.txt não foram criados, então não devem estar na lista
+    }
+    assert essential_paths_relative_str == expected_paths_str
+
+# --- Testes para load_essential_files_content (AC1.2b) ---
+def test_load_essential_files_content_basic(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
+    file1_rel = "essentials/file1.txt"
+    file2_rel = "essentials/file2.md"
+    _create_tmp_file_rel_to_project_root(tmp_path, file1_rel, "Content file 1")
+    _create_tmp_file_rel_to_project_root(tmp_path, file2_rel, "## Content file 2")
+    
+    abs_paths = [tmp_path / file1_rel, tmp_path / file2_rel]
+    
+    content_str, loaded_paths = core_context.load_essential_files_content(abs_paths, 10000, verbose=True)
+    
+    assert len(loaded_paths) == 2
+    assert Path(file1_rel) in loaded_paths
+    assert Path(file2_rel) in loaded_paths
+    
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{file1_rel} ---" in content_str
+    assert "Content file 1" in content_str
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_END}{file1_rel} ---" in content_str
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{file2_rel} ---" in content_str
+    assert "## Content file 2" in content_str
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_END}{file2_rel} ---" in content_str
+
+# --- Testes para prepare_payload_for_selector_llm (AC1.2d) ---
+def test_prepare_payload_for_selector_llm_commit_mesage(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
+    latest_dir = "20230101_000000"
+    context_code_dir = tmp_path / "context_llm" / "code" / latest_dir
+    context_code_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs").mkdir(exist_ok=True)
+
+    # Arquivos essenciais para commit-mesage
+    diff_file_rel = f"context_llm/code/{latest_dir}/git_diff_cached.txt"
+    log_file_rel = f"context_llm/code/{latest_dir}/git_log.txt"
+    guia_file_rel = "docs/guia_de_desenvolvimento.md"
+    
+    _create_tmp_file_rel_to_project_root(tmp_path, diff_file_rel, "diff content")
+    _create_tmp_file_rel_to_project_root(tmp_path, log_file_rel, "log content")
+    _create_tmp_file_rel_to_project_root(tmp_path, guia_file_rel, "guia content")
+
+    # Outro arquivo no manifesto (não essencial)
+    other_file_rel = "app/MyClass.php"
+    _create_tmp_file_rel_to_project_root(tmp_path, other_file_rel, "class MyClass {}")
+
+    full_manifest_data = {
+        "files": {
+            diff_file_rel: {"type": "context_code_git_diff_cached", "summary": "Diff summary", "token_count": 10},
+            log_file_rel: {"type": "context_code_git_log", "summary": "Log summary", "token_count": 15},
+            guia_file_rel: {"type": "docs_md", "summary": "Guia summary", "token_count": 20},
+            other_file_rel: {"type": "code_php", "summary": "MyClass summary", "token_count": 5}
+        }
+    }
+    
+    selector_prompt_template = "Prompt: {{ESSENTIAL_FILES_CONTENT}} \nManifesto: {{REMAINING_MANIFEST_JSON}}"
+    
+    args = argparse.Namespace(issue=None) # commit-mesage pode não ter issue
+
+    payload = core_context.prepare_payload_for_selector_llm(
+        "commit-mesage", args, latest_dir, full_manifest_data, selector_prompt_template, verbose=True
+    )
+
+    # Verificar se o conteúdo essencial está no payload
+    assert "diff content" in payload
+    assert "log content" in payload
+    assert "guia content" in payload
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{diff_file_rel} ---" in payload
+    
+    # Verificar se o manifesto restante está no payload e NÃO contém os essenciais
+    assert "MyClass summary" in payload # Do sumário do manifesto restante
+    assert diff_file_rel not in payload[payload.find("{{REMAINING_MANIFEST_JSON}}"):] # Checa se não está no JSON
+    
+    # Verificar se o placeholder do prompt foi substituído
+    assert "Prompt: " in payload
+    assert "Manifesto: " in payload
+    assert "{{ESSENTIAL_FILES_CONTENT}}" not in payload
+    assert "{{REMAINING_MANIFEST_JSON}}" not in payload
+
+    # Verificar se o JSON do manifesto restante está correto
+    try:
+        # Extrair a parte do JSON do payload
+        json_part_match = re.search(r'Manifesto: ({.*?})$', payload, re.DOTALL)
+        assert json_part_match, "JSON part not found in payload"
+        remaining_manifest_parsed = json.loads(json_part_match.group(1))
+        assert "files" in remaining_manifest_parsed
+        assert other_file_rel in remaining_manifest_parsed["files"]
+        assert diff_file_rel not in remaining_manifest_parsed["files"]
+        assert log_file_rel not in remaining_manifest_parsed["files"]
+        assert guia_file_rel not in remaining_manifest_parsed["files"]
+        assert remaining_manifest_parsed["files"][other_file_rel]["summary"] == "MyClass summary"
+    except json.JSONDecodeError as e:
+        pytest.fail(f"Failed to parse JSON from payload: {e}\nPayload part: {json_part_match.group(1) if json_part_match else 'Not Found'}")
