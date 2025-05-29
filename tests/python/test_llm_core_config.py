@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 from scripts.llm_core import config as core_config
-import os # Para testar os valores de os.getenv
+import os  # Para testar os valores de os.getenv
 
 
 @pytest.fixture(autouse=True)
@@ -228,39 +228,68 @@ def test_numeric_constants():
         and core_config.SELECTOR_LLM_MAX_INPUT_TOKENS > 0
     )
 
+
 def test_essential_files_map_structure_and_resolve_ac_config():
     """Verifica a estrutura geral de ESSENTIAL_FILES_MAP e a configuração para resolve-ac."""
-    assert isinstance(core_config.ESSENTIAL_FILES_MAP, dict), "ESSENTIAL_FILES_MAP should be a dictionary."
+    assert isinstance(
+        core_config.ESSENTIAL_FILES_MAP, dict
+    ), "ESSENTIAL_FILES_MAP should be a dictionary."
 
     # Verifica AC 1.1 - Configuração para resolve-ac
-    assert "resolve-ac" in core_config.ESSENTIAL_FILES_MAP, "Task 'resolve-ac' missing in ESSENTIAL_FILES_MAP."
+    assert (
+        "resolve-ac" in core_config.ESSENTIAL_FILES_MAP
+    ), "Task 'resolve-ac' missing in ESSENTIAL_FILES_MAP."
     resolve_ac_config = core_config.ESSENTIAL_FILES_MAP["resolve-ac"]
-    assert isinstance(resolve_ac_config, dict), "'resolve-ac' entry should be a dictionary."
+    assert isinstance(
+        resolve_ac_config, dict
+    ), "'resolve-ac' entry should be a dictionary."
 
     assert "args" in resolve_ac_config, "'args' key missing for 'resolve-ac'."
-    assert isinstance(resolve_ac_config["args"], dict), "'args' for 'resolve-ac' should be a dictionary."
-    assert "issue" in resolve_ac_config["args"], "'issue' argument missing in 'resolve-ac' args."
+    assert isinstance(
+        resolve_ac_config["args"], dict
+    ), "'args' for 'resolve-ac' should be a dictionary."
+    assert (
+        "issue" in resolve_ac_config["args"]
+    ), "'issue' argument missing in 'resolve-ac' args."
     # AC1.1: O padrão DEVE especificar que `github_issue_<X>_details.json` é essencial.
     # O path no MAP é relativo ao PROJECT_ROOT, e o arquivo está em context_llm/code/{latest_dir_name}/
-    assert resolve_ac_config["args"]["issue"] == "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json", \
-        "Incorrect file pattern for 'resolve-ac' and argument 'issue'."
+    assert (
+        resolve_ac_config["args"]["issue"]
+        == "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json"
+    ), "Incorrect file pattern for 'resolve-ac' and argument 'issue'."
 
     assert "static" in resolve_ac_config, "'static' key missing for 'resolve-ac'."
-    assert isinstance(resolve_ac_config["static"], list), "'static' for 'resolve-ac' should be a list."
+    assert isinstance(
+        resolve_ac_config["static"], list
+    ), "'static' for 'resolve-ac' should be a list."
     # Verifica alguns arquivos estáticos esperados para resolve-ac
     assert "docs/guia_de_desenvolvimento.md" in resolve_ac_config["static"]
-    assert "context_llm/code/{latest_dir_name}/phpunit_test_results.txt" in resolve_ac_config["static"]
-
+    assert (
+        "context_llm/code/{latest_dir_name}/phpunit_test_results.txt"
+        in resolve_ac_config["static"]
+    )
 
     # Verifica outras tarefas para garantir que a estrutura é seguida (preparação para outros ACs)
     for task_name, task_config in core_config.ESSENTIAL_FILES_MAP.items():
-        assert isinstance(task_config, dict), f"Config for task '{task_name}' should be a dict."
+        assert isinstance(
+            task_config, dict
+        ), f"Config for task '{task_name}' should be a dict."
         if "args" in task_config:
-            assert isinstance(task_config["args"], dict), f"'args' for task '{task_name}' should be a dict."
+            assert isinstance(
+                task_config["args"], dict
+            ), f"'args' for task '{task_name}' should be a dict."
             for arg_name, file_pattern in task_config["args"].items():
-                assert isinstance(arg_name, str), f"Argument name for '{task_name}' should be a string."
-                assert isinstance(file_pattern, str), f"File pattern for arg '{arg_name}' in '{task_name}' should be a string."
+                assert isinstance(
+                    arg_name, str
+                ), f"Argument name for '{task_name}' should be a string."
+                assert isinstance(
+                    file_pattern, str
+                ), f"File pattern for arg '{arg_name}' in '{task_name}' should be a string."
         if "static" in task_config:
-            assert isinstance(task_config["static"], list), f"'static' for task '{task_name}' should be a list."
+            assert isinstance(
+                task_config["static"], list
+            ), f"'static' for task '{task_name}' should be a list."
             for static_file in task_config["static"]:
-                assert isinstance(static_file, str), f"Static file entry for '{task_name}' should be a string."
+                assert isinstance(
+                    static_file, str
+                ), f"Static file entry for '{task_name}' should be a string."

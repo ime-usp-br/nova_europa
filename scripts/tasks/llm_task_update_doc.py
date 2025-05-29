@@ -8,7 +8,7 @@ import sys
 import os
 import argparse
 import traceback
-import json 
+import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -24,9 +24,9 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import (
     io_utils,
-) 
+)
 from scripts.llm_core import utils as core_utils
-from scripts.llm_core.exceptions import MissingEssentialFileAbort 
+from scripts.llm_core.exceptions import MissingEssentialFileAbort
 
 
 from google.genai import types
@@ -45,7 +45,7 @@ def add_task_specific_args(parser: argparse.ArgumentParser):
         "-d",
         "--doc-file",
         help="Caminho do arquivo de documentação alvo (relativo à raiz do projeto). Se omitido, será solicitado.",
-        default=None, 
+        default=None,
     )
     # O argumento -o/--observation já é adicionado pelo get_common_arg_parser
 
@@ -117,11 +117,9 @@ def main_update_doc():
                     "Seleção de arquivo de documentação cancelada pelo usuário. Saindo."
                 )
                 sys.exit(0)
-            target_doc_file_str = str(
-                selected_path_relative
-            ) 
+            target_doc_file_str = str(selected_path_relative)
 
-        if not target_doc_file_str: 
+        if not target_doc_file_str:
             print(
                 "Erro: Arquivo de documentação alvo não foi especificado ou selecionado.",
                 file=sys.stderr,
@@ -160,9 +158,7 @@ def main_update_doc():
         print(
             f"Usando Template: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
         )
-        GEMINI_MODEL_TO_USE = (
-            core_config.GEMINI_MODEL_GENERAL_TASKS
-        ) 
+        GEMINI_MODEL_TO_USE = core_config.GEMINI_MODEL_GENERAL_TASKS
 
         initial_prompt_content_original = core_prompts_module.load_and_fill_template(
             template_path_to_load, task_variables
@@ -199,10 +195,13 @@ def main_update_doc():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
-        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+        latest_dir_name_for_essentials = (
+            latest_context_dir_path.name if latest_context_dir_path else None
+        )
 
-        max_tokens_for_main_call = api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=verbose) # AC5.2
-
+        max_tokens_for_main_call = api_client.calculate_max_input_tokens(
+            GEMINI_MODEL_TO_USE, verbose=verbose
+        )  # AC5.2
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -219,7 +218,7 @@ def main_update_doc():
                 or "files" not in manifest_data_for_context_selection
             ):
                 sys.exit(1)
-            if verbose: 
+            if verbose:
                 print(
                     f"  AC5.1: Manifesto carregado para seleção: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
@@ -236,25 +235,29 @@ def main_update_doc():
             )
             if not selector_prompt_content:
                 sys.exit(1)
-            if verbose: 
+            if verbose:
                 print(
                     f"  AC5.1: Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
-            
-            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
-                TASK_NAME,
-                args, 
-                latest_dir_name_for_essentials,
-                manifest_data_for_context_selection,
-                selector_prompt_content,
-                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
-                verbose 
+
+            preliminary_api_input_content = (
+                core_context.prepare_payload_for_selector_llm(
+                    TASK_NAME,
+                    args,
+                    latest_dir_name_for_essentials,
+                    manifest_data_for_context_selection,
+                    selector_prompt_content,
+                    core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                    verbose,
+                )
             )
 
             suggested_files_from_api: List[str] = []
             try:
-                if verbose: #AC5.2
-                    print(f"  AC5.2: Chamando API Gemini. Modelo: {core_config.GEMINI_MODEL_FLASH}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada seletora, não o principal): {core_config.SELECTOR_LLM_MAX_INPUT_TOKENS}")
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {core_config.GEMINI_MODEL_FLASH}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada seletora, não o principal): {core_config.SELECTOR_LLM_MAX_INPUT_TOKENS}"
+                    )
                 response_prelim_str = api_client.execute_gemini_call(
                     core_config.GEMINI_MODEL_FLASH,
                     [types.Part.from_text(text=preliminary_api_input_content)],
@@ -270,7 +273,7 @@ def main_update_doc():
                         )
                     ),
                     verbose=verbose,
-                    max_input_tokens_for_this_call=core_config.SELECTOR_LLM_MAX_INPUT_TOKENS
+                    max_input_tokens_for_this_call=core_config.SELECTOR_LLM_MAX_INPUT_TOKENS,
                 )
                 cleaned_response_str = response_prelim_str.strip()
                 if cleaned_response_str.startswith("```json"):
@@ -306,8 +309,8 @@ def main_update_doc():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        max_tokens_for_main_call, 
-                        verbose=verbose 
+                        max_tokens_for_main_call,
+                        verbose=verbose,
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -327,7 +330,7 @@ def main_update_doc():
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         else:
             if not latest_context_dir_path:
@@ -345,7 +348,7 @@ def main_update_doc():
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
@@ -362,8 +365,10 @@ def main_update_doc():
                     types.Part.from_text(text=meta_prompt_current)
                 ] + context_parts
                 try:
-                    if verbose: #AC5.2
-                         print(f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_TO_USE}. MAX_INPUT_TOKENS_PER_CALL: {api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=False)}") # Assume-se o mesmo modelo para meta-prompt e prompt final para update-doc.
+                    if verbose:  # AC5.2
+                        print(
+                            f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_TO_USE}. MAX_INPUT_TOKENS_PER_CALL: {api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=False)}"
+                        )  # Assume-se o mesmo modelo para meta-prompt e prompt final para update-doc.
                     prompt_final_content = api_client.execute_gemini_call(
                         GEMINI_MODEL_TO_USE,
                         contents_step1,
@@ -379,7 +384,9 @@ def main_update_doc():
                             )
                         ),
                         verbose=verbose,
-                        max_input_tokens_for_this_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=False)
+                        max_input_tokens_for_this_call=api_client.calculate_max_input_tokens(
+                            GEMINI_MODEL_TO_USE, verbose=False
+                        ),
                     )
                     print("\n--- Prompt Final Gerado (Etapa 1) ---")
                     print(prompt_final_content.strip())
@@ -439,8 +446,10 @@ def main_update_doc():
                 types.Part.from_text(text=final_prompt_current)
             ] + context_parts
             try:
-                if verbose: #AC5.2
-                    print(f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_TO_USE}. MAX_INPUT_TOKENS_PER_CALL: {max_tokens_for_main_call}")
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_TO_USE}. MAX_INPUT_TOKENS_PER_CALL: {max_tokens_for_main_call}"
+                    )
                 final_response_content = api_client.execute_gemini_call(
                     GEMINI_MODEL_TO_USE,
                     contents_final,
@@ -456,7 +465,7 @@ def main_update_doc():
                         )
                     ),
                     verbose=verbose,
-                    max_input_tokens_for_this_call=max_tokens_for_main_call
+                    max_input_tokens_for_this_call=max_tokens_for_main_call,
                 )
                 print("\n--- Resposta Final (Conteúdo da Documentação) ---")
                 print(final_response_content.strip() if final_response_content else "")
@@ -511,7 +520,7 @@ def main_update_doc():
                 "\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma atualização de documentação foi necessária."
             )
             print("Nenhum arquivo será salvo.")
-    except MissingEssentialFileAbort as e: 
+    except MissingEssentialFileAbort as e:
         print(f"\nErro: {e}", file=sys.stderr)
         print("Fluxo de seleção de contexto interrompido.")
         sys.exit(1)

@@ -10,7 +10,8 @@ from google.genai import types as genai_types
 from scripts.llm_core import config as core_config_module
 import traceback
 import concurrent.futures  # Adicionado para o teste de TimeoutError
-import time # Adicionado para mockar time.monotonic e time.sleep
+import time  # Adicionado para mockar time.monotonic e time.sleep
+
 
 # Fixture para garantir que load_dotenv seja mockado e globais resetados
 @pytest.fixture(autouse=True)
@@ -23,7 +24,6 @@ def reset_module_globals_for_each_test(monkeypatch):
     original_key_loaded = api_client.api_key_loaded_successfully
     original_gemini_init = api_client.gemini_initialized_successfully
     original_last_call_timestamps = dict(api_client.last_call_timestamps)
-
 
     api_client.GEMINI_API_KEYS_LIST = []
     api_client.current_api_key_index = 0
@@ -40,7 +40,6 @@ def reset_module_globals_for_each_test(monkeypatch):
     api_client.gemini_initialized_successfully = False
     api_client.last_call_timestamps.clear()
 
-
     with patch("scripts.llm_core.api_client.load_dotenv") as mock_load_dotenv_fixture:
         mock_load_dotenv_fixture.return_value = True
         yield mock_load_dotenv_fixture
@@ -52,7 +51,6 @@ def reset_module_globals_for_each_test(monkeypatch):
     api_client.api_key_loaded_successfully = original_key_loaded
     api_client.gemini_initialized_successfully = original_gemini_init
     api_client.last_call_timestamps = original_last_call_timestamps
-
 
 
 # Testes para load_api_keys
@@ -833,7 +831,7 @@ def test_execute_gemini_call_handles_concurrent_futures_timeout(
 
 def test_calculate_max_input_tokens_default_values():
     """Testa o cálculo com valores padrão de config."""
-    model_name = "gemini-1.5-flash-preview-0520" # Modelo conhecido
+    model_name = "gemini-1.5-flash-preview-0520"  # Modelo conhecido
     core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 100000
     core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 5000
     core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 1000
@@ -841,15 +839,20 @@ def test_calculate_max_input_tokens_default_values():
     expected = 100000 - 5000 - 1000
     assert api_client.calculate_max_input_tokens(model_name) == expected
 
+
 def test_calculate_max_input_tokens_with_overrides():
     """Testa o cálculo com overrides para estimativa de saída e buffer."""
-    model_name = "gemini-1.5-pro-preview-0520" # Modelo conhecido
+    model_name = "gemini-1.5-pro-preview-0520"  # Modelo conhecido
     core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 200000
-    
-    expected = 200000 - 10000 - 2000 # 10k saida, 2k buffer
-    assert api_client.calculate_max_input_tokens(
-        model_name, estimated_output_tokens=10000, safety_buffer=2000
-    ) == expected
+
+    expected = 200000 - 10000 - 2000  # 10k saida, 2k buffer
+    assert (
+        api_client.calculate_max_input_tokens(
+            model_name, estimated_output_tokens=10000, safety_buffer=2000
+        )
+        == expected
+    )
+
 
 def test_calculate_max_input_tokens_unknown_model():
     """Testa o cálculo para um modelo não listado, usando o default do config."""
@@ -862,12 +865,13 @@ def test_calculate_max_input_tokens_unknown_model():
     expected = 30000 - 2000 - 1000
     assert api_client.calculate_max_input_tokens(model_name) == expected
 
+
 def test_calculate_max_input_tokens_prevents_non_positive():
     """Testa se o cálculo retorna um mínimo positivo se o resultado for <= 0."""
     model_name = "small-model"
     core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 1000
     core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 800
-    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 300 # 1000 - 800 - 300 = -100
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 300  # 1000 - 800 - 300 = -100
 
     # Espera-se que retorne o mínimo (100, conforme definido na função)
     assert api_client.calculate_max_input_tokens(model_name) == 100
@@ -875,40 +879,54 @@ def test_calculate_max_input_tokens_prevents_non_positive():
     # Teste com estimativa e buffer exatamente iguais ao limite
     core_config_module.MODEL_INPUT_TOKEN_LIMITS[model_name] = 1000
     core_config_module.DEFAULT_OUTPUT_TOKEN_ESTIMATE = 800
-    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 200 # 1000 - 800 - 200 = 0
+    core_config_module.DEFAULT_TOKEN_SAFETY_BUFFER = 200  # 1000 - 800 - 200 = 0
     assert api_client.calculate_max_input_tokens(model_name) == 100
+
 
 # --- Testes para AC 2.3: Rate Limiter RPM ---
 @patch("scripts.llm_core.api_client.time.monotonic")
 @patch("scripts.llm_core.api_client.time.sleep")
-def test_rpm_rate_limiter_first_call(mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call):
+def test_rpm_rate_limiter_first_call(
+    mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call
+):
     mock_generate_content_method = mock_gemini_services_for_execute_call
-    model_name = "gemini-2.5-flash-preview-05-20" # RPM 10 -> interval 6s
-    core_config_module.MODEL_RPM_LIMITS[model_name] = 60 # Forçar RPM 60 -> Intervalo 1s para facilitar teste
-    
+    model_name = "gemini-2.5-flash-preview-05-20"  # RPM 10 -> interval 6s
+    core_config_module.MODEL_RPM_LIMITS[model_name] = (
+        60  # Forçar RPM 60 -> Intervalo 1s para facilitar teste
+    )
+
     mock_monotonic.return_value = 100.0
-    
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="test")], verbose=True)
-    
-    mock_sleep.assert_not_called() # Primeira chamada, sem sleep
+
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="test")], verbose=True
+    )
+
+    mock_sleep.assert_not_called()  # Primeira chamada, sem sleep
     assert api_client.last_call_timestamps[model_name] == 100.0
+
 
 @patch("scripts.llm_core.api_client.time.monotonic")
 @patch("scripts.llm_core.api_client.time.sleep")
-def test_rpm_rate_limiter_waits_correctly(mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call):
+def test_rpm_rate_limiter_waits_correctly(
+    mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call
+):
     mock_generate_content_method = mock_gemini_services_for_execute_call
     model_name = "gemini-2.5-flash-preview-05-20"
-    core_config_module.MODEL_RPM_LIMITS[model_name] = 60 # Intervalo de 1.0s
-    
+    core_config_module.MODEL_RPM_LIMITS[model_name] = 60  # Intervalo de 1.0s
+
     # Primeira chamada:
     mock_monotonic.return_value = 200.0
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call1")], verbose=True)
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call1")], verbose=True
+    )
     mock_sleep.assert_not_called()
     assert api_client.last_call_timestamps[model_name] == 200.0
-    
+
     # Segunda chamada, 0.5s depois (deve esperar 0.5s)
-    mock_monotonic.return_value = 200.5 
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call2")], verbose=True)
+    mock_monotonic.return_value = 200.5
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call2")], verbose=True
+    )
     mock_sleep.assert_called_once()
     assert mock_sleep.call_args[0][0] == pytest.approx(0.5, abs=1e-3)
     # O timestamp da última chamada é atualizado para o momento *após* o sleep e *antes* da chamada API
@@ -925,41 +943,55 @@ def test_rpm_rate_limiter_waits_correctly(mock_sleep, mock_monotonic, mock_gemin
     # A verificação principal é que o sleep foi chamado com o valor correto.
     # O timestamp será o valor de mock_monotonic no momento da atribuição (após o sleep simulado).
     # Se o mock_monotonic não avançar, o timestamp será o mesmo: 200.5
-    assert api_client.last_call_timestamps[model_name] == 200.5 
+    assert api_client.last_call_timestamps[model_name] == 200.5
+
 
 @patch("scripts.llm_core.api_client.time.monotonic")
 @patch("scripts.llm_core.api_client.time.sleep")
-def test_rpm_rate_limiter_no_wait_if_interval_passed(mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call):
+def test_rpm_rate_limiter_no_wait_if_interval_passed(
+    mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call
+):
     mock_generate_content_method = mock_gemini_services_for_execute_call
-    model_name = "gemini-1.5-pro" # RPM 2 -> interval 30s
+    model_name = "gemini-1.5-pro"  # RPM 2 -> interval 30s
     core_config_module.MODEL_RPM_LIMITS[model_name] = 2
 
     mock_monotonic.return_value = 300.0
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call1 pro")], verbose=True)
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call1 pro")], verbose=True
+    )
     mock_sleep.assert_not_called()
     assert api_client.last_call_timestamps[model_name] == 300.0
 
-    mock_monotonic.return_value = 330.1 # 30.1s depois
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call2 pro")], verbose=True)
-    mock_sleep.assert_not_called() # Não deve esperar
+    mock_monotonic.return_value = 330.1  # 30.1s depois
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call2 pro")], verbose=True
+    )
+    mock_sleep.assert_not_called()  # Não deve esperar
     assert api_client.last_call_timestamps[model_name] == 330.1
+
 
 @patch("scripts.llm_core.api_client.time.monotonic")
 @patch("scripts.llm_core.api_client.time.sleep")
-def test_rpm_rate_limiter_uses_default_rpm(mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call):
+def test_rpm_rate_limiter_uses_default_rpm(
+    mock_sleep, mock_monotonic, mock_gemini_services_for_execute_call
+):
     mock_generate_content_method = mock_gemini_services_for_execute_call
     model_name = "unknown-model-rpm-test"
     # RPM default é 5 -> interval 12s
     core_config_module.MODEL_RPM_LIMITS["default"] = 5
-    
+
     mock_monotonic.return_value = 400.0
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call1 unknown")], verbose=True)
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call1 unknown")], verbose=True
+    )
     assert api_client.last_call_timestamps[model_name] == 400.0
 
-    mock_monotonic.return_value = 405.0 # 5s depois
-    api_client.execute_gemini_call(model_name, [genai_types.Part(text="call2 unknown")], verbose=True)
+    mock_monotonic.return_value = 405.0  # 5s depois
+    api_client.execute_gemini_call(
+        model_name, [genai_types.Part(text="call2 unknown")], verbose=True
+    )
     mock_sleep.assert_called_once()
-    assert mock_sleep.call_args[0][0] == pytest.approx(7.0, abs=1e-3) # 12 - 5 = 7
+    assert mock_sleep.call_args[0][0] == pytest.approx(7.0, abs=1e-3)  # 12 - 5 = 7
     assert api_client.last_call_timestamps[model_name] == 405.0
 
 

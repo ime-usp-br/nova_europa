@@ -5,12 +5,12 @@ LLM Core Input/Output Utilities Module.
 import sys
 import re
 import datetime
-import json # Adicionado para update_manifest_file
-import traceback # Adicionado para update_manifest_file
+import json  # Adicionado para update_manifest_file
+import traceback  # Adicionado para update_manifest_file
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List, Set
 
-from . import config as core_config # Import the core config
+from . import config as core_config  # Import the core config
 
 
 def save_llm_response(
@@ -85,14 +85,18 @@ def prompt_user_for_missing_essential_file(relative_path_str: str) -> bool:
     prompt_text = f"  AVISO (AC4.1a): Arquivo essencial '{relative_path_str}' não encontrado no disco. Deseja (C)ontinuar sem este arquivo ou (A)bortar a tarefa? [A]: "
     while True:
         # AC4.1a: Log do aviso (o prompt em si já informa o usuário)
-        print(prompt_text, end="") # Imprime o prompt sem newline para input na mesma linha
+        print(
+            prompt_text, end=""
+        )  # Imprime o prompt sem newline para input na mesma linha
         choice = input().strip().lower()
         if choice in ["c", "continuar"]:
             return True
-        elif choice in ["a", "abortar", ""]: # Padrão é abortar
+        elif choice in ["a", "abortar", ""]:  # Padrão é abortar
             return False
         else:
-            print("  Entrada inválida. Por favor, digite 'C' para continuar ou 'A' para abortar.")
+            print(
+                "  Entrada inválida. Por favor, digite 'C' para continuar ou 'A' para abortar."
+            )
 
 
 def parse_pr_content(llm_output: str) -> Tuple[Optional[str], Optional[str]]:
@@ -145,7 +149,7 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
         if filepath.is_file():
             try:
                 found_paths.add(filepath.relative_to(base_dir))
-            except ValueError: # pragma: no cover
+            except ValueError:  # pragma: no cover
                 print(
                     f"    Aviso: {filepath} não está sob {base_dir}.", file=sys.stderr
                 )
@@ -156,7 +160,7 @@ def find_documentation_files(base_dir: Path) -> List[Path]:
             if filepath.is_file():
                 try:
                     found_paths.add(filepath.relative_to(base_dir))
-                except ValueError: # pragma: no cover
+                except ValueError:  # pragma: no cover
                     print(
                         f"    Aviso: {filepath} não está sob {base_dir}.",
                         file=sys.stderr,

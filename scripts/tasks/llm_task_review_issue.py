@@ -24,7 +24,7 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
-from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
+from scripts.llm_core.exceptions import MissingEssentialFileAbort  # AC4.1
 
 
 from google.genai import types
@@ -156,8 +156,9 @@ def main_review_issue():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
-        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
-
+        latest_dir_name_for_essentials = (
+            latest_context_dir_path.name if latest_context_dir_path else None
+        )
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -197,14 +198,16 @@ def main_review_issue():
                 sys.exit(1)
 
             # AC4.1: A exceção MissingEssentialFileAbort será capturada aqui
-            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
-                TASK_NAME,
-                args, # cli_args
-                latest_dir_name_for_essentials,
-                manifest_data_for_context_selection,
-                selector_prompt_content,
-                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
-                verbose
+            preliminary_api_input_content = (
+                core_context.prepare_payload_for_selector_llm(
+                    TASK_NAME,
+                    args,  # cli_args
+                    latest_dir_name_for_essentials,
+                    manifest_data_for_context_selection,
+                    selector_prompt_content,
+                    core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                    verbose,
+                )
             )
 
             suggested_files_from_api: List[str] = []
@@ -259,7 +262,9 @@ def main_review_issue():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose)
+                        api_client.calculate_max_input_tokens(
+                            GEMINI_MODEL_STEP2, verbose=verbose
+                        ),
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -275,11 +280,13 @@ def main_review_issue():
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
                 include_list=final_selected_files_for_context,
-                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(
+                    GEMINI_MODEL_STEP2, verbose=verbose
+                ),
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         else:
             if not latest_context_dir_path:
@@ -293,11 +300,13 @@ def main_review_issue():
                 common_context_dir=core_config.COMMON_CONTEXT_DIR,
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
-                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(
+                    GEMINI_MODEL_STEP2, verbose=verbose
+                ),
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
@@ -456,7 +465,7 @@ def main_review_issue():
                 sys.exit(0)
         else:
             print("\nResposta final da LLM está vazia. Nenhum arquivo será salvo.")
-    except MissingEssentialFileAbort as e: # AC4.1d
+    except MissingEssentialFileAbort as e:  # AC4.1d
         print(f"\nErro: {e}", file=sys.stderr)
         print("Fluxo de seleção de contexto interrompido.")
         sys.exit(1)

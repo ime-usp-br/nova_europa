@@ -26,7 +26,7 @@ from scripts.llm_core import io_utils
 from scripts.llm_core import (
     utils as core_utils,
 )  # Importar utils se for usar run_command, etc.
-from scripts.llm_core.exceptions import MissingEssentialFileAbort 
+from scripts.llm_core.exceptions import MissingEssentialFileAbort
 
 
 from google.genai import types
@@ -114,9 +114,8 @@ def main_create_test_sub_issue():
         else:
             template_path_to_load = core_config.TEMPLATE_DIR / PROMPT_TEMPLATE_NAME
             print(f"\nFluxo Direto Selecionado")
-            GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_GENERAL_TASKS # Não usado
+            GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_GENERAL_TASKS  # Não usado
             GEMINI_MODEL_STEP2 = core_config.GEMINI_MODEL_GENERAL_TASKS
-
 
         print(
             f"Usando Template: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
@@ -157,10 +156,13 @@ def main_create_test_sub_issue():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
-        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+        latest_dir_name_for_essentials = (
+            latest_context_dir_path.name if latest_context_dir_path else None
+        )
 
-        max_tokens_for_main_call = api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose) # AC5.2
-
+        max_tokens_for_main_call = api_client.calculate_max_input_tokens(
+            GEMINI_MODEL_STEP2, verbose=verbose
+        )  # AC5.2
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -177,7 +179,7 @@ def main_create_test_sub_issue():
                 or "files" not in manifest_data_for_context_selection
             ):
                 sys.exit(1)
-            if verbose: 
+            if verbose:
                 print(
                     f"  AC5.1: Manifesto carregado para seleção: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
@@ -194,25 +196,29 @@ def main_create_test_sub_issue():
             )
             if not selector_prompt_content:
                 sys.exit(1)
-            if verbose: 
+            if verbose:
                 print(
                     f"  AC5.1: Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
 
-            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
-                TASK_NAME,
-                args, 
-                latest_dir_name_for_essentials,
-                manifest_data_for_context_selection,
-                selector_prompt_content,
-                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
-                verbose 
+            preliminary_api_input_content = (
+                core_context.prepare_payload_for_selector_llm(
+                    TASK_NAME,
+                    args,
+                    latest_dir_name_for_essentials,
+                    manifest_data_for_context_selection,
+                    selector_prompt_content,
+                    core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                    verbose,
+                )
             )
 
             suggested_files_from_api: List[str] = []
             try:
-                if verbose: #AC5.2
-                    print(f"  AC5.2: Chamando API Gemini. Modelo: {core_config.GEMINI_MODEL_FLASH}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada seletora, não o principal): {core_config.SELECTOR_LLM_MAX_INPUT_TOKENS}")
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {core_config.GEMINI_MODEL_FLASH}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada seletora, não o principal): {core_config.SELECTOR_LLM_MAX_INPUT_TOKENS}"
+                    )
                 response_prelim_str = api_client.execute_gemini_call(
                     core_config.GEMINI_MODEL_FLASH,
                     [types.Part.from_text(text=preliminary_api_input_content)],
@@ -228,7 +234,7 @@ def main_create_test_sub_issue():
                         )
                     ),
                     verbose=verbose,
-                    max_input_tokens_for_this_call=core_config.SELECTOR_LLM_MAX_INPUT_TOKENS
+                    max_input_tokens_for_this_call=core_config.SELECTOR_LLM_MAX_INPUT_TOKENS,
                 )
                 cleaned_response_str = response_prelim_str.strip()
                 if cleaned_response_str.startswith("```json"):
@@ -264,8 +270,8 @@ def main_create_test_sub_issue():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        max_tokens_for_main_call, 
-                        verbose=verbose 
+                        max_tokens_for_main_call,
+                        verbose=verbose,
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -285,7 +291,7 @@ def main_create_test_sub_issue():
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         else:
             if not latest_context_dir_path:
@@ -303,7 +309,7 @@ def main_create_test_sub_issue():
                 task_name_for_essentials=TASK_NAME,
                 cli_args_for_essentials=args,
                 latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                verbose=verbose,
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
@@ -320,8 +326,10 @@ def main_create_test_sub_issue():
                     types.Part.from_text(text=meta_prompt_current)
                 ] + context_parts
                 try:
-                    if verbose: #AC5.2
-                         print(f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP1}. MAX_INPUT_TOKENS_PER_CALL: {api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP1, verbose=False)}")
+                    if verbose:  # AC5.2
+                        print(
+                            f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP1}. MAX_INPUT_TOKENS_PER_CALL: {api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP1, verbose=False)}"
+                        )
                     prompt_final_content = api_client.execute_gemini_call(
                         GEMINI_MODEL_STEP1,
                         contents_step1,
@@ -337,7 +345,9 @@ def main_create_test_sub_issue():
                             )
                         ),
                         verbose=verbose,
-                        max_input_tokens_for_this_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP1, verbose=False)
+                        max_input_tokens_for_this_call=api_client.calculate_max_input_tokens(
+                            GEMINI_MODEL_STEP1, verbose=False
+                        ),
                     )
                     print("\n--- Prompt Final Gerado (Etapa 1) ---")
                     print(prompt_final_content.strip())
@@ -397,8 +407,10 @@ def main_create_test_sub_issue():
                 types.Part.from_text(text=final_prompt_current)
             ] + context_parts
             try:
-                if verbose: #AC5.2
-                    print(f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP2}. MAX_INPUT_TOKENS_PER_CALL: {max_tokens_for_main_call}")
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP2}. MAX_INPUT_TOKENS_PER_CALL: {max_tokens_for_main_call}"
+                    )
                 final_response_content = api_client.execute_gemini_call(
                     GEMINI_MODEL_STEP2,
                     contents_final,
@@ -414,7 +426,7 @@ def main_create_test_sub_issue():
                         )
                     ),
                     verbose=verbose,
-                    max_input_tokens_for_this_call=max_tokens_for_main_call
+                    max_input_tokens_for_this_call=max_tokens_for_main_call,
                 )
                 print("\n--- Resposta Final (Conteúdo da Sub-Issue de Teste) ---")
                 print(final_response_content.strip() if final_response_content else "")
@@ -468,7 +480,7 @@ def main_create_test_sub_issue():
                 sys.exit(0)
         else:
             print("\nResposta final da LLM está vazia. Nenhum arquivo será salvo.")
-    except MissingEssentialFileAbort as e: 
+    except MissingEssentialFileAbort as e:
         print(f"\nErro: {e}", file=sys.stderr)
         print("Fluxo de seleção de contexto interrompido.")
         sys.exit(1)

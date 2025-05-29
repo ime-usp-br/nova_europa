@@ -6,7 +6,7 @@ This module stores all global constants for the LLM interaction scripts.
 """
 from pathlib import Path
 import os
-from typing import Dict, List, Optional, Any, Set, Tuple, Union # Added Dict, Any
+from typing import Dict, List, Optional, Any, Set, Tuple, Union  # Added Dict, Any
 
 # Project Structure
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -31,18 +31,18 @@ GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
 
 MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
     "gemini-2.5-flash-preview-05-20": 250000,
-    "gemini-1.5-flash-preview-0514": 150000, # Mantido para referência, se necessário
+    "gemini-1.5-flash-preview-0514": 150000,  # Mantido para referência, se necessário
     "gemini-1.5-flash": 200000,  # Exemplo, verificar documentação oficial para limites corretos
-    "gemini-1.5-pro": 200000,    # Exemplo, verificar documentação oficial para limites corretos
+    "gemini-1.5-pro": 200000,  # Exemplo, verificar documentação oficial para limites corretos
     # Default to a conservative value if model not listed
-    "default": 200000
+    "default": 200000,
 }
-DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192 # Default estimate for model output tokens
-DEFAULT_TOKEN_SAFETY_BUFFER = 2048   # Buffer to avoid hitting hard limits
+DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192  # Default estimate for model output tokens
+DEFAULT_TOKEN_SAFETY_BUFFER = 2048  # Buffer to avoid hitting hard limits
 
 # Limites de RPM (Requisições Por Minuto) para modelos Gemini (Nível Gratuito como padrão)
 MODEL_RPM_LIMITS: Dict[str, int] = {
-    "gemini-2.5-flash-preview-05-20": 10, # Baseado em "Pré-lançamento 04-17 do Gemini 2.5 Flash"
+    "gemini-2.5-flash-preview-05-20": 10,  # Baseado em "Pré-lançamento 04-17 do Gemini 2.5 Flash"
     "gemini-1.5-flash-preview-0514": 10,  # Mantendo consistência com o nome similar
     "gemini-1.5-flash": 15,
     "gemini-1.5-pro": 2,
@@ -57,8 +57,8 @@ WEB_SEARCH_ENCOURAGEMENT_PT = "\n\nPara garantir a melhor resposta possível, si
 DEFAULT_BASE_BRANCH = "main"
 PR_CONTENT_DELIMITER_TITLE = "--- PR TITLE ---"
 PR_CONTENT_DELIMITER_BODY = "--- PR BODY ---"
-SUMMARY_CONTENT_DELIMITER_START = "--- START OF FILE " # Note o espaço
-SUMMARY_CONTENT_DELIMITER_END = "--- END OF FILE "   # Note o espaço
+SUMMARY_CONTENT_DELIMITER_START = "--- START OF FILE "  # Note o espaço
+SUMMARY_CONTENT_DELIMITER_END = "--- END OF FILE "  # Note o espaço
 ESSENTIAL_CONTENT_DELIMITER_START = "--- START OF ESSENTIAL FILE "
 ESSENTIAL_CONTENT_DELIMITER_END = "--- END OF ESSENTIAL FILE "
 
@@ -67,20 +67,24 @@ ESSENTIAL_CONTENT_DELIMITER_END = "--- END OF ESSENTIAL FILE "
 SUMMARY_TOKEN_LIMIT_PER_CALL = 200000  # Example limit for batching summaries
 ESTIMATED_TOKENS_PER_SUMMARY = 200  # Rough estimate for a single summary
 SLEEP_DURATION_SECONDS = 1  # Default sleep duration for rate limiting
-DEFAULT_API_TIMEOUT_SECONDS = 300 # Default timeout for Gemini API calls
+DEFAULT_API_TIMEOUT_SECONDS = 300  # Default timeout for Gemini API calls
 MANIFEST_MAX_TOKEN_FILTER = 200000
 DEFAULT_MAX_FILES_PER_SUMMARY_CALL = 10
-MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL = 120000 # Max tokens for pre-injected essential content
-SELECTOR_LLM_MAX_INPUT_TOKENS = 200000 # Limite para a chamada da LLM seletora
+MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL = (
+    120000  # Max tokens for pre-injected essential content
+)
+SELECTOR_LLM_MAX_INPUT_TOKENS = 200000  # Limite para a chamada da LLM seletora
 
 # Default values for arguments
 DEFAULT_TARGET_BRANCH = "main"
 DEFAULT_MAX_FILES_PER_CALL_SUMMARY = 10
-DEFAULT_CONTEXT_GENERATION_TIMEOUT = 600 # 10 minutes
+DEFAULT_CONTEXT_GENERATION_TIMEOUT = 600  # 10 minutes
 DEFAULT_GH_PROJECT_NUMBER = os.getenv("GH_PROJECT_NUMBER", "1")
 DEFAULT_GH_PROJECT_OWNER = os.getenv("GH_PROJECT_OWNER", "@me")
-DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv("GH_PROJECT_STATUS_FIELD_NAME", "Status")
-DEFAULT_RATE_LIMIT_SLEEP = 60 # Sleep for errors like 429, ResourceExhausted (reactive)
+DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv(
+    "GH_PROJECT_STATUS_FIELD_NAME", "Status"
+)
+DEFAULT_RATE_LIMIT_SLEEP = 60  # Sleep for errors like 429, ResourceExhausted (reactive)
 
 ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
     "resolve-ac": {
@@ -90,14 +94,14 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
         "static": [
             "docs/guia_de_desenvolvimento.md",
             "docs/padroes_codigo_boas_praticas.md",
-            "context_llm/code/{latest_dir_name}/phpunit_test_results.txt", # Opcional, pode não existir
-            "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",   # Opcional
-            "context_llm/code/{latest_dir_name}/dusk_test_results.txt", # Opcional
+            "context_llm/code/{latest_dir_name}/phpunit_test_results.txt",  # Opcional, pode não existir
+            "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",  # Opcional
+            "context_llm/code/{latest_dir_name}/dusk_test_results.txt",  # Opcional
         ],
     },
     "commit-mesage": {
         "args": {
-            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json", # Opcional, pode não existir
+            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",  # Opcional, pode não existir
         },
         "static": [
             "context_llm/code/{latest_dir_name}/git_diff_cached.txt",
@@ -127,7 +131,7 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
         ],
     },
     "update-doc": {
-         "args": {
+        "args": {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
             "doc_file": "{doc_file}",
         },
@@ -135,30 +139,28 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
             "docs/versionamento_documentacao.md",
             "docs/padroes_codigo_boas_praticas.md",
             "CHANGELOG.md",
-            "context_llm/code/{latest_dir_name}/git_diff_cached.txt", # Diff da issue
-        ]
+            "context_llm/code/{latest_dir_name}/git_diff_cached.txt",  # Diff da issue
+        ],
     },
     "fix-artisan-test": {
         "static": [
             "context_llm/code/{latest_dir_name}/phpunit_test_results.txt",
             "docs/padroes_codigo_boas_praticas.md",
-            ]
+        ]
     },
     "fix-artisan-dusk": {
         "static": [
             "context_llm/code/{latest_dir_name}/dusk_test_results.txt",
             "docs/padroes_codigo_boas_praticas.md",
-            ]
+        ]
     },
     "fix-phpstan": {
         "static": [
             "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",
             "docs/padroes_codigo_boas_praticas.md",
-            ]
+        ]
     },
-    "manifest-summary": {
-        "static": []
-    },
+    "manifest-summary": {"static": []},
     "create-test-sub-issue": {
         "args": {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
@@ -166,11 +168,11 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
         "static": [
             "docs/guia_de_desenvolvimento.md",
             "docs/padroes_codigo_boas_praticas.md",
-            ".github/workflows/laravel.yml" # Opcional
-        ]
+            ".github/workflows/laravel.yml",  # Opcional
+        ],
     },
     "review-issue": {
-         "args": {
+        "args": {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
         },
         "static": [
@@ -179,7 +181,7 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
             "docs/padroes_codigo_boas_praticas.md",
             "context_llm/code/{latest_dir_name}/git_log.txt",
             "context_llm/code/{latest_dir_name}/gh_pr_list.txt",
-            "context_llm/code/{latest_dir_name}/20250529_085817_manifest.json" # Exemplo, precisa ser dinâmico se for usado assim
-        ]
-    }
+            "context_llm/code/{latest_dir_name}/20250529_085817_manifest.json",  # Exemplo, precisa ser dinâmico se for usado assim
+        ],
+    },
 }
