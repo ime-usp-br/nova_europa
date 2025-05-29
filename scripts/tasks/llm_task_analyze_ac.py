@@ -24,7 +24,7 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
-from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
+from scripts.llm_core.exceptions import MissingEssentialFileAbort 
 
 from google.genai import types
 
@@ -155,6 +155,9 @@ def main_analyze_ac():
             core_config.CONTEXT_DIR_BASE
         )
         latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+        
+        # Calcula max_input_tokens para a chamada principal (Etapa 2 ou direta)
+        max_tokens_for_main_call = api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose)
 
 
         if args.select_context:
@@ -163,243 +166,120 @@ def main_analyze_ac():
                 core_config.MANIFEST_DATA_DIR
             )
             if not latest_manifest_path:
-                print(
-                    "Erro: Não foi possível encontrar o manifesto para seleção de contexto. Tente gerar o manifesto primeiro.",
-                    file=sys.stderr,
-                )
+                print("Erro: Não foi possível encontrar o manifesto para seleção de contexto. Tente gerar o manifesto primeiro.", file=sys.stderr,)
                 sys.exit(1)
-            manifest_data_for_context_selection = core_context.load_manifest(
-                latest_manifest_path
-            )
-            if (
-                not manifest_data_for_context_selection
-                or "files" not in manifest_data_for_context_selection
-            ):
-                print(
-                    "Erro: Manifesto inválido ou vazio para seleção de contexto.",
-                    file=sys.stderr,
-                )
+            manifest_data_for_context_selection = core_context.load_manifest(latest_manifest_path)
+            if (not manifest_data_for_context_selection or "files" not in manifest_data_for_context_selection):
+                print("Erro: Manifesto inválido ou vazio para seleção de contexto.", file=sys.stderr,)
                 sys.exit(1)
-            print(
-                f"  Manifesto carregado: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
-            )
+            if verbose: 
+                print(f"  AC5.1: Manifesto carregado para seleção: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}")
 
-            context_selector_prompt_path = (
-                core_prompts_module.find_context_selector_prompt(
-                    TASK_NAME, args.two_stage
-                )
-            )
-            if not context_selector_prompt_path:
-                sys.exit(1)
-            selector_prompt_content = core_prompts_module.load_and_fill_template(
-                context_selector_prompt_path, task_variables
-            )
+            context_selector_prompt_path = (core_prompts_module.find_context_selector_prompt(TASK_NAME, args.two_stage))
+            if not context_selector_prompt_path: sys.exit(1)
+            selector_prompt_content = core_prompts_module.load_and_fill_template(context_selector_prompt_path, task_variables)
             if not selector_prompt_content:
-                print("Erro ao carregar prompt seletor de contexto.", file=sys.stderr)
-                sys.exit(1)
-            print(
-                f"  Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
-            )
+                print("Erro ao carregar prompt seletor de contexto.", file=sys.stderr); sys.exit(1)
+            if verbose: 
+                print(f"  AC5.1: Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}")
 
-            # AC4.1: A exceção MissingEssentialFileAbort será capturada aqui
             preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
-                TASK_NAME,
-                args, # cli_args
-                latest_dir_name_for_essentials,
-                manifest_data_for_context_selection,
-                selector_prompt_content,
-                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
-                verbose
+                TASK_NAME, args, latest_dir_name_for_essentials,
+                manifest_data_for_context_selection, selector_prompt_content,
+                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL, verbose 
             )
-
-            if verbose:
-                print(
-                    f"    Payload para API seletora (início): {preliminary_api_input_content[:200]}..."
-                )
 
             response_prelim_str: Optional[str] = None
             suggested_files_from_api: List[str] = []
             try:
-                print(
-                    f"  Chamando API preliminar ({core_config.GEMINI_MODEL_FLASH}) para seleção de contexto..."
-                )
+                # AC5.2: Logging antes da chamada preliminar
+                max_tokens_selector_call = api_client.calculate_max_input_tokens(core_config.GEMINI_MODEL_FLASH, verbose=verbose)
+                
                 response_prelim_str = api_client.execute_gemini_call(
                     core_config.GEMINI_MODEL_FLASH,
                     [types.Part.from_text(text=preliminary_api_input_content)],
-                    config=types.GenerateContentConfig(
-                        tools=(
-                            [
-                                types.Tool(
-                                    google_search_retrieval=types.GoogleSearchRetrieval()
-                                )
-                            ]
-                            if args.web_search
-                            else []
-                        )
-                    ),
+                    config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
                     verbose=verbose,
+                    max_input_tokens_for_this_call=max_tokens_selector_call # Passando para log AC5.2
                 )
-                cleaned_response_str = response_prelim_str.strip()
-                if cleaned_response_str.startswith("```json"):
-                    cleaned_response_str = cleaned_response_str[7:].strip()
-                if cleaned_response_str.endswith("```"):
-                    cleaned_response_str = cleaned_response_str[:-3].strip()
+                cleaned_response_str = response_prelim_str.strip().removeprefix("```json").removesuffix("```").strip()
                 parsed_response = json.loads(cleaned_response_str)
-                if (
-                    isinstance(parsed_response, dict)
-                    and "relevant_files" in parsed_response
-                    and isinstance(parsed_response["relevant_files"], list)
-                ):
-                    suggested_files_from_api = [
-                        str(item)
-                        for item in parsed_response["relevant_files"]
-                        if isinstance(item, str)
-                    ]
-                else:
-                    raise ValueError("Formato de 'relevant_files' inválido.")
-                print(
-                    f"    API preliminar retornou {len(suggested_files_from_api)} arquivos sugeridos."
-                )
-
+                if (isinstance(parsed_response, dict) and "relevant_files" in parsed_response and isinstance(parsed_response["relevant_files"], list)):
+                    suggested_files_from_api = [str(item) for item in parsed_response["relevant_files"] if isinstance(item, str)]
+                else: raise ValueError("Formato de 'relevant_files' inválido.")
+                print(f"    API preliminar retornou {len(suggested_files_from_api)} arquivos sugeridos.")
             except Exception as e:
-                print(
-                    f"\nErro fatal durante seleção de contexto preliminar: {type(e).__name__} - {e}",
-                    file=sys.stderr,
-                )
-                if verbose:
-                    traceback.print_exc()
+                print(f"\nErro fatal durante seleção de contexto preliminar: {type(e).__name__} - {e}", file=sys.stderr,);
+                if verbose: traceback.print_exc();
                 sys.exit(1)
 
             if not suggested_files_from_api:
-                if not core_context.prompt_user_on_empty_selection():
-                    sys.exit(1)
+                if not core_context.prompt_user_on_empty_selection(): sys.exit(1)
                 load_default_context_after_selection_failure = True
             else:
-                final_selected_files_for_context = (
-                    core_context.confirm_and_modify_selection(
-                        suggested_files_from_api,
-                        manifest_data_for_context_selection,
-                        api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose) # Passar o limite da LLM principal
-                    )
-                )
-                if final_selected_files_for_context is None:
-                    load_default_context_after_selection_failure = True
-
-        if (
-            final_selected_files_for_context is not None
-            and not load_default_context_after_selection_failure
-        ):
+                final_selected_files_for_context = (core_context.confirm_and_modify_selection(
+                    suggested_files_from_api, manifest_data_for_context_selection,
+                    max_tokens_for_main_call, verbose=verbose 
+                ))
+                if final_selected_files_for_context is None: load_default_context_after_selection_failure = True
+        
+        if (final_selected_files_for_context is not None and not load_default_context_after_selection_failure):
             context_parts = core_context.prepare_context_parts(
-                primary_context_dir=None,
-                common_context_dir=None,
-                exclude_list=args.exclude_context,
-                manifest_data=manifest_data_for_context_selection,
-                include_list=final_selected_files_for_context,
-                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
-                task_name_for_essentials=TASK_NAME,
-                cli_args_for_essentials=args,
-                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                primary_context_dir=None, common_context_dir=None, exclude_list=args.exclude_context,
+                manifest_data=manifest_data_for_context_selection, include_list=final_selected_files_for_context,
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME, cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials, verbose=verbose
             )
         else:
             if not latest_context_dir_path:
-                print(
-                    "Erro fatal: Nenhum diretório de contexto encontrado para carregamento padrão. Execute generate_context.py.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
+                print("Erro fatal: Nenhum diretório de contexto encontrado para carregamento padrão. Execute generate_context.py.", file=sys.stderr,); sys.exit(1)
             context_parts = core_context.prepare_context_parts(
-                primary_context_dir=latest_context_dir_path,
-                common_context_dir=core_config.COMMON_CONTEXT_DIR,
-                exclude_list=args.exclude_context,
-                manifest_data=manifest_data_for_context_selection,
-                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
-                task_name_for_essentials=TASK_NAME,
-                cli_args_for_essentials=args,
-                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
-                verbose=verbose
+                primary_context_dir=latest_context_dir_path, common_context_dir=core_config.COMMON_CONTEXT_DIR,
+                exclude_list=args.exclude_context, manifest_data=manifest_data_for_context_selection, 
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME, cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials, verbose=verbose
             )
-        if not context_parts and verbose:
-            print(
-                "Aviso: Nenhuma parte de contexto carregada. A LLM pode não ter informações suficientes.",
-                file=sys.stderr,
-            )
+        if not context_parts and verbose: print("Aviso: Nenhuma parte de contexto carregada. A LLM pode não ter informações suficientes.", file=sys.stderr,)
 
         final_prompt_to_send: Optional[str] = None
         if args.two_stage:
-            print(
-                "\nExecutando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final)..."
-            )
+            print("\nExecutando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final)...")
             prompt_final_content: Optional[str] = None
             meta_prompt_current = initial_prompt_content_current
             while True:
-                print(
-                    f"\nEtapa 1: Enviando Meta-Prompt + Contexto ({len(context_parts)} partes)..."
-                )
-                contents_step1 = [
-                    types.Part.from_text(text=meta_prompt_current)
-                ] + context_parts
+                print(f"\nEtapa 1: Enviando Meta-Prompt + Contexto ({len(context_parts)} partes)...")
+                contents_step1 = [types.Part.from_text(text=meta_prompt_current)] + context_parts
                 try:
+                    # AC5.2: Logging antes da chamada API
+                    max_tokens_step1 = api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP1, verbose=verbose)
                     prompt_final_content = api_client.execute_gemini_call(
-                        GEMINI_MODEL_STEP1,
-                        contents_step1,
-                        config=types.GenerateContentConfig(
-                            tools=(
-                                [
-                                    types.Tool(
-                                        google_search_retrieval=types.GoogleSearchRetrieval()
-                                    )
-                                ]
-                                if args.web_search
-                                else []
-                            )
-                        ),
-                        verbose=verbose,
+                        GEMINI_MODEL_STEP1, contents_step1,
+                        config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
+                        verbose=verbose, max_input_tokens_for_this_call=max_tokens_step1 
                     )
-                    print("\n--- Prompt Final Gerado (Etapa 1) ---")
-                    print(prompt_final_content.strip())
-                    print("---")
-                    if args.yes:
-                        user_choice_step1, observation_step1 = "y", None
-                    else:
-                        user_choice_step1, observation_step1 = io_utils.confirm_step(
-                            "Usar este prompt gerado para a Etapa 2?"
-                        )
-                    if user_choice_step1 == "y":
-                        final_prompt_to_send = prompt_final_content
-                        break
-                    elif user_choice_step1 == "q":
-                        sys.exit(0)
-                    elif user_choice_step1 == "n" and observation_step1:
-                        meta_prompt_current = (
-                            core_prompts_module.modify_prompt_with_observation(
-                                meta_prompt_current, observation_step1
-                            )
-                        )
-                    else:
-                        sys.exit(1)
+                    print("\n--- Prompt Final Gerado (Etapa 1) ---"); print(prompt_final_content.strip()); print("---")
+                    if args.yes: user_choice_step1, observation_step1 = "y", None
+                    else: user_choice_step1, observation_step1 = io_utils.confirm_step("Usar este prompt gerado para a Etapa 2?")
+                    if user_choice_step1 == "y": final_prompt_to_send = prompt_final_content; break
+                    elif user_choice_step1 == "q": sys.exit(0)
+                    elif user_choice_step1 == "n" and observation_step1: meta_prompt_current = core_prompts_module.modify_prompt_with_observation(meta_prompt_current, observation_step1)
+                    else: sys.exit(1)
                 except Exception as e:
                     print(f"  Erro durante chamada API Etapa 1: {e}", file=sys.stderr)
-                    if "Prompt bloqueado" in str(e):
-                        sys.exit(1)
-                    retry_choice, _ = io_utils.confirm_step(
-                        "Chamada API Etapa 1 falhou. Tentar novamente?"
-                    )
-                    if retry_choice != "y":
-                        sys.exit(1)
-            if not final_prompt_to_send:
-                sys.exit(1)
-            if (
-                args.web_search
-                and core_config.WEB_SEARCH_ENCOURAGEMENT_PT not in final_prompt_to_send
-            ):
+                    if "Prompt bloqueado" in str(e): sys.exit(1)
+                    retry_choice, _ = io_utils.confirm_step("Chamada API Etapa 1 falhou. Tentar novamente?")
+                    if retry_choice != "y": sys.exit(1)
+            if not final_prompt_to_send: sys.exit(1)
+            if (args.web_search and core_config.WEB_SEARCH_ENCOURAGEMENT_PT not in final_prompt_to_send):
                 final_prompt_to_send += core_config.WEB_SEARCH_ENCOURAGEMENT_PT
         else:
             final_prompt_to_send = initial_prompt_content_current
 
         if args.only_prompt:
             print(f"\n--- Prompt Final Para Envio (--only-prompt) ---")
-            print(final_prompt_to_send.strip() if final_prompt_to_send else "Não houve resposta")
+            print(final_prompt_to_send.strip())
             print("--- Fim ---")
             sys.exit(0)
 
@@ -407,80 +287,40 @@ def main_analyze_ac():
         final_prompt_current = final_prompt_to_send
         while True:
             step_name = "Etapa 2: Enviando" if args.two_stage else "Enviando"
-            print(
-                f"\n{step_name} Prompt Final + Contexto ({len(context_parts)} partes)..."
-            )
-            contents_final = [
-                types.Part.from_text(text=final_prompt_current)
-            ] + context_parts
+            print(f"\n{step_name} Prompt Final + Contexto ({len(context_parts)} partes)...")
+            contents_final = [types.Part.from_text(text=final_prompt_current)] + context_parts
             try:
+                # AC5.2: Logging antes da chamada API final
                 final_response_content = api_client.execute_gemini_call(
-                    GEMINI_MODEL_STEP2,
-                    contents_final,
-                    config=types.GenerateContentConfig(
-                        tools=(
-                            [
-                                types.Tool(
-                                    google_search_retrieval=types.GoogleSearchRetrieval()
-                                )
-                            ]
-                            if args.web_search
-                            else []
-                        )
-                    ),
-                    verbose=verbose,
+                    GEMINI_MODEL_STEP2, contents_final,
+                    config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
+                    verbose=verbose, max_input_tokens_for_this_call=max_tokens_for_main_call 
                 )
-                print("\n--- Resposta Final ---")
-                print(final_response_content.strip() if final_response_content else "")
-                print("---")
-                if args.yes:
-                    user_choice_final, observation_final = "y", None
-                else:
-                    user_choice_final, observation_final = io_utils.confirm_step(
-                        "Prosseguir com esta resposta final?"
-                    )
-                if user_choice_final == "y":
-                    break
-                elif user_choice_final == "q":
-                    sys.exit(0)
-                elif user_choice_final == "n" and observation_final:
-                    final_prompt_current = (
-                        core_prompts_module.modify_prompt_with_observation(
-                            final_prompt_current, observation_final
-                        )
-                    )
-                else:
-                    sys.exit(1)
+                print("\n--- Resposta Final ---"); print(final_response_content.strip() if final_response_content else ""); print("---")
+                if args.yes: user_choice_final, observation_final = "y", None
+                else: user_choice_final, observation_final = io_utils.confirm_step("Prosseguir com esta resposta final?")
+                if user_choice_final == "y": break
+                elif user_choice_final == "q": sys.exit(0)
+                elif user_choice_final == "n" and observation_final: final_prompt_current = core_prompts_module.modify_prompt_with_observation(final_prompt_current, observation_final)
+                else: sys.exit(1)
             except Exception as e:
                 print(f"  Erro durante chamada API final: {e}", file=sys.stderr)
-                if "Prompt bloqueado" in str(e):
-                    sys.exit(1)
-                retry_choice_final, _ = io_utils.confirm_step(
-                    "Chamada API final falhou. Tentar novamente?"
-                )
-                if retry_choice_final != "y":
-                    sys.exit(1)
+                if "Prompt bloqueado" in str(e): sys.exit(1)
+                retry_choice_final, _ = io_utils.confirm_step("Chamada API final falhou. Tentar novamente?")
+                if retry_choice_final != "y": sys.exit(1)
 
         if final_response_content is None:
-            print("Erro: Nenhuma resposta final obtida.", file=sys.stderr)
-            sys.exit(1)
+            print("Erro: Nenhuma resposta final obtida.", file=sys.stderr); sys.exit(1)
 
         if final_response_content.strip():
-            save_confirm_choice, _ = io_utils.confirm_step(
-                "Confirmar salvamento desta resposta?"
-            )
+            save_confirm_choice, _ = io_utils.confirm_step("Confirmar salvamento desta resposta?")
             if save_confirm_choice == "y":
-                print("\nSalvando Resposta Final...")
-                io_utils.save_llm_response(TASK_NAME, final_response_content.strip())
-            else:
-                print("Salvamento cancelado.")
-                sys.exit(0)
+                print("\nSalvando Resposta Final..."); io_utils.save_llm_response(TASK_NAME, final_response_content.strip())
+            else: print("Salvamento cancelado."); sys.exit(0)
         else:
-            print(
-                "\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma alteração de código foi necessária."
-            )
+            print("\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma alteração de código foi necessária.")
             print("Nenhum arquivo será salvo.")
-    except MissingEssentialFileAbort as e: # AC4.1d
+    except MissingEssentialFileAbort as e: 
         print(f"\nErro: {e}", file=sys.stderr)
         print("Fluxo de seleção de contexto interrompido.")
         sys.exit(1)

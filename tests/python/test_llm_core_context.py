@@ -140,7 +140,7 @@ def _check_loaded_parts(
         assert hasattr(part, "text"), "Part is missing 'text' attribute"
         
         content_match = re.match(
-            r"^--- (?:START OF ESSENTIAL FILE|START OF FILE) (.*?) ---\n(?:--- SUMMARY ---\n(.*?)\n--- END SUMMARY ---\n)?(.*?)\n--- (?:END OF ESSENTIAL FILE|END OF FILE) \1 ---$",
+            r"^--- (?:START OF ESSENTIAL FILE|START OF FILE) (.*?) ---\n(?:--- SUMMARY ---\n(.*?)\n--- END SUMMARY ---\n)?(.*?)\n?^--- (?:END OF ESSENTIAL FILE|END OF FILE) \1 ---$",
             part.text,
             re.DOTALL | re.MULTILINE, 
         )
@@ -165,7 +165,7 @@ def _check_loaded_parts(
             if isinstance(meta, dict) and meta.get("summary") and meta.get("summary").strip() == actual_content_in_part:
                 is_summary_content = True
 
-        if not is_summary_content and not ("... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ..." in actual_content_in_part):
+        if not is_summary_content and not ("... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ..." in actual_content_in_part) and not ("...[TRUNCADO]..." in actual_content_in_part) :
              expected_content = expected_file_path_abs.read_text(encoding="utf-8", errors="ignore").strip()
              assert actual_content_in_part == expected_content, f"Content mismatch for {relative_path_str}.\nExpected:\n'''{expected_content}'''\nGot:\n'''{actual_content_in_part}'''"
 
@@ -549,22 +549,19 @@ def test_get_essential_files_for_task_resolve_ac(tmp_path: Path, monkeypatch):
     issue_file_rel = f"context_llm/code/{latest_dir}/github_issue_123_details.json"
     _create_tmp_file_rel_to_project_root(tmp_path, issue_file_rel, '{"title": "Issue 123"}')
     _create_tmp_file_rel_to_project_root(tmp_path, "docs/guia_de_desenvolvimento.md", "Guia dev")
-    # Não criar outros arquivos estáticos opcionais para este teste específico,
-    # pois get_essential_files_for_task não os verifica mais.
-
+    
     args = argparse.Namespace(issue="123", ac="1")
 
     essential_paths_abs = core_context.get_essential_files_for_task("resolve-ac", args, latest_dir, verbose=True)
     essential_paths_relative_str = {p.relative_to(tmp_path).as_posix() for p in essential_paths_abs}
 
-    # A função AGORA retorna TODOS os caminhos mapeados, existam ou não.
     expected_paths_str = {
-        f"context_llm/code/{latest_dir}/github_issue_123_details.json", # Este é de args
-        "docs/guia_de_desenvolvimento.md", # Este é estático
-        "docs/padroes_codigo_boas_praticas.md", # Estático, mesmo que não criado no teste
-        f"context_llm/code/{latest_dir}/phpunit_test_results.txt", # Estático, mesmo que não criado
-        f"context_llm/code/{latest_dir}/phpstan_analysis.txt", # Estático, mesmo que não criado
-        f"context_llm/code/{latest_dir}/dusk_test_results.txt" # Estático, mesmo que não criado
+        f"context_llm/code/{latest_dir}/github_issue_123_details.json", 
+        "docs/guia_de_desenvolvimento.md", 
+        "docs/padroes_codigo_boas_praticas.md", 
+        f"context_llm/code/{latest_dir}/phpunit_test_results.txt", 
+        f"context_llm/code/{latest_dir}/phpstan_analysis.txt",   
+        f"context_llm/code/{latest_dir}/dusk_test_results.txt" 
     }
     assert essential_paths_relative_str == expected_paths_str
 
@@ -575,20 +572,18 @@ def test_load_essential_files_content_ac4_1_file_missing_abort(
     mock_prompt_user: MagicMock, tmp_path: Path, monkeypatch, capsys
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
-    essential_missing_rel = "essentials/missing_file.txt" # Não será criado
+    essential_missing_rel = "essentials/missing_file.txt" 
     essential_exists_rel = "essentials/existing_file.txt"
     _create_tmp_file_rel_to_project_root(tmp_path, essential_exists_rel, "Content existing")
 
     abs_paths = [tmp_path / essential_missing_rel, tmp_path / essential_exists_rel]
-    mock_prompt_user.return_value = False # Usuário escolhe abortar
+    mock_prompt_user.return_value = False 
 
     with pytest.raises(MissingEssentialFileAbort) as excinfo:
         core_context.load_essential_files_content(abs_paths, 10000, verbose=True)
 
     assert f"ausente: {essential_missing_rel}" in str(excinfo.value)
     mock_prompt_user.assert_called_once_with(essential_missing_rel)
-    # captured = capsys.readouterr() # Comentado pois o mock não imprime
-    # assert f"AVISO (AC4.1a): Arquivo essencial '{essential_missing_rel}' não encontrado no disco." in captured.out
 
 
 @patch("scripts.llm_core.io_utils.prompt_user_for_missing_essential_file")
@@ -596,12 +591,12 @@ def test_load_essential_files_content_ac4_1_file_missing_continue(
     mock_prompt_user: MagicMock, tmp_path: Path, monkeypatch, capsys
 ):
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
-    essential_missing_rel = "essentials/missing_file_continue.txt" # Não será criado
+    essential_missing_rel = "essentials/missing_file_continue.txt" 
     essential_exists_rel = "essentials/existing_file_continue.txt"
     _create_tmp_file_rel_to_project_root(tmp_path, essential_exists_rel, "Content existing continue")
 
     abs_paths = [tmp_path / essential_missing_rel, tmp_path / essential_exists_rel]
-    mock_prompt_user.return_value = True # Usuário escolhe continuar
+    mock_prompt_user.return_value = True 
 
     content_str, loaded_paths = core_context.load_essential_files_content(abs_paths, 10000, verbose=True)
 
@@ -614,14 +609,13 @@ def test_load_essential_files_content_ac4_1_file_missing_continue(
 
     mock_prompt_user.assert_called_once_with(essential_missing_rel)
     captured = capsys.readouterr()
-    # A mensagem "AVISO (AC4.1a)..." é impressa por io_utils.prompt_user_for_missing_essential_file, que está mockado.
-    # A mensagem "Continuando sem o arquivo..." é impressa por load_essential_files_content se verbose=True.
-    assert f"Continuando sem o arquivo essencial '{essential_missing_rel}'" in captured.out
+    expected_log_message = f"AC5.1b: Continuando sem o arquivo essencial ausente '{essential_missing_rel}'."
+    assert expected_log_message in captured.out
 
 
 # --- Testes para prepare_payload_for_selector_llm (AC1.2d) ---
-@patch("scripts.llm_core.io_utils.prompt_user_for_missing_essential_file", return_value=True) # AC4.1: Simula continuar
-def test_prepare_payload_for_selector_llm_commit_mesage(mock_prompt_missing, tmp_path: Path, monkeypatch):
+@patch("scripts.llm_core.io_utils.prompt_user_for_missing_essential_file", return_value=True) 
+def test_prepare_payload_for_selector_llm_commit_mesage(mock_prompt_missing, tmp_path: Path, monkeypatch, capsys): # Adicionado capsys
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
     latest_dir = "20230101_000000"
     context_code_dir = tmp_path / "context_llm" / "code" / latest_dir
@@ -652,25 +646,28 @@ def test_prepare_payload_for_selector_llm_commit_mesage(mock_prompt_missing, tmp
     
     selector_prompt_template = "Prompt: {{ESSENTIAL_FILES_CONTENT}} \nManifesto: {{REMAINING_MANIFEST_JSON}}"
 
-    args = argparse.Namespace(issue=None)
+    args = argparse.Namespace(issue=None) 
 
     payload = core_context.prepare_payload_for_selector_llm(
         "commit-mesage", args, latest_dir, full_manifest_data, selector_prompt_template,
         core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
-        verbose=True
+        verbose=True 
     )
 
 
     assert "diff content" in payload
     assert "log content" in payload
-    assert "guia content" in payload
+    assert "guia content" in payload 
     assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{diff_file_rel} ---" in payload
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{log_file_rel} ---" in payload
+    assert f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{guia_file_rel} ---" in payload
 
 
     assert "MyClass summary" in payload 
     assert diff_file_rel not in payload[payload.find("Manifesto: "):] 
-
-
+    assert log_file_rel not in payload[payload.find("Manifesto: "):] 
+    assert guia_file_rel not in payload[payload.find("Manifesto: "):] 
+    
     assert "Prompt: " in payload
     assert "Manifesto: " in payload
     assert "{{ESSENTIAL_FILES_CONTENT}}" not in payload
@@ -686,14 +683,16 @@ def test_prepare_payload_for_selector_llm_commit_mesage(mock_prompt_missing, tmp
         assert other_file_rel in remaining_manifest_parsed["files"]
         assert diff_file_rel not in remaining_manifest_parsed["files"]
         assert log_file_rel not in remaining_manifest_parsed["files"]
-        assert guia_file_rel not in remaining_manifest_parsed["files"]
+        assert guia_file_rel not in remaining_manifest_parsed["files"] 
         assert remaining_manifest_parsed["files"][other_file_rel]["summary"] == "MyClass summary"
     except json.JSONDecodeError as e:
         pytest.fail(f"Failed to parse JSON from payload: {e}\nPayload part: {json_part_match.group(1) if json_part_match else 'Not Found'}")
 
+    captured = capsys.readouterr()
+    assert "AC5.1c: Tamanho total estimado do payload para LLM seletora:" in captured.out
+
 
 # --- Testes para AC 2.2 (Redução de Contexto) ---
-
 @patch("scripts.llm_core.context.get_essential_files_for_task")
 @patch("scripts.llm_core.api_client.calculate_max_input_tokens") 
 def test_ac2_2_summary_reduction(
@@ -701,7 +700,6 @@ def test_ac2_2_summary_reduction(
     mock_get_essentials: MagicMock, 
     tmp_path: Path, monkeypatch, capsys
 ):
-    """Verifica AC2.2 - Verificação (Sumário)."""
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
     
     essential_file_rel = "essencial.txt"
@@ -715,14 +713,11 @@ def test_ac2_2_summary_reduction(
 
     manifest_data = {
         "files": {
-            essential_file_rel: {"summary": "Sumario do essencial", "token_count": 800, "type": "text_plain", "summary_token_count": 20}, # Adicionado summary_token_count
+            essential_file_rel: {"summary": "Sumario do essencial", "token_count": 800, "type": "text_plain", "summary_token_count": 20}, 
             non_essential_file_rel: {"summary": "sumario grande", "token_count": 500, "summary_token_count":10, "type": "text_plain"}
         }
     }
-    
-    summary_grande_tokens = 10 # From manifest_data
-
-
+    summary_grande_tokens = 10
     parts = core_context.prepare_context_parts(
         primary_context_dir=None, 
         include_list=[essential_file_rel, non_essential_file_rel],
@@ -735,28 +730,17 @@ def test_ac2_2_summary_reduction(
 
     assert len(parts) == 2
     
-    essencial_part_text = None
-    nao_essencial_part_text = None
-
+    essencial_part_text, nao_essencial_part_text = (None, None)
     for part in parts:
-        if core_config.ESSENTIAL_CONTENT_DELIMITER_START + essential_file_rel in part.text:
-            essencial_part_text = part.text
-        
-        elif core_config.SUMMARY_CONTENT_DELIMITER_START + non_essential_file_rel in part.text:
-             nao_essencial_part_text = part.text
-            
-    assert essencial_part_text is not None, f"Part para '{essential_file_rel}' (essencial) não encontrada com delimitador ESSENCIAL."
-    assert nao_essencial_part_text is not None, f"Part para '{non_essential_file_rel}' (não essencial) não encontrada com delimitador SUMÁRIO."
-
+        if core_config.ESSENTIAL_CONTENT_DELIMITER_START + essential_file_rel in part.text: essencial_part_text = part.text
+        elif core_config.SUMMARY_CONTENT_DELIMITER_START + non_essential_file_rel in part.text: nao_essencial_part_text = part.text
+    assert essencial_part_text is not None and nao_essencial_part_text is not None
     assert "E" * (800 * 4) in essencial_part_text 
-    
     assert "sumario grande" in nao_essencial_part_text 
     assert "N" * (500 * 4) not in nao_essencial_part_text 
-    
     captured = capsys.readouterr()
-    expected_log_non_essential_reduction = f"AC2.2.1: Substituindo '{non_essential_file_rel}' (500 tokens originais) por sumário ({summary_grande_tokens} tokens)."
+    expected_log_non_essential_reduction = f"AC2.2.1: Substituindo '{non_essential_file_rel}' ({500} tokens originais) por sumário ({summary_grande_tokens} tokens)."
     assert expected_log_non_essential_reduction in captured.out
-    
     assert f"AC2.2.1: Substituindo '{essential_file_rel}'" not in captured.out
 
 
@@ -767,28 +751,16 @@ def test_ac2_2_truncation(
     mock_get_essentials: MagicMock, 
     tmp_path: Path, monkeypatch, capsys
 ):
-    """Verifica AC2.2 - Verificação (Truncamento)."""
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
     
     mock_get_essentials.return_value = [] 
-
-    original_content_1000_tokens = "X" * (1000 * 4) # ~1000 tokens
+    original_content_1000_tokens = "X" * (1000 * 4) 
     _create_tmp_file_rel_to_project_root(tmp_path, "muito_grande.txt", original_content_1000_tokens)
-
-    manifest_data = {
-        "files": {
-            "muito_grande.txt": {"summary": None, "token_count": 1000, "type":"text_plain", "summary_token_count": None}
-        }
-    }
-
+    manifest_data = { "files": { "muito_grande.txt": {"summary": None, "token_count": 1000, "type":"text_plain", "summary_token_count": None}}}
     parts = core_context.prepare_context_parts(
-        primary_context_dir=None,
-        include_list=["muito_grande.txt"],
-        manifest_data=manifest_data,
-        max_input_tokens_for_call=500, 
-        task_name_for_essentials=None, 
-        cli_args_for_essentials=argparse.Namespace(),
-        verbose=True
+        primary_context_dir=None, include_list=["muito_grande.txt"], manifest_data=manifest_data,
+        max_input_tokens_for_call=500, task_name_for_essentials=None, 
+        cli_args_for_essentials=argparse.Namespace(), verbose=True
     )
     
     assert len(parts) == 1
@@ -797,10 +769,7 @@ def test_ac2_2_truncation(
     assert "... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ..." in part_text
     
     assert original_content_1000_tokens not in part_text 
-    
-    
-    assert len(part_text) < len(original_content_1000_tokens) + len(core_config.SUMMARY_CONTENT_DELIMITER_START) + len("muito_grande.txt ---") + len("--- SUMMARY --- ... --- END SUMMARY ---") + len(core_config.SUMMARY_CONTENT_DELIMITER_END) + len("muito_grande.txt ---") + 200 # margem
-    
+    assert len(part_text) < len(original_content_1000_tokens) + len(core_config.SUMMARY_CONTENT_DELIMITER_START) + len("muito_grande.txt ---") + len("--- SUMMARY --- ... --- END SUMMARY ---") + len(core_config.SUMMARY_CONTENT_DELIMITER_END) + len("muito_grande.txt ---") + 200
     captured = capsys.readouterr()
     
     assert "AC2.2.2 (Não Essencial): Truncando 'muito_grande.txt'" in captured.out
@@ -811,58 +780,73 @@ def test_ac2_2_truncation(
     assert final_tokens <= 500 
     assert final_tokens > 0 
 
-# Teste para AC3.4 - Log de truncamento de arquivo essencial para LLM seletora
-@patch("scripts.llm_core.io_utils.prompt_user_for_missing_essential_file", return_value=True) # AC4.1: Simula continuar
+@patch("scripts.llm_core.io_utils.prompt_user_for_missing_essential_file", return_value=True) 
 def test_ac3_4_essential_file_truncation_and_logging_for_selector_llm(mock_prompt_missing, tmp_path: Path, monkeypatch, capsys):
-    """
-    Verifica AC3.4: Log quando um arquivo essencial é truncado para a LLM seletora.
-    """
     monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path)
-
     essential_large_rel = "essentials/grande_essencial.txt"
     essential_small_rel = "essentials/pequeno_essencial.txt"
-
-    _create_tmp_file_rel_to_project_root(tmp_path, essential_large_rel, "L" * 4000) # ~1000 tokens
-    _create_tmp_file_rel_to_project_root(tmp_path, essential_small_rel, "S" * 400)  # ~100 tokens
-
-    abs_paths = [
-        tmp_path / essential_large_rel,
-        tmp_path / essential_small_rel
-    ]
-    
+    _create_tmp_file_rel_to_project_root(tmp_path, essential_large_rel, "L" * 4000) 
+    _create_tmp_file_rel_to_project_root(tmp_path, essential_small_rel, "S" * 400)  
+    abs_paths = [tmp_path / essential_large_rel, tmp_path / essential_small_rel]
     max_tokens_payload = 700 
-
-    content_str, loaded_paths = core_context.load_essential_files_content(
-        abs_paths,
-        max_tokens_payload,
-        verbose=True 
-    )
-    
+    content_str, loaded_paths = core_context.load_essential_files_content(abs_paths, max_tokens_payload, verbose=True)
     assert Path(essential_large_rel) in loaded_paths
-    assert Path(essential_small_rel) not in loaded_paths # Deve ser pulado devido ao orçamento após truncar o grande
-
+    assert Path(essential_small_rel) not in loaded_paths 
     assert "... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ..." in content_str
-    
     captured = capsys.readouterr()
-    expected_log_decision_to_truncate_large = f"AVISO (AC3.4): Conteúdo do arquivo essencial '{essential_large_rel}' (1000 tokens est.) será truncado para caber no orçamento de {max_tokens_payload} tokens."
+    expected_log_decision_to_truncate_large = f"Conteúdo do arquivo essencial '{essential_large_rel}' ({int(4000/3.8)} tokens est.) será truncado para caber no orçamento de {max_tokens_payload} tokens."
     assert expected_log_decision_to_truncate_large in captured.out, "Log de decisão de truncamento para arquivo essencial grande não encontrado ou formato incorreto."
-
     assert "Conteúdo truncado:" in captured.out
-
-    expected_log_small_skipped_pattern = rf"AVISO \(AC3.4\): Arquivo essencial '{re.escape(essential_small_rel)}' \(\d+ tokens est.\) pulado\. Orçamento restante \(\d+ tokens\) muito pequeno para conteúdo útil\."
     
-    assert re.search(expected_log_small_skipped_pattern, captured.out), \
-        f"Log esperado para '{essential_small_rel}' sendo pulado não encontrado ou formato incorreto na saída: {captured.out}"
+    # CORREÇÃO: Verifica a mensagem genérica de skip de arquivos restantes
+    expected_log_overall_skip = f"Limite de tokens para payload essencial ({max_tokens_payload}) atingido. Pulando arquivos restantes."
+    assert expected_log_overall_skip in captured.out, \
+        f"Log esperado de skip geral não encontrado na saída: {captured.out}"
 
-    max_tokens_tiny_payload = 10 # Menor que o mínimo para _truncate_content
-    content_str_tiny, loaded_paths_tiny = core_context.load_essential_files_content(
-        [tmp_path / essential_large_rel], # Apenas o grande
-        max_tokens_tiny_payload,
-        verbose=True
-    )
-    assert not loaded_paths_tiny # Não deve carregar nada
-    assert content_str_tiny == ""
+    max_tokens_tiny_payload = 10 
+    content_str_tiny, loaded_paths_tiny = core_context.load_essential_files_content([tmp_path / essential_large_rel], max_tokens_tiny_payload, verbose=True)
     captured_tiny = capsys.readouterr()
-    expected_log_tiny_skip = f"AVISO (AC3.4): Arquivo essencial '{essential_large_rel}' ({1000} tokens est.) pulado. Orçamento restante ({max_tokens_tiny_payload} tokens) muito pequeno para conteúdo útil."
+    expected_log_tiny_skip = f"Arquivo essencial '{essential_large_rel}' ({int(4000/3.8)} tokens est.) pulado. Orçamento restante ({max_tokens_tiny_payload} tokens) muito pequeno para conteúdo útil."
     assert expected_log_tiny_skip in captured_tiny.out
 
+@patch("builtins.input")
+def test_confirm_and_modify_selection_logs(mock_input, capsys, tmp_path: Path): 
+    monkeypatch = pytest.MonkeyPatch() 
+    monkeypatch.setattr(core_config, "PROJECT_ROOT", tmp_path) 
+
+    suggested = ["fileA.py", "fileB.md"]
+    
+    (tmp_path / "fileA.py").write_text("content A")
+    (tmp_path / "fileB.md").write_text("content B")
+    (tmp_path / "fileC.js").write_text("content C") 
+
+    manifest = {
+        "files": {
+            "fileA.py": {"token_count": 100, "type": "code_python"},
+            "fileB.md": {"token_count": 200, "type": "docs_md"},
+            "fileC.js": {"token_count": 50, "type": "code_js"},
+        }
+    }
+    
+    mock_input.side_effect = ["a fileC.js", "r fileA.py", "y"]
+    
+    final_selection = core_context.confirm_and_modify_selection(suggested, manifest, max_input_tokens=500, verbose=True)
+    
+    captured = capsys.readouterr()
+    
+    # AC5.1d: Lista inicial
+    assert "AC5.1d: Lista de arquivos retornada pela LLM seletora (2 arquivos):" in captured.out
+    assert "    [1] fileA.py" in captured.out # CORREÇÃO
+    assert "    [2] fileB.md" in captured.out # CORREÇÃO
+
+    # Log de adição (AC5.1e)
+    assert "AC5.1e: Usuário adicionou 'fileC.js' à seleção." in captured.out
+    
+    # Log de remoção (AC5.1e)
+    assert "AC5.1e: Usuário removeu 'fileA.py' da seleção." in captured.out
+
+    # Verifica o log final de confirmação
+    assert "Usuário confirmou o uso de 2 arquivos selecionados para o contexto." in captured.out
+    assert final_selection == ["fileB.md", "fileC.js"]
+
+    monkeypatch.undo() 

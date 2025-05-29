@@ -26,7 +26,7 @@ from scripts.llm_core import (
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
-from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
+from scripts.llm_core.exceptions import MissingEssentialFileAbort 
 
 
 from google.genai import types
@@ -114,7 +114,6 @@ def select_files_for_summary_batch(
             processed_files.add(filepath_str)
             continue
 
-        # Estima o total de tokens de entrada e saída se este arquivo for adicionado
         potential_total_input_tokens = (
             current_input_tokens_for_batch + file_content_token_count
         )
@@ -123,26 +122,17 @@ def select_files_for_summary_batch(
         )
 
         if potential_total_input_tokens <= max_input_tokens:
-            # Aqui, a lógica anterior que também verificava potential_total_output_tokens
-            # contra max_output_tokens (um limite do modelo para UMA resposta)
-            # pode não ser a melhor forma de lotear para múltiplas sumarizações.
-            # O modelo é chamado UMA vez por lote, e o resultado será um conjunto de sumários.
-            # O importante é que a *entrada total do lote* não exceda o limite de entrada do modelo,
-            # e que o *número de sumários* não gere uma saída excessivamente grande para o modelo manipular.
-            # A estimativa de output tokens por sumário é mais para controle de custo/tempo do que limite rígido de modelo.
-            # Vamos simplificar e focar principalmente no limite de entrada do lote.
             batch_files.append(filepath_str)
             current_input_tokens_for_batch = potential_total_input_tokens
             current_estimated_output_tokens_for_batch = (
-                potential_total_output_tokens  # Ainda rastreia para informação
+                potential_total_output_tokens  
             )
         else:
             if verbose:
                 print(
                     f"    Arquivo '{filepath_str}' ({file_content_token_count} tokens) excederia o limite de entrada do lote. Não adicionando a este lote."
                 )
-            # Não adiciona a processed_files aqui, pois pode caber no próximo lote.
-            break  # Para o lote atual se o próximo arquivo não couber.
+            break  
 
     return (
         batch_files,
@@ -166,7 +156,6 @@ def prepare_api_content_for_summary(
         )
         try:
             content = filepath_absolute.read_text(encoding="utf-8", errors="ignore")
-            # O path no delimitador deve ser o relativo, como no manifesto
             part_text = f"{core_config.SUMMARY_CONTENT_DELIMITER_START}{filepath_str} ---\n{content}\n{core_config.SUMMARY_CONTENT_DELIMITER_END}{filepath_str} ---"
             contents_for_api.append(types.Part.from_text(text=part_text))
             successfully_read_paths.append(filepath_str)
@@ -206,13 +195,9 @@ def main_manifest_summary():
         sys.exit(1)
 
     try:
-        # A geração de contexto não é usualmente necessária para esta task, pois ela opera sobre um manifesto existente.
-        # Mas mantemos a flag para consistência, caso o usuário queira garantir que o contexto (e o manifesto) esteja atualizado.
         if args.generate_context:
-            # ... (lógica de geração de contexto, se necessário) ...
             pass
 
-        # Determinar o arquivo de manifesto a ser processado
         manifest_to_process_path: Optional[Path] = None
         if args.manifest_path:
             manifest_to_process_path = Path(args.manifest_path).resolve(strict=False)
@@ -261,11 +246,9 @@ def main_manifest_summary():
                 needs_summary = True
                 if verbose:
                     print(f"    -> Sumário forçado para '{filepath_str}'.")
-            elif metadata.get("summary") is None:  # Se summary é null ou não existe
+            elif metadata.get("summary") is None:  
                 needs_summary = True
-            # Adicionar lógica para verificar hash se quisermos re-sumarizar arquivos modificados
-            # Por ora, foca em summary: null ou forçado.
-
+            
             if needs_summary:
                 if (
                     metadata.get("token_count") is not None
@@ -288,7 +271,6 @@ def main_manifest_summary():
             f"  Encontrados {len(candidates_for_summary)} arquivos candidatos para sumarização."
         )
 
-        # Determinar o prompt base (direto ou meta)
         if args.two_stage:
             template_path_to_load = (
                 core_config.META_PROMPT_DIR / META_PROMPT_TEMPLATE_NAME
@@ -302,9 +284,9 @@ def main_manifest_summary():
                 file=sys.stderr,
             )
             sys.exit(1)
+        
+        GEMINI_MODEL_TO_USE = core_config.GEMINI_MODEL_SUMMARY
 
-        # As variáveis para este prompt são mínimas, pois o conteúdo principal vem dos arquivos.
-        # A observação pode ser usada para guiar o estilo do resumo, por exemplo.
         base_summary_prompt_content = core_prompts_module.load_and_fill_template(
             template_path_to_load, {"OBSERVACAO_ADICIONAL": args.observation}
         )
@@ -314,11 +296,13 @@ def main_manifest_summary():
             )
             sys.exit(1)
 
-        if args.web_search:  # Adiciona encorajamento se web search estiver ativo
+        if args.web_search:  
             base_summary_prompt_content += core_config.WEB_SEARCH_ENCOURAGEMENT_PT
 
         processed_files_in_run: Set[str] = set()
         manifest_was_modified = False
+
+        max_tokens_for_api_call = api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=verbose) # AC5.2
 
         while True:
             batch_files, batch_input_tokens, batch_output_estimate = (
@@ -327,11 +311,11 @@ def main_manifest_summary():
                     candidates_for_summary,
                     processed_files_in_run,
                     args.max_files_per_call,
-                    core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,  # Limite de entrada para a API
+                    max_tokens_for_api_call, # AC5.2: usa o limite calculado
                     core_config.ESTIMATED_TOKENS_PER_SUMMARY
                     * len(processed_files_in_run)
                     + core_config.ESTIMATED_TOKENS_PER_SUMMARY
-                    * args.max_files_per_call,  # Estimativa para o output total do lote
+                    * args.max_files_per_call,  
                     verbose,
                 )
             )
@@ -339,7 +323,7 @@ def main_manifest_summary():
             if not batch_files:
                 if verbose:
                     print("  Nenhum arquivo restante para processar em lotes.")
-                break  # Sai do loop de lotes
+                break  
 
             print(
                 f"\n  Processando lote de {len(batch_files)} arquivos (Tokens de Entrada Aprox.: {batch_input_tokens}, Tokens de Saída Estimados Aprox.: {batch_output_estimate})..."
@@ -351,148 +335,78 @@ def main_manifest_summary():
                 )
             )
 
-            if not processed_paths_in_batch:  # Se nenhum arquivo pôde ser lido
+            if not processed_paths_in_batch:  
                 print(
                     "    Lote vazio após tentativa de leitura dos arquivos. Pulando este lote."
                 )
                 processed_files_in_run.update(
                     batch_files
-                )  # Marca todos como processados para não tentar de novo
+                )  
                 continue
 
             print(
                 f"    Enviando {len(processed_paths_in_batch)} arquivos para a API para sumarização..."
             )
 
-            final_prompt_for_llm = (
-                base_summary_prompt_content  # Para o caso de fluxo direto
-            )
             current_llm_response = ""
 
             try:
                 if args.two_stage:
-                    print(
-                        "    Executando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final de Sumarização)..."
-                    )
-                    # A primeira chamada usa o meta-prompt e o CONTEÚDO dos arquivos do lote
+                    print("    Executando Fluxo de Duas Etapas (Etapa 1: Meta -> Prompt Final de Sumarização)...")
+                    # AC5.2: Logging para chamada de meta-prompt
+                    max_tokens_meta = api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=False)
                     final_summary_prompt_from_meta = api_client.execute_gemini_call(
-                        core_config.GEMINI_MODEL_SUMMARY,  # Ou um modelo geral se o meta-prompt for complexo
-                        contents_for_api,  # Contém meta-prompt + conteúdo dos arquivos
-                        config=types.GenerateContentConfig(
-                            tools=(
-                                [
-                                    types.Tool(
-                                        google_search_retrieval=types.GoogleSearchRetrieval()
-                                    )
-                                ]
-                                if args.web_search
-                                else []
-                            )
-                        ),
-                        verbose=verbose,
+                        GEMINI_MODEL_TO_USE, contents_for_api, 
+                        config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
+                        verbose=verbose, max_input_tokens_for_this_call=max_tokens_meta
                     )
                     print("    Prompt Final de Sumarização Gerado (Etapa 1 concluída).")
-                    # A segunda chamada usa o prompt gerado e o CONTEÚDO dos arquivos do lote
-                    # Re-prepara contents_for_api com o novo prompt
-                    contents_for_api_step2, _ = prepare_api_content_for_summary(
-                        processed_paths_in_batch,
-                        final_summary_prompt_from_meta,
-                        verbose,
-                    )
-                    print(
-                        "    Executando Fluxo de Duas Etapas (Etapa 2: Prompt Final -> Sumários)..."
-                    )
+                    contents_for_api_step2, _ = prepare_api_content_for_summary(processed_paths_in_batch, final_summary_prompt_from_meta, verbose)
+                    print("    Executando Fluxo de Duas Etapas (Etapa 2: Prompt Final -> Sumários)...")
+                    # AC5.2: Logging para chamada principal
                     current_llm_response = api_client.execute_gemini_call(
-                        core_config.GEMINI_MODEL_SUMMARY,
-                        contents_for_api_step2,
-                        config=types.GenerateContentConfig(
-                            tools=(
-                                [
-                                    types.Tool(
-                                        google_search_retrieval=types.GoogleSearchRetrieval()
-                                    )
-                                ]
-                                if args.web_search
-                                else []
-                            )
-                        ),
-                        verbose=verbose,
+                        GEMINI_MODEL_TO_USE, contents_for_api_step2,
+                        config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
+                        verbose=verbose, max_input_tokens_for_this_call=max_tokens_for_api_call
                     )
                 else:  # Fluxo Direto
+                     # AC5.2: Logging para chamada principal
                     current_llm_response = api_client.execute_gemini_call(
-                        core_config.GEMINI_MODEL_SUMMARY,
-                        contents_for_api,
-                        config=types.GenerateContentConfig(
-                            tools=(
-                                [
-                                    types.Tool(
-                                        google_search_retrieval=types.GoogleSearchRetrieval()
-                                    )
-                                ]
-                                if args.web_search
-                                else []
-                            )
-                        ),
-                        verbose=verbose,
+                        GEMINI_MODEL_TO_USE, contents_for_api,
+                        config=types.GenerateContentConfig(tools=([types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())] if args.web_search else [])),
+                        verbose=verbose, max_input_tokens_for_this_call=max_tokens_for_api_call
                     )
 
                 print("    Chamada API bem-sucedida.")
-                parsed_summaries = io_utils.parse_summaries_from_response(
-                    current_llm_response
-                )
+                parsed_summaries = io_utils.parse_summaries_from_response(current_llm_response)
                 print(f"    Parseados {len(parsed_summaries)} sumários da resposta.")
 
                 updated_count_in_batch = 0
-                for (
-                    filepath_str_from_response,
-                    summary_text,
-                ) in parsed_summaries.items():
+                for (filepath_str_from_response, summary_text,) in parsed_summaries.items():
                     if filepath_str_from_response in files_metadata_dict:
-                        # Atualiza o dicionário manifest_data em memória
-                        files_metadata_dict[filepath_str_from_response][
-                            "summary"
-                        ] = summary_text.strip()
+                        files_metadata_dict[filepath_str_from_response]["summary"] = summary_text.strip()
                         manifest_was_modified = True
                         updated_count_in_batch += 1
                     elif verbose:
-                        print(
-                            f"    Aviso: Caminho de arquivo '{filepath_str_from_response}' retornado pela LLM não encontrado no manifesto original. Sumário ignorado."
-                        )
-
-                print(
-                    f"    Aplicados {updated_count_in_batch} novos sumários aos metadados do manifesto para este lote."
-                )
-
+                        print(f"    Aviso: Caminho de arquivo '{filepath_str_from_response}' retornado pela LLM não encontrado no manifesto original. Sumário ignorado.")
+                print(f"    Aplicados {updated_count_in_batch} novos sumários aos metadados do manifesto para este lote.")
             except Exception as e:
                 print(f"  ERRO: Falha ao processar o lote: {e}", file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
                 print("  Pulando este lote devido ao erro.")
-
-            # Marca todos os arquivos *tentados* neste lote como processados para esta execução do script
-            # para evitar tentar sumarizá-los novamente no mesmo run, mesmo se a API falhou.
             processed_files_in_run.update(batch_files)
 
         if manifest_was_modified:
-            # Garante que a chave "files" está presente antes de tentar atualizar
-            if "files" not in manifest_data:
-                manifest_data["files"] = {}  # Deveria existir, mas por segurança
-            manifest_data["files"].update(
-                files_metadata_dict
-            )  # Atualiza com os sumários
-
+            if "files" not in manifest_data: manifest_data["files"] = {} 
+            manifest_data["files"].update(files_metadata_dict)
             if io_utils.update_manifest_file(manifest_to_process_path, manifest_data):
-                print(
-                    f"\nArquivo de manifesto '{manifest_to_process_path.name}' atualizado com sucesso com os novos sumários."
-                )
+                print(f"\nArquivo de manifesto '{manifest_to_process_path.name}' atualizado com sucesso com os novos sumários.")
             else:
-                print(
-                    f"\nErro: Falha ao atualizar o arquivo de manifesto '{manifest_to_process_path.name}'.",
-                    file=sys.stderr,
-                )
+                print(f"\nErro: Falha ao atualizar o arquivo de manifesto '{manifest_to_process_path.name}'.", file=sys.stderr,)
                 sys.exit(1)
         else:
             print("\nNenhum sumário foi gerado ou modificado no manifesto.")
-    except MissingEssentialFileAbort as e: # AC4.1d
+    except MissingEssentialFileAbort as e: 
         print(f"\nErro: {e}", file=sys.stderr)
         print("Fluxo de seleção de contexto interrompido.")
         sys.exit(1)

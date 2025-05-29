@@ -137,7 +137,7 @@ def test_main_resolve_ac_direct_flow_success(
         tmp_path
         / "templates"
         / "prompts"
-        / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME
+        / llm_task_resolve_ac.PROMPT_TEMPLATE_NAME # CORREÇÃO: Usar a constante correta do módulo
     ).write_text("Template content")
 
     try:
@@ -158,7 +158,7 @@ def test_main_resolve_ac_direct_flow_success(
         tmp_path
         / "templates"
         / "prompts"
-        / llm_task_resolve_ac.RESOLVE_AC_PROMPT_TEMPLATE_NAME,
+        / llm_task_resolve_ac.PROMPT_TEMPLATE_NAME, # CORREÇÃO: Usar a constante correta do módulo
         {"NUMERO_DA_ISSUE": "1", "NUMERO_DO_AC": "1", "OBSERVACAO_ADICIONAL": "obs"},
     )
     mock_prepare_context.assert_called_once()

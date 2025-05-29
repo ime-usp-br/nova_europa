@@ -13,9 +13,9 @@ from typing import List, Optional, Dict, Any, Set, Tuple, Union # Adicionado Uni
 from google.genai import types
 
 from . import config as core_config
-from . import api_client # Adicionado para calcular max_input_tokens_for_call
-from .exceptions import MissingEssentialFileAbort # AC4.1
-from . import io_utils # AC4.1
+from . import api_client 
+from .exceptions import MissingEssentialFileAbort 
+from . import io_utils 
 
 
 @dataclasses.dataclass
@@ -47,16 +47,16 @@ def _truncate_content(content: str, target_token_count: int, verbose: bool = Fal
     separator = "\n\n... [CONTEÚDO TRUNCADO PARA CABER NO LIMITE DE TOKENS] ...\n\n"
     separator_len = len(separator)
     
-    if not content: # Se o conteúdo original já for vazio
+    if not content: 
         return "", 0
 
     if len(content) <= target_char_count:
-        return content, max(1, len(content) // 4) if content else 0
+        return content, max(1, int(len(content) / chars_per_token_approx)) if content else 0
 
     if target_char_count <= separator_len:
         keep_start_chars = max(10, target_char_count - 10)
         truncated_content_str = content[:keep_start_chars] + "\n...[TRUNCADO]..."
-        new_token_estimate = max(1, len(truncated_content_str) // 4) if truncated_content_str else 0
+        new_token_estimate = max(1, int(len(truncated_content_str) / chars_per_token_approx)) if truncated_content_str else 0
         if verbose:
             print(f"      Truncamento agressivo: mantendo {keep_start_chars} caracteres do início.")
         return truncated_content_str, new_token_estimate
@@ -68,7 +68,7 @@ def _truncate_content(content: str, target_token_count: int, verbose: bool = Fal
         if target_char_count < (keep_each_side * 2 + separator_len):
              keep_start = max(10, target_char_count - len("\n...[TRUNCADO]..."))
              truncated_content_str = content[:keep_start] + "\n...[TRUNCADO]..."
-             new_token_estimate = max(1, len(truncated_content_str) // 4) if truncated_content_str else 0
+             new_token_estimate = max(1, int(len(truncated_content_str) / chars_per_token_approx)) if truncated_content_str else 0
              if verbose:
                  print(f"      Truncamento priorizando início: {keep_start} caracteres.")
              return truncated_content_str, new_token_estimate
@@ -77,10 +77,10 @@ def _truncate_content(content: str, target_token_count: int, verbose: bool = Fal
     end_chunk = content[-keep_each_side:]
     
     truncated_content_str = start_chunk + separator + end_chunk
-    new_token_estimate = max(1, len(truncated_content_str) // 4) if truncated_content_str else 0
+    new_token_estimate = max(1, int(len(truncated_content_str) / chars_per_token_approx)) if truncated_content_str else 0
 
     if verbose:
-        original_token_estimate = max(1, len(content) // 4) if content else 0
+        original_token_estimate = max(1, int(len(content) / chars_per_token_approx)) if content else 0
         print(f"      Conteúdo truncado: ~{new_token_estimate} tokens (original: ~{original_token_estimate} tokens).")
     
     return truncated_content_str, new_token_estimate
@@ -117,12 +117,11 @@ def _load_files_from_dir(
     exclude_set: Set[str],
     manifest_data: Optional[Dict[str, Any]],
     essential_map_paths_relative_str: Set[str],
-    # Novo parâmetro para pular arquivos já carregados como essenciais
     skip_if_already_loaded_relative_paths: Set[str],
     verbose: bool = False,
 ) -> None:
     """Helper to load files from a specific directory into FileProcessUnit list."""
-    file_patterns = ["*.txt", "*.json", "*.md"] # Padrões para arquivos de contexto padrão
+    file_patterns = ["*.txt", "*.json", "*.md"] 
     loaded_count = 0
     excluded_by_arg_count = 0
     skipped_already_loaded_count = 0
@@ -164,7 +163,7 @@ def _load_files_from_dir(
 
         try:
             content = filepath_abs.read_text(encoding="utf-8", errors="ignore")
-            original_token_count = max(1, len(content) // 4) if content else 0
+            original_token_count = max(1, int(len(content) / 3.8)) if content else 0 
             
             summary_text: Optional[str] = None
             summary_tokens: Optional[int] = None
@@ -174,12 +173,11 @@ def _load_files_from_dir(
                 metadata = manifest_data["files"][relative_path_str]
                 if isinstance(metadata, dict): 
                     summary_text = metadata.get("summary")
-                    # CORREÇÃO: Priorizar summary_token_count do manifesto
                     stc_from_manifest = metadata.get("summary_token_count")
                     if isinstance(stc_from_manifest, int) and stc_from_manifest >= 0:
                         summary_tokens = stc_from_manifest
-                    elif summary_text: # Fallback para estimativa
-                        summary_tokens = max(1, len(summary_text) // 4)
+                    elif summary_text: 
+                        summary_tokens = max(1, int(len(summary_text) / 3.8))
                     else:
                         summary_tokens = None
                     
@@ -233,14 +231,18 @@ def get_essential_files_for_task(
     """
     Identifica os caminhos absolutos dos arquivos potencialmente essenciais para uma dada tarefa e argumentos.
     Resolve placeholders nos padrões de ESSENTIAL_FILES_MAP.
-    Não verifica se o arquivo existe neste ponto; isso é feito depois.
     """
     essential_file_abs_paths: List[Path] = []
     task_map = core_config.ESSENTIAL_FILES_MAP.get(task_name, {})
 
     if verbose:
-        print(f"  Identificando arquivos potencialmente essenciais para a tarefa '{task_name}':")
-
+        print(f"  AC5.1a: Iniciando identificação de arquivos essenciais para tarefa '{task_name}'...")
+        if "args" in task_map:
+            for arg_name, file_pattern_template in task_map["args"].items():
+                print(f"    - Padrão por argumento '{arg_name}': {file_pattern_template}")
+        if "static" in task_map:
+            for static_file_template in task_map["static"]:
+                print(f"    - Padrão estático: {static_file_template}")
 
     if "args" in task_map:
         for arg_name, file_pattern_template in task_map["args"].items():
@@ -248,21 +250,15 @@ def get_essential_files_for_task(
                 arg_value = getattr(cli_args, arg_name)
                 if arg_value:
                     formatted_file_pattern = str(file_pattern_template)
-
-
                     replacements: Dict[str, str] = {"latest_dir_name": latest_dir_name or ""}
                     for attr_name_in_args, val_cli_in_args in vars(cli_args).items():
                         if val_cli_in_args is not None:
                             replacements[attr_name_in_args] = str(val_cli_in_args)
 
-
                     if arg_name == "doc_file" and file_pattern_template == "{doc_file}":
-
                         path_to_check = Path(str(arg_value))
                         if not path_to_check.is_absolute():
                             path_to_check = (core_config.PROJECT_ROOT / path_to_check).resolve(strict=False)
-
-                        # Não verifica is_file() aqui, isso é feito em load_essential_files_content
                         essential_file_abs_paths.append(path_to_check)
                         if verbose:
                              print(f"    + Potencialmente essencial (de arg '{arg_name}'): {path_to_check.relative_to(core_config.PROJECT_ROOT) if path_to_check.is_absolute() and path_to_check.is_relative_to(core_config.PROJECT_ROOT) else path_to_check}")
@@ -276,17 +272,14 @@ def get_essential_files_for_task(
                         continue
                     
                     abs_path = (core_config.PROJECT_ROOT / formatted_file_pattern).resolve(strict=False)
-                    essential_file_abs_paths.append(abs_path) # Adiciona mesmo que não exista, verificação depois
+                    essential_file_abs_paths.append(abs_path)
                     if verbose:
                          print(f"    + Potencialmente essencial (de arg '{arg_name}'): {abs_path.relative_to(core_config.PROJECT_ROOT) if abs_path.is_absolute() and abs_path.is_relative_to(core_config.PROJECT_ROOT) else abs_path}")
-
 
     if "static" in task_map:
         for static_file_template in task_map["static"]:
             formatted_static_file = str(static_file_template)
-            
             replacements = {"latest_dir_name": latest_dir_name or ""}
-            
             for attr_name_in_args, val_cli_in_args in vars(cli_args).items():
                  if val_cli_in_args is not None:
                     replacements[attr_name_in_args] = str(val_cli_in_args)
@@ -299,13 +292,18 @@ def get_essential_files_for_task(
                 continue
 
             abs_path = (core_config.PROJECT_ROOT / formatted_static_file).resolve(strict=False)
-            essential_file_abs_paths.append(abs_path) # Adiciona mesmo que não exista
+            essential_file_abs_paths.append(abs_path)
             if verbose:
                 print(f"    + Potencialmente essencial (estático): {abs_path.relative_to(core_config.PROJECT_ROOT) if abs_path.is_absolute() and abs_path.is_relative_to(core_config.PROJECT_ROOT) else abs_path}")
 
     unique_paths = sorted(list(set(essential_file_abs_paths)))
     if verbose:
-        print(f"  Identificados {len(unique_paths)} caminhos de arquivos potencialmente essenciais para '{task_name}'.")
+        print(f"  AC5.1a: Lista final de {len(unique_paths)} caminhos de arquivos potencialmente essenciais identificados para '{task_name}':")
+        for p_idx, p in enumerate(unique_paths):
+            try:
+                print(f"    [{p_idx+1}] {p.relative_to(core_config.PROJECT_ROOT)}")
+            except ValueError: 
+                print(f"    [{p_idx+1}] {p} (fora da raiz do projeto)") 
     return unique_paths
 
 
@@ -315,23 +313,20 @@ def load_essential_files_content(
     verbose: bool = False
 ) -> Tuple[str, List[Path]]:
     """
-    Carrega o conteúdo integral dos arquivos essenciais (caminhos absolutos),
-    aplicando truncamento se necessário para respeitar um limite de tokens estimado.
-    Implementa a lógica do AC4.1 para arquivos ausentes.
-    Retorna o conteúdo concatenado e formatado, e a lista de caminhos relativos dos arquivos carregados.
-    Levanta MissingEssentialFileAbort se o usuário optar por abortar.
+    Carrega o conteúdo dos arquivos essenciais, aplicando truncamento se necessário.
+    Retorna o conteúdo concatenado e os caminhos relativos dos arquivos carregados.
     """
     concatenated_content_parts: List[str] = []
     current_tokens_estimate = 0
     loaded_files_relative_paths: List[Path] = []
 
     if verbose and essential_file_paths_abs:
-        print(f"  Carregando conteúdo de {len(essential_file_paths_abs)} arquivo(s) essencial(is) (limite est. payload: {max_tokens_for_essentials_payload} tokens):")
+        print(f"  AC5.1b: Carregando conteúdo de {len(essential_file_paths_abs)} arquivo(s) essencial(is) (limite est. payload: {max_tokens_for_essentials_payload} tokens):")
 
     for file_path_abs in essential_file_paths_abs:
         if current_tokens_estimate >= max_tokens_for_essentials_payload:
             if verbose:
-                print(f"    Limite de tokens para payload essencial ({max_tokens_for_essentials_payload}) atingido. Pulando arquivos restantes.")
+                print(f"    AC5.1b: Limite de tokens para payload essencial ({max_tokens_for_essentials_payload}) atingido. Pulando arquivos restantes.")
             break
 
         try:
@@ -342,48 +337,48 @@ def load_essential_files_content(
                 print(f"    Aviso (AC4.1): Arquivo essencial '{file_path_abs}' não parece estar dentro do PROJECT_ROOT. Pulando.", file=sys.stderr)
             continue
 
-        # AC4.1: Verificação de arquivo essencial ausente e interação com usuário
         if not file_path_abs.is_file():
-            # O log é feito pela função io_utils.prompt_user_for_missing_essential_file
-
-            # AC4.1b: Perguntar ao usuário
             user_wants_to_continue = io_utils.prompt_user_for_missing_essential_file(relative_path_str)
-
-            if not user_wants_to_continue: # AC4.1d: Abortar
+            if not user_wants_to_continue:
                 raise MissingEssentialFileAbort(
                     f"Tarefa abortada pelo usuário devido ao arquivo essencial ausente: {relative_path_str}"
                 )
-            else: # AC4.1c: Continuar
+            else:
                 if verbose:
-                    print(f"    Continuando sem o arquivo essencial '{relative_path_str}'.")
-                continue # Pula para o próximo arquivo na lista de essenciais
-
+                    print(f"    AC5.1b: Continuando sem o arquivo essencial ausente '{relative_path_str}'.")
+                continue
 
         try:
             content = file_path_abs.read_text(encoding="utf-8", errors="ignore")
-            estimated_tokens_current_file = max(1, len(content) // 4) if content else 0
+            estimated_tokens_current_file = max(1, int(len(content) / 3.8)) if content else 0
             
             content_to_add = content
             tokens_to_add = estimated_tokens_current_file
             was_truncated = False
+            status_log_msg_part = "INTEGRALMENTE usado"
 
             if current_tokens_estimate + estimated_tokens_current_file > max_tokens_for_essentials_payload:
                 remaining_token_budget = max_tokens_for_essentials_payload - current_tokens_estimate
-                if remaining_token_budget < 50:
+                if remaining_token_budget < 50: 
                     if verbose:
-                        print(f"    AVISO (AC3.4): Arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) pulado. Orçamento restante ({remaining_token_budget} tokens) muito pequeno para conteúdo útil.")
-                    continue
-                
-                if verbose:
-                     print(f"    AVISO (AC3.4): Conteúdo do arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) será truncado para caber no orçamento de {remaining_token_budget} tokens.")
+                        print(f"    AVISO (AC3.4 / AC5.1b): Arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) pulado. Orçamento restante ({remaining_token_budget} tokens) muito pequeno para conteúdo útil.")
+                    status_log_msg_part = "PULADO (orçamento insuficiente)"
+                    content_to_add = "" # Não adiciona conteúdo
+                    tokens_to_add = 0
+                else:
+                    if verbose:
+                         print(f"    AVISO (AC3.4 / AC5.1b): Conteúdo do arquivo essencial '{relative_path_str}' ({estimated_tokens_current_file} tokens est.) será truncado para caber no orçamento de {remaining_token_budget} tokens.")
+                    content_to_add, tokens_to_add = _truncate_content(content, remaining_token_budget, verbose)
+                    was_truncated = True
+                    status_log_msg_part = "TRUNCADO"
+                    if tokens_to_add == 0 and content_to_add: 
+                        tokens_to_add = 1
+            
+            if verbose: # AC5.1b Log
+                print(f"    AC5.1b: Arquivo essencial '{relative_path_str}': Conteúdo {status_log_msg_part} (estimativa: {tokens_to_add} tokens).")
 
-                content_to_add, tokens_to_add = _truncate_content(content, remaining_token_budget, verbose)
-                was_truncated = True
 
-                if tokens_to_add == 0 and content_to_add:
-                    tokens_to_add = 1
-
-            if tokens_to_add > 0 or not content_to_add:
+            if tokens_to_add > 0 or not content_to_add: 
                 formatted_block = (
                     f"{core_config.ESSENTIAL_CONTENT_DELIMITER_START}{relative_path_str} ---\n"
                     f"{content_to_add}\n"
@@ -392,19 +387,10 @@ def load_essential_files_content(
                 concatenated_content_parts.append(formatted_block)
                 current_tokens_estimate += tokens_to_add
                 loaded_files_relative_paths.append(relative_path)
-                
-                log_action = "pré-injetado"
-                if was_truncated:
-                    log_action = "TRUNCADO e pré-injetado"
-                
-                if verbose:
-                    print(f"    + Conteúdo essencial de '{relative_path_str}' {log_action} ({tokens_to_add} tokens est.). Total acumulado: {current_tokens_estimate}")
-
             elif verbose:
-                 print(f"    AVISO (AC3.4): Arquivo essencial '{relative_path_str}' resultou em 0 tokens após tentativa de truncamento e não foi adicionado.")
+                 print(f"    AC5.1b: Arquivo essencial '{relative_path_str}' resultou em 0 tokens após tentativa de truncamento e não foi adicionado ao payload da LLM seletora.")
 
-
-        except Exception as e: # Captura erros de leitura do arquivo que existe
+        except Exception as e:
             if verbose:
                 print(f"  Aviso: Não foi possível ler ou processar o arquivo essencial '{file_path_abs.name}': {e}", file=sys.stderr)
     
@@ -421,13 +407,10 @@ def prepare_payload_for_selector_llm(
     verbose: bool = False
 ) -> str:
     """
-    Prepara o payload completo para a LLM seletora, incluindo conteúdo essencial pré-injetado
-    e o JSON do manifesto dos demais arquivos (filtrado por token_count).
-    Levanta MissingEssentialFileAbort se o usuário optar por abortar devido a um arquivo essencial ausente.
+    Prepara o payload completo para a LLM seletora.
     """
     essential_file_abs_paths = get_essential_files_for_task(task_name, cli_args, latest_dir_name, verbose)
     
-    # load_essential_files_content agora pode levantar MissingEssentialFileAbort
     essential_content_str, loaded_essential_relative_paths = load_essential_files_content(
         essential_file_abs_paths,
         max_tokens_for_essentials_payload,
@@ -445,18 +428,13 @@ def prepare_payload_for_selector_llm(
     for path_str, metadata in files_metadata_from_manifest.items():
         if path_str not in loaded_essential_relative_paths_str_set:
             if not isinstance(metadata, dict): continue
-
             token_c = metadata.get("token_count")
-            
             token_c_val = float('inf')
-            if token_c is None:
-                pass
+            if token_c is None: pass
             elif not isinstance(token_c, int):
-                if verbose:
-                    print(f"    - Aviso: token_count para '{path_str}' não é um inteiro ({token_c}), tratando como muito grande.")
+                if verbose: print(f"    - Aviso: token_count para '{path_str}' não é um inteiro ({token_c}), tratando como muito grande.")
                 pass
-            else:
-                token_c_val = token_c
+            else: token_c_val = token_c
 
             if token_c_val <= core_config.MANIFEST_MAX_TOKEN_FILTER:
                 remaining_manifest_files_for_selector[path_str] = {
@@ -477,14 +455,17 @@ def prepare_payload_for_selector_llm(
     )
 
     if verbose:
-        essential_tokens_est = max(1, len(essential_content_str) // 4) if essential_content_str else 0
-        remaining_manifest_tokens_est = max(1, len(remaining_manifest_json_str) // 4) if remaining_manifest_json_str else 0
+        essential_tokens_est = max(1, int(len(essential_content_str) / 3.8)) if essential_content_str else 0
+        remaining_manifest_tokens_est = max(1, int(len(remaining_manifest_json_str) / 3.8)) if remaining_manifest_json_str else 0
+        # Estima tokens do template
+        prompt_template_tokens_est = max(1, int(len(re.sub(r"{{.*?}}", "", selector_prompt_template_content)) / 3.8))
+        
+        total_payload_tokens_est = essential_tokens_est + remaining_manifest_tokens_est + prompt_template_tokens_est
         print(f"    Conteúdo essencial injetado no prompt seletor (~{essential_tokens_est} tokens).")
         print(f"    JSON do manifesto dos demais arquivos (~{remaining_manifest_tokens_est} tokens, {len(remaining_manifest_files_for_selector)} arquivos).")
-        print(f"    Tamanho do prompt final {len(final_selector_prompt)} caracteres.")
-        print(f"    Tamanho do ESSENTIAL_FILES_CONTENT {len(essential_content_str)} caracteres.")
-        print(f"    Tamanho do REMAINING_MANIFEST_JSON {len(remaining_manifest_json_str)} caracteres.")
-
+        print(f"    Tamanho do prompt seletor template (sem placeholders) (~{prompt_template_tokens_est} tokens).")
+        print(f"    AC5.1c: Tamanho total estimado do payload para LLM seletora: ~{total_payload_tokens_est} tokens.")
+        
     return final_selector_prompt
 
 
@@ -495,7 +476,7 @@ def prepare_context_parts(
     manifest_data: Optional[Dict[str, Any]] = None,
     include_list: Optional[List[str]] = None,
     max_input_tokens_for_call: Optional[int] = None,
-    is_for_selector_llm: bool = False,
+    is_for_selector_llm: bool = False, 
     task_name_for_essentials: Optional[str] = None,
     cli_args_for_essentials: Optional[argparse.Namespace] = None,
     latest_dir_name_for_essentials: Optional[str] = None,
@@ -508,12 +489,11 @@ def prepare_context_parts(
     context_parts_final: List[types.Part] = []
     processed_units: List[FileProcessUnit] = []
     exclude_set = set(exclude_list) if exclude_list else set()
-    loaded_as_essential_paths_str: Set[str] = set() # Para rastrear o que já foi carregado como essencial
-    essential_map_paths_relative_str: Set[str] = set() # Inicializa como conjunto vazio
+    loaded_as_essential_paths_str: Set[str] = set() 
+    essential_map_paths_relative_str: Set[str] = set() 
 
     if verbose: print("  Carregando e processando arquivos de contexto...")
 
-    # 1. Carregar arquivos essenciais primeiro
     if task_name_for_essentials and cli_args_for_essentials:
         essential_file_abs_paths = get_essential_files_for_task(
             task_name_for_essentials,
@@ -521,14 +501,11 @@ def prepare_context_parts(
             latest_dir_name_for_essentials,
             verbose
         )
-        # Popula essential_map_paths_relative_str aqui para uso posterior
-        # na função _load_files_from_dir para marcar arquivos como essenciais no FileProcessUnit.
         for p in essential_file_abs_paths:
             try:
                 essential_map_paths_relative_str.add(p.relative_to(core_config.PROJECT_ROOT).as_posix())
-            except ValueError: # pragma: no cover
+            except ValueError: 
                  if verbose: print(f"      - Aviso (Map Essencial): Arquivo '{p}' fora da raiz. Não será marcado como essencial pelo mapa.")
-
 
         for essential_abs_path in essential_file_abs_paths:
             try:
@@ -538,29 +515,30 @@ def prepare_context_parts(
                 continue
 
             if not essential_abs_path.is_file():
-                if not io_utils.prompt_user_for_missing_essential_file(rel_path_str): # AC4.1
+                if not io_utils.prompt_user_for_missing_essential_file(rel_path_str): 
                     raise MissingEssentialFileAbort(f"Tarefa abortada pelo usuário: arquivo essencial '{rel_path_str}' ausente.")
                 if verbose: print(f"      - Aviso (Essencial): '{rel_path_str}' não encontrado, continuando sem ele por escolha do usuário.")
-                continue # Pula este arquivo essencial
+                continue 
 
             try:
                 content = essential_abs_path.read_text(encoding="utf-8", errors="ignore")
-                token_count_val = max(1, len(content) // 4) if content else 0
+                token_count_val = max(1, int(len(content) / 3.8)) if content else 0 
                 summary_val, summary_token_val, type_val = None, None, None
                 if manifest_data and "files" in manifest_data and rel_path_str in manifest_data["files"]:
                     meta = manifest_data["files"][rel_path_str]
                     if isinstance(meta,dict):
                         summary_val = meta.get("summary")
-                        # CORREÇÃO AQUI: Usa summary_token_count do manifesto se existir
                         stc_from_manifest = meta.get("summary_token_count")
                         if isinstance(stc_from_manifest, int) and stc_from_manifest >= 0:
                             summary_token_val = stc_from_manifest
-                        elif summary_val: # Fallback para estimativa
-                            summary_token_val = max(1, len(summary_val)//4)
+                        elif summary_val: 
+                            summary_token_val = max(1, int(len(summary_val)/3.8))
                         else:
                             summary_token_val = None
                         type_val = meta.get("type")
-                        if isinstance(meta.get("token_count"), int): token_count_val = meta.get("token_count",0)
+                        manifest_token_count_val = meta.get("token_count")
+                        if isinstance(manifest_token_count_val, int): token_count_val = manifest_token_count_val
+
 
                 processed_units.append(FileProcessUnit(
                     relative_path=rel_path_str, content=content, original_content=content,
@@ -573,8 +551,6 @@ def prepare_context_parts(
             except Exception as e:
                 if verbose: print(f"      - Aviso (Essencial): Não foi possível ler '{rel_path_str}': {e}", file=sys.stderr)
 
-
-    # 2. Carregar da include_list (se houver), pulando já carregados e excluídos
     if include_list is not None:
         if verbose: print(f"    Carregando com base na lista de inclusão ({len(include_list)} arquivos)...")
         loaded_count_incl = 0
@@ -607,30 +583,30 @@ def prepare_context_parts(
 
             try:
                 content = filepath_abs_incl.read_text(encoding="utf-8", errors="ignore")
-                original_token_count = max(1, len(content) // 4) if content else 0
+                original_token_count = max(1, int(len(content) / 3.8)) if content else 0 
                 summary_text_incl, summary_tokens_val_incl, file_type_val_incl = None, None, None
 
                 if manifest_data and "files" in manifest_data and rel_path_str_incl in manifest_data["files"]:
                     metadata = manifest_data["files"][rel_path_str_incl]
                     if isinstance(metadata, dict):
                         summary_text_incl = metadata.get("summary")
-                        # CORREÇÃO AQUI: Usa summary_token_count do manifesto se existir
                         stc_from_manifest_incl = metadata.get("summary_token_count")
                         if isinstance(stc_from_manifest_incl, int) and stc_from_manifest_incl >= 0:
                             summary_tokens_val_incl = stc_from_manifest_incl
-                        elif summary_text_incl: # Fallback para estimativa
-                            summary_tokens_val_incl = max(1, len(summary_text_incl) // 4)
+                        elif summary_text_incl: 
+                            summary_tokens_val_incl = max(1, int(len(summary_text_incl) / 3.8))
                         else:
                             summary_tokens_val_incl = None
                         file_type_val_incl = metadata.get("type")
-                        if isinstance(metadata.get("token_count"),int): original_token_count = metadata.get("token_count",0)
+                        manifest_token_count_val_incl = metadata.get("token_count")
+                        if isinstance(manifest_token_count_val_incl,int): original_token_count = manifest_token_count_val_incl
 
                 processed_units.append(FileProcessUnit(
                     relative_path=rel_path_str_incl, content=content, original_content=content,
                     token_count=original_token_count, original_token_count=original_token_count,
                     file_type=file_type_val_incl, summary=summary_text_incl,
                     summary_token_count=summary_tokens_val_incl,
-                    is_essential_from_map=False # Arquivos de include_list não são essenciais pelo MAPA
+                    is_essential_from_map=False
                 ))
                 loaded_count_incl += 1
             except Exception as e:
@@ -641,8 +617,6 @@ def prepare_context_parts(
             if skipped_already_loaded_incl >0: print(f"    Pulados {skipped_already_loaded_incl} da include_list (já carregados como essenciais).")
             if exclude_set: print(f"    Excluídos {excluded_by_arg_count_incl} da include_list por --exclude-context.")
             if skipped_not_found_incl > 0: print(f"    Pulados {skipped_not_found_incl} da include_list (não encontrados/legíveis).")
-
-    # 3. Senão, carregar dos diretórios padrão, pulando já carregados e excluídos
     else:
         if verbose: print("    Carregando de diretórios padrão (contexto mais recente + comum)...")
         if primary_context_dir:
@@ -652,11 +626,9 @@ def prepare_context_parts(
 
     current_total_tokens = sum(unit.token_count for unit in processed_units)
 
-
     if max_input_tokens_for_call is not None and current_total_tokens > max_input_tokens_for_call:
         if verbose:
             print(f"  AVISO (AC2.2): Contexto inicial ({current_total_tokens} tokens) excede o limite ({max_input_tokens_for_call} tokens). Aplicando reduções...")
-
 
         units_for_summary_reduction = sorted(
             [unit for unit in processed_units if not unit.is_essential_from_map and unit.summary and unit.summary_token_count is not None and unit.summary_token_count < unit.original_token_count],
@@ -674,33 +646,25 @@ def prepare_context_parts(
                     current_total_tokens -= token_reduction
                     unit.is_reduced_to_summary = True
         
-        
         if current_total_tokens > max_input_tokens_for_call:
-            
             units_to_truncate_non_essential = sorted(
                 [unit for unit in processed_units if not unit.is_essential_from_map and not unit.is_reduced_to_summary],
                 key=lambda u: u.token_count, reverse=True
             )
             for unit in units_to_truncate_non_essential:
                 if current_total_tokens <= max_input_tokens_for_call: break
-                
                 needed_reduction_overall = current_total_tokens - max_input_tokens_for_call
-                
-                max_reduction_for_this_file = max(0, unit.token_count - 50)
+                max_reduction_for_this_file = max(0, unit.token_count - 50) 
                 reduction_to_apply = min(needed_reduction_overall, max_reduction_for_this_file)
-
                 if reduction_to_apply > 0:
                     target_token_for_this_file = unit.token_count - reduction_to_apply
                     original_tokens_before_trunc = unit.token_count
-                    
                     unit.content, unit.token_count = _truncate_content(unit.original_content, target_token_for_this_file, verbose)
                     current_total_tokens -= (original_tokens_before_trunc - unit.token_count)
                     unit.is_truncated = True
                     if verbose: print(f"    AC2.2.2 (Não Essencial): Truncando '{unit.relative_path}' de {original_tokens_before_trunc} para {unit.token_count} tokens.")
         
-        
         if current_total_tokens > max_input_tokens_for_call:
-            
             units_to_truncate_essential = sorted(
                 [unit for unit in processed_units if unit.is_essential_from_map and not unit.is_reduced_to_summary],
                 key=lambda u: u.token_count, reverse=True
@@ -708,9 +672,8 @@ def prepare_context_parts(
             for unit in units_to_truncate_essential:
                 if current_total_tokens <= max_input_tokens_for_call: break
                 needed_reduction_overall = current_total_tokens - max_input_tokens_for_call
-                max_reduction_for_this_file = max(0, unit.token_count - 100)
+                max_reduction_for_this_file = max(0, unit.token_count - 100) 
                 reduction_to_apply = min(needed_reduction_overall, max_reduction_for_this_file)
-
                 if reduction_to_apply > 0:
                     target_token_for_this_file = unit.token_count - reduction_to_apply
                     original_tokens_before_trunc = unit.token_count
@@ -719,8 +682,6 @@ def prepare_context_parts(
                     unit.is_truncated = True
                     if verbose: print(f"    AVISO (AC3.4): Conteúdo do arquivo essencial '{unit.relative_path}' ({original_tokens_before_trunc} tokens est.) foi truncado para {unit.token_count} tokens para caber no limite da chamada principal.")
 
-
-    
     for unit in processed_units:
         content_type_log = "integral"
         if unit.is_reduced_to_summary: content_type_log = "sumário"
@@ -730,7 +691,7 @@ def prepare_context_parts(
              print(f"    -> Incluindo '{unit.relative_path}' ({unit.token_count} tokens) como conteúdo {content_type_log}.")
 
         summary_block_for_part_text = ""
-        if unit.summary and not unit.is_reduced_to_summary and not is_for_selector_llm:
+        if unit.summary and not unit.is_reduced_to_summary and not is_for_selector_llm: # is_for_selector_llm condition is not relevant here
             summary_block_for_part_text = f"--- SUMMARY ---\n{unit.summary}\n--- END SUMMARY ---"
         
         delimiter_start = core_config.ESSENTIAL_CONTENT_DELIMITER_START if unit.is_essential_from_map else core_config.SUMMARY_CONTENT_DELIMITER_START
@@ -745,7 +706,6 @@ def prepare_context_parts(
         final_text = "\n".join(final_text_parts)
         context_parts_final.append(types.Part.from_text(text=final_text))
 
-    
     final_total_tokens = sum(unit.token_count for unit in processed_units)
     if verbose and max_input_tokens_for_call and final_total_tokens > max_input_tokens_for_call :
         print(f"  AVISO FINAL (AC2.2): Contexto final ({final_total_tokens} tokens) ainda excede o limite ({max_input_tokens_for_call} tokens) após reduções.")
@@ -828,10 +788,16 @@ def confirm_and_modify_selection(
     suggested_files: List[str],
     manifest_data: Optional[Dict[str, Any]] = None,
     max_input_tokens: Optional[int] = None,
+    verbose: bool = False, 
 ) -> Optional[List[str]]:
     """Exibe a lista sugerida, permite modificação ou confirmação (Y/n). Retorna lista final ou None."""
     current_files = list(suggested_files)
     files_metadata = manifest_data.get("files", {}) if manifest_data else {}
+
+    if verbose: 
+        print(f"  AC5.1d: Lista de arquivos retornada pela LLM seletora ({len(current_files)} arquivos):")
+        for f_idx, f_path in enumerate(current_files):
+            print(f"    [{f_idx+1}] {f_path}")
 
     def display_current_selection():
         print("\n--- Context Files for Current Task ---")
@@ -844,12 +810,12 @@ def confirm_and_modify_selection(
                 token_count_val = metadata.get("token_count")
                 token_count_str = str(token_count_val) if token_count_val is not None else "N/A"
                 
-                print(f"  {i + 1}: {filepath_str} (Tokens: {token_count_str})") #AC3.1.a
+                print(f"  {i + 1}: {filepath_str} (Tokens: {token_count_str})") 
                 if isinstance(token_count_val, int):
                     total_tokens += token_count_val
             print(f"  ----------------------------------")
-            print(f"  Total Estimated Tokens for Selection: {total_tokens}") # AC3.1.b e AC3.3
-            if max_input_tokens: # AC3.2
+            print(f"  Total Estimated Tokens for Selection: {total_tokens}") 
+            if max_input_tokens: 
                 print(
                     f"  Recommended Max Input Tokens for API call: {max_input_tokens}"
                 )
@@ -869,15 +835,13 @@ def confirm_and_modify_selection(
         ).strip()
 
         if choice.lower() in ["y", "yes", ""]:
-            print(
-                f"  User confirmed using {len(current_files)} selected files for context."
-            )
+            if verbose: print(f"  Usuário confirmou o uso de {len(current_files)} arquivos selecionados para o contexto.")
             return current_files
         elif choice.lower() in ["n", "no"]:
-            print("  User chose to use the default context instead.")
+            if verbose: print("  Usuário optou por usar o contexto padrão em vez da seleção.")
             return None
         elif choice.lower() in ["q", "quit"]:
-            print("  Task aborted by user during context selection.")
+            if verbose: print("  Tarefa abortada pelo usuário durante a seleção de contexto.")
             sys.exit(0)
         elif choice.startswith("a "):
             path_to_add = choice[2:].strip()
@@ -899,6 +863,7 @@ def confirm_and_modify_selection(
                 if path_to_add_relative_str not in current_files:
                     current_files.append(path_to_add_relative_str)
                     print(f"  Added '{path_to_add_relative_str}'.")
+                    if verbose: print(f"    AC5.1e: Usuário adicionou '{path_to_add_relative_str}' à seleção.") 
                 else:
                     print(f"  '{path_to_add_relative_str}' is already in the list.")
             except ValueError:
@@ -911,11 +876,12 @@ def confirm_and_modify_selection(
                 print("  Error: Please provide an index or path after 'r'.")
                 continue
             removed_successfully = False
+            original_path_removed_for_log: Optional[str] = None
             try:
                 index_to_remove = int(item_to_remove_str) - 1
                 if 0 <= index_to_remove < len(current_files):
-                    removed_path = current_files.pop(index_to_remove)
-                    print(f"  Removed '{removed_path}' (index {index_to_remove + 1}).")
+                    original_path_removed_for_log = current_files.pop(index_to_remove)
+                    print(f"  Removed '{original_path_removed_for_log}' (index {index_to_remove + 1}).")
                     removed_successfully = True
                 else:
                     print(f"  Error: Index {index_to_remove + 1} is out of bounds.")
@@ -923,15 +889,16 @@ def confirm_and_modify_selection(
                 path_to_remove_normalized = Path(item_to_remove_str).as_posix()
                 if path_to_remove_normalized in current_files:
                     current_files.remove(path_to_remove_normalized)
+                    original_path_removed_for_log = path_to_remove_normalized
                     print(f"  Removed '{path_to_remove_normalized}'.")
                     removed_successfully = True
                 else:
                     found_partial_match = False
                     for i, p_str in reversed(list(enumerate(current_files))):
                         if p_str.endswith(path_to_remove_normalized):
-                            removed_path = current_files.pop(i)
+                            original_path_removed_for_log = current_files.pop(i)
                             print(
-                                f"  Removed '{removed_path}' (matched ending with '{path_to_remove_normalized}')."
+                                f"  Removed '{original_path_removed_for_log}' (matched ending with '{path_to_remove_normalized}')."
                             )
                             removed_successfully = True
                             found_partial_match = True
@@ -940,7 +907,9 @@ def confirm_and_modify_selection(
                         print(
                             f"  Error: Path '{path_to_remove_normalized}' not found in the list for removal."
                         )
-            if not removed_successfully and not item_to_remove_str.isdigit():
+            if removed_successfully and verbose and original_path_removed_for_log: 
+                print(f"    AC5.1e: Usuário removeu '{original_path_removed_for_log}' da seleção.")
+            elif not removed_successfully and not item_to_remove_str.isdigit():
                 print(
                     f"  Error: Could not remove '{item_to_remove_str}' (not a valid index or existing path/suffix)."
                 )

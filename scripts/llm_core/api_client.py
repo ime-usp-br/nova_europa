@@ -25,20 +25,18 @@ genai_client: Optional[genai.Client] = None
 api_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 api_key_loaded_successfully: bool = False
 gemini_initialized_successfully: bool = False
-last_call_timestamps: Dict[str, float] = {} # AC2.3: Para rastrear timestamps por modelo
+last_call_timestamps: Dict[str, float] = {} 
 
 
 def load_api_keys(verbose: bool = False) -> bool:
     """Loads API keys from .env file or environment variables."""
     global GEMINI_API_KEYS_LIST, api_key_loaded_successfully, current_api_key_index
 
-    if api_key_loaded_successfully:  # Evita recarregar se já carregado
+    if api_key_loaded_successfully:  
         return True
 
-    # Prioriza variáveis de ambiente do sistema
     api_key_string = os.getenv("GEMINI_API_KEY")
 
-    # Se não encontrar no ambiente, tenta carregar do .env
     if not api_key_string:
         dotenv_path = core_config.PROJECT_ROOT / ".env"
         if dotenv_path.is_file():
@@ -54,7 +52,7 @@ def load_api_keys(verbose: bool = False) -> bool:
             )
 
     if not api_key_string:
-        if verbose:  # Adiciona verbose aqui para o caso de falha
+        if verbose:  
             print(
                 "Erro: Variável de ambiente GEMINI_API_KEY não encontrada no sistema nem no arquivo .env.",
                 file=sys.stderr,
@@ -85,10 +83,9 @@ def initialize_genai_client(verbose: bool = False) -> bool:
     """Initializes or reinitializes the global genai_client using the current API key."""
     global genai_client, gemini_initialized_successfully, GEMINI_API_KEYS_LIST, current_api_key_index
 
-    # Garante que as chaves sejam carregadas antes de tentar inicializar o cliente
     if not api_key_loaded_successfully:
         if not load_api_keys(verbose):
-            return False  # Falha ao carregar chaves, não pode inicializar
+            return False  
 
     if not GEMINI_API_KEYS_LIST or not (
         0 <= current_api_key_index < len(GEMINI_API_KEYS_LIST)
@@ -108,7 +105,7 @@ def initialize_genai_client(verbose: bool = False) -> bool:
             )
         genai_client = genai.Client(
             api_key=active_key
-        )  # Usa o genai importado globalmente
+        )  
         if verbose:
             print("  Google GenAI Client inicializado com sucesso.")
         gemini_initialized_successfully = True
@@ -127,12 +124,12 @@ def initialize_genai_client(verbose: bool = False) -> bool:
 def startup_api_resources(verbose: bool = False) -> bool:
     """Initializes API keys, client, and executor."""
     global api_executor
-    if not api_key_loaded_successfully:  # Tenta carregar chaves se ainda não o fez
+    if not api_key_loaded_successfully:  
         if not load_api_keys(verbose):
             return False
     if (
         not gemini_initialized_successfully
-    ):  # Tenta inicializar cliente se ainda não o fez
+    ):  
         if not initialize_genai_client(verbose):
             return False
     if not api_executor:
@@ -150,7 +147,7 @@ def shutdown_api_resources(verbose: bool = False):
             print("  Encerrando API ThreadPoolExecutor...")
         api_executor.shutdown(
             wait=False
-        )  # Não espera por tarefas pendentes ao encerrar
+        )  
         api_executor = None
         if verbose:
             print("  API ThreadPoolExecutor encerrado.")
@@ -173,7 +170,7 @@ def rotate_api_key_and_reinitialize(verbose: bool = False) -> bool:
         f"\n---> Rotacionando Chave de API para Índice {current_api_key_index} <---\n"
     )
     gemini_initialized_successfully = (
-        False  # Marca como não inicializado antes de tentar a nova chave
+        False  
     )
 
     if current_api_key_index == start_index:
@@ -198,18 +195,6 @@ def calculate_max_input_tokens(
 ) -> int:
     """
     Calcula o número máximo de tokens de entrada permitidos para uma chamada à API Gemini.
-
-    Args:
-        model_name: O nome do modelo Gemini a ser usado (ex: "gemini-1.5-flash-preview-0520").
-        estimated_output_tokens: Uma estimativa de quantos tokens a resposta da API irá gerar.
-                                 Se None, usa core_config.DEFAULT_OUTPUT_TOKEN_ESTIMATE.
-        safety_buffer: Um buffer de segurança para subtrair do limite total.
-                       Se None, usa core_config.DEFAULT_TOKEN_SAFETY_BUFFER.
-        verbose: Se True, imprime informações detalhadas sobre o cálculo.
-
-    Returns:
-        O número máximo de tokens de entrada calculados. Retorna um valor mínimo (ex: 100)
-        se o cálculo resultar em um valor não positivo.
     """
     model_total_limit = core_config.MODEL_INPUT_TOKEN_LIMITS.get(
         model_name, core_config.MODEL_INPUT_TOKEN_LIMITS.get("default", 30000)
@@ -236,9 +221,6 @@ def calculate_max_input_tokens(
         print(f"    ------------------------------------")
         print(f"    MAX_INPUT_TOKENS_PER_CALL calculado: {max_input}")
 
-    # Garante que o valor retornado seja pelo menos um mínimo razoável (ex: 100)
-    # para evitar problemas se o buffer/estimativa de saída forem muito grandes.
-    # Um valor mínimo também previne zero ou negativo se o limite do modelo for muito pequeno.
     calculated_max_input = max(100, max_input)
 
     if verbose and calculated_max_input != max_input:
@@ -254,6 +236,7 @@ def execute_gemini_call(
     sleep_on_retry: float = core_config.DEFAULT_RATE_LIMIT_SLEEP,
     timeout_seconds: int = core_config.DEFAULT_API_TIMEOUT_SECONDS,
     verbose: bool = False,
+    max_input_tokens_for_this_call: Optional[int] = None # AC5.2
 ) -> str:
     """
     Executes a call to the Gemini API with provided model, contents, and config.
@@ -274,9 +257,13 @@ def execute_gemini_call(
     initial_key_index = current_api_key_index
     keys_tried_in_this_call = {initial_key_index}
 
+    # AC5.2: Log antes da chamada API
+    if verbose:
+        calculated_max_tokens = max_input_tokens_for_this_call if max_input_tokens_for_this_call is not None else calculate_max_input_tokens(model_name, verbose=False) # Evita verbose aninhado
+        print(f"  AC5.2: Chamando API Gemini. Modelo: {model_name}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada): {calculated_max_tokens}")
+
+
     while True:
-        # --- Rate Limiting (AC 2.3) ---
-        # Só aplica se o modelo estiver configurado para RPM e tiver um RPM > 0
         model_rpm = core_config.MODEL_RPM_LIMITS.get(model_name, core_config.MODEL_RPM_LIMITS.get("default"))
         if model_rpm and model_rpm > 0:
             min_interval = 60.0 / model_rpm
@@ -293,10 +280,8 @@ def execute_gemini_call(
                             f"Intervalo min: {min_interval:.3f}s, decorrido: {elapsed:.3f}s."
                         )
                     time.sleep(wait_time)
-            # Atualiza o timestamp ANTES da tentativa de chamada
             last_call_timestamps[model_name] = time.monotonic()
-        # --- Fim Rate Limiting ---
-
+        
         def _api_call_task() -> types.GenerateContentResponse:
             if not genai_client:
                 raise RuntimeError("Gemini client tornou-se não inicializado na task.")
@@ -305,24 +290,15 @@ def execute_gemini_call(
             if isinstance(config, dict):
                 tools_list_from_dict = []
                 if "tools" in config and config["tools"] is not None:
-                    # Ensure tools are correctly formatted for GenerateContentConfig
                     for tool_item_config in config["tools"]:  # type: ignore
                         if isinstance(tool_item_config, types.Tool):
                             tools_list_from_dict.append(tool_item_config)
                         elif isinstance(tool_item_config, dict) and "google_search_retrieval" in tool_item_config:  # type: ignore
                             tools_list_from_dict.append(types.Tool(google_search_retrieval=types.GoogleSearchRetrieval(**tool_item_config["google_search_retrieval"])))  # type: ignore
-                        # Add other tool types if necessary
-
                 config_copy = config.copy()
-                if tools_list_from_dict or (
-                    "tools" in config and config["tools"] is None
-                ):  # Only set if tools were processed or explicitly None
-                    config_copy["tools"] = (
-                        tools_list_from_dict if tools_list_from_dict else None
-                    )
-
+                if tools_list_from_dict or ("tools" in config and config["tools"] is None): 
+                    config_copy["tools"] = (tools_list_from_dict if tools_list_from_dict else None)
                 api_config_obj = types.GenerateContentConfig(**config_copy)  # type: ignore
-
             elif isinstance(config, types.GenerateContentConfig):
                 api_config_obj = config
             elif isinstance(config, types.GenerationConfig):
@@ -337,157 +313,81 @@ def execute_gemini_call(
 
             try:
                 if verbose:
-                    print(
-                        f"      -> Enviando para o modelo '{model_name}' com config: {api_config_obj}"
-                    )
+                    print(f"      -> Enviando para o modelo '{model_name}' com config: {api_config_obj}")
                 return genai_client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    config=api_config_obj,
+                    model=model_name, contents=contents, config=api_config_obj,
                 )
             except Exception as inner_e:
                 if verbose:
-                    print(
-                        f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}",
-                        file=sys.stderr,
-                    )
+                    print(f"      -> Erro interno na task API ({type(inner_e).__name__}): {inner_e}", file=sys.stderr,)
                 raise inner_e
 
         future = None
         try:
             if verbose:
-                print(
-                    f"        -> Tentando chamada API com Key Index {current_api_key_index}, Timeout {timeout_seconds}s"
-                )
-
+                print(f"        -> Tentando chamada API com Key Index {current_api_key_index}, Timeout {timeout_seconds}s")
             future = api_executor.submit(_api_call_task)
             response = future.result(timeout=timeout_seconds)
 
             if response.prompt_feedback and response.prompt_feedback.block_reason:
-                block_reason_name = types.BlockedReason(
-                    response.prompt_feedback.block_reason
-                ).name
-                print(
-                    f"  Aviso: Prompt bloqueado devido a {block_reason_name}.",
-                    file=sys.stderr,
-                )
+                block_reason_name = types.BlockedReason(response.prompt_feedback.block_reason).name
+                print(f"  Aviso: Prompt bloqueado devido a {block_reason_name}.", file=sys.stderr,)
                 raise RuntimeError(f"Prompt bloqueado: {block_reason_name}")
 
             if response.candidates:
                 for candidate in response.candidates:
-                    if hasattr(
-                        candidate, "finish_reason"
-                    ) and candidate.finish_reason not in (
+                    if hasattr(candidate, "finish_reason") and candidate.finish_reason not in (
                         types.FinishReason.STOP,
                         types.FinishReason.FINISH_REASON_UNSPECIFIED,
                         types.FinishReason.MAX_TOKENS,
                     ):
                         reason_name = types.FinishReason(candidate.finish_reason).name
-                        print(
-                            f"  Aviso: Candidato finalizado com razão: {reason_name}",
-                            file=sys.stderr,
-                        )
-                        if (
-                            hasattr(candidate, "finish_message")
-                            and candidate.finish_message
-                        ):
-                            print(
-                                f"  Mensagem de finalização: {candidate.finish_message}",
-                                file=sys.stderr,
-                            )
-
+                        print(f"  Aviso: Candidato finalizado com razão: {reason_name}", file=sys.stderr,)
+                        if (hasattr(candidate, "finish_message") and candidate.finish_message):
+                            print(f"  Mensagem de finalização: {candidate.finish_message}", file=sys.stderr,)
             try:
                 return response.text
             except (ValueError, AttributeError) as e:
-                print(
-                    f"Aviso: Não foi possível extrair texto da resposta. Resposta: {response}. Erro: {e}",
-                    file=sys.stderr,
-                )
+                print(f"Aviso: Não foi possível extrair texto da resposta. Resposta: {response}. Erro: {e}", file=sys.stderr,)
                 return ""
-
         except concurrent.futures.TimeoutError:
-            print(
-                f"  Chamada API excedeu o tempo limite de {timeout_seconds}s. Erro para a tarefa atual.",
-                file=sys.stderr,
-            )
+            print(f"  Chamada API excedeu o tempo limite de {timeout_seconds}s. Erro para a tarefa atual.", file=sys.stderr,)
             raise TimeoutError
         except (
             google_api_core_exceptions.ResourceExhausted,
             google_genai_errors.ServerError,
             google_api_core_exceptions.DeadlineExceeded,
         ) as e:
-            print(
-                f"  Erro de API ({type(e).__name__}) com Key Index {current_api_key_index}. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...",
-                file=sys.stderr,
-            )
-            if verbose:
-                print(f"    Detalhes do erro: {e}")
-
-            for _ in tqdm(
-                range(int(sleep_on_retry * 10)),
-                desc="Aguardando para nova tentativa/rotação de cota",
-                unit="ds",
-                leave=False,
-                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}",
-            ):
+            print(f"  Erro de API ({type(e).__name__}) com Key Index {current_api_key_index}. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...", file=sys.stderr,)
+            if verbose: print(f"    Detalhes do erro: {e}")
+            for _ in tqdm(range(int(sleep_on_retry * 10)), desc="Aguardando para nova tentativa/rotação de cota", unit="ds", leave=False, bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}",):
                 time.sleep(0.1)
-
             if not rotate_api_key_and_reinitialize(verbose):
-                print(
-                    "Erro: Não foi possível rotacionar a chave de API. Relançando erro original.",
-                    file=sys.stderr,
-                )
+                print("Erro: Não foi possível rotacionar a chave de API. Relançando erro original.", file=sys.stderr,)
                 raise e
-
             if current_api_key_index in keys_tried_in_this_call:
-                print(
-                    f"Erro: Ciclo completo de chaves API. Limite/Erro persistente. Relançando erro original.",
-                    file=sys.stderr,
-                )
+                print(f"Erro: Ciclo completo de chaves API. Limite/Erro persistente. Relançando erro original.", file=sys.stderr,)
                 raise e
-
             keys_tried_in_this_call.add(current_api_key_index)
-            if verbose:
-                print(
-                    f"        -> Tentando novamente chamada API com nova Key Index {current_api_key_index}"
-                )
+            if verbose: print(f"        -> Tentando novamente chamada API com nova Key Index {current_api_key_index}")
             continue
-
         except google_genai_errors.APIError as e:
-            print(
-                f"  Erro de API GenAI ({type(e).__name__}) com Key Index {current_api_key_index}: {e}",
-                file=sys.stderr,
-            )
-
+            print(f"  Erro de API GenAI ({type(e).__name__}) com Key Index {current_api_key_index}: {e}", file=sys.stderr,)
             is_rate_limit_error = False
-            # A verificação de e.response.status_code pode não ser aplicável a todas as APIError
-            # Por isso, usamos hasattr para checagem segura.
             if hasattr(e, "response") and e.response and hasattr(e.response, "status_code") and e.response.status_code == 429:  # type: ignore
                 is_rate_limit_error = True
-            elif (
-                hasattr(e, "message")
-                and isinstance(e.message, str)
-                and (
+            elif (hasattr(e, "message") and isinstance(e.message, str) and (
                     "429" in e.message
                     or "resource has been exhausted" in e.message.lower()
-                    or "quota" in e.message.lower()
-                )
-            ):
+                    or "quota" in e.message.lower())):
                 is_rate_limit_error = True
-
             if is_rate_limit_error:
-                print(
-                    f"  Erro 429 (Rate Limit) detectado. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...",
-                    file=sys.stderr,
-                )
-                if not rotate_api_key_and_reinitialize(verbose):
-                    raise e
-                if current_api_key_index in keys_tried_in_this_call:
-                    raise e
+                print(f"  Erro 429 (Rate Limit) detectado. Aguardando {sleep_on_retry:.1f}s e rotacionando chave...", file=sys.stderr,)
+                if not rotate_api_key_and_reinitialize(verbose): raise e
+                if current_api_key_index in keys_tried_in_this_call: raise e
                 keys_tried_in_this_call.add(current_api_key_index)
                 continue
             raise e
-
         except Exception as e:
             print(f"Erro inesperado durante a chamada API: {e}", file=sys.stderr)
             traceback.print_exc()

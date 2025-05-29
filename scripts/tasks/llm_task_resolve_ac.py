@@ -31,6 +31,7 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils  # Importando utils
+from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
 
 from google.genai import (
     types,
@@ -38,8 +39,8 @@ from google.genai import (
 
 # Constantes específicas da tarefa
 TASK_NAME = "resolve-ac"
-RESOLVE_AC_PROMPT_TEMPLATE_NAME = "prompt-resolve-ac.txt"  # Usado no llm_interact_copy
-RESOLVE_AC_META_PROMPT_TEMPLATE_NAME = (
+PROMPT_TEMPLATE_NAME = "prompt-resolve-ac.txt"  # Usado no llm_interact_copy
+META_PROMPT_TEMPLATE_NAME = (
     "meta-prompt-resolve-ac.txt"  # Usado no llm_interact_copy
 )
 
@@ -121,7 +122,7 @@ def main_resolve_ac():
 
         if args.two_stage:
             template_path_to_load = (
-                core_config.META_PROMPT_DIR / RESOLVE_AC_META_PROMPT_TEMPLATE_NAME
+                core_config.META_PROMPT_DIR / META_PROMPT_TEMPLATE_NAME
             )
             print(f"\nFluxo de Duas Etapas Selecionado")
             print(
@@ -129,7 +130,7 @@ def main_resolve_ac():
             )
         else:
             template_path_to_load = (
-                core_config.TEMPLATE_DIR / RESOLVE_AC_PROMPT_TEMPLATE_NAME
+                core_config.TEMPLATE_DIR / PROMPT_TEMPLATE_NAME
             )
             print(f"\nFluxo Direto Selecionado")
             print(
@@ -173,9 +174,12 @@ def main_resolve_ac():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
-        # A verificação se latest_context_dir_path é None deve ocorrer ANTES de seu uso
-        # para o carregamento padrão. Se --select-context for usado e falhar, ou for recusado,
-        # e o carregamento padrão for ativado, precisamos garantir que latest_context_dir_path exista.
+        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+
+        max_tokens_for_main_call = api_client.calculate_max_input_tokens(
+            core_config.GEMINI_MODEL_RESOLVE, verbose=verbose
+        )
+
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -200,9 +204,10 @@ def main_resolve_ac():
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            print(
-                f"  Manifesto carregado: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
-            )
+            if verbose: # AC5.1
+                print(
+                    f"  AC5.1: Manifesto carregado para seleção: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
+                )
 
             context_selector_prompt_path = (
                 core_prompts_module.find_context_selector_prompt(
@@ -210,7 +215,6 @@ def main_resolve_ac():
                 )
             )
             if not context_selector_prompt_path:
-                # find_context_selector_prompt já imprime o erro
                 sys.exit(1)
 
             selector_prompt_content = core_prompts_module.load_and_fill_template(
@@ -219,43 +223,21 @@ def main_resolve_ac():
             if not selector_prompt_content:
                 print("Erro ao carregar prompt seletor de contexto.", file=sys.stderr)
                 sys.exit(1)
-            print(
-                f"  Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
-            )
-
-            all_manifest_files = manifest_data_for_context_selection.get("files", {})
-            filtered_manifest_files_for_selection: Dict[str, Any] = {}
-            excluded_count = 0
-            for path, metadata in all_manifest_files.items():
-                if not isinstance(metadata, dict):
-                    continue
-                token_c = metadata.get("token_count")
-                if (
-                    isinstance(token_c, int)
-                    and token_c <= core_config.MANIFEST_MAX_TOKEN_FILTER
-                ):
-                    filtered_manifest_files_for_selection[path] = metadata
-                else:
-                    excluded_count += 1
-            if verbose:
+            if verbose: #AC5.1
                 print(
-                    f"    Excluídos {excluded_count} arquivos do manifesto para a API seletora devido ao limite de tokens."
+                    f"  AC5.1: Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
 
-            try:
-                filtered_manifest_json = json.dumps(
-                    {"files": filtered_manifest_files_for_selection},
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
-                if verbose:
-                    print(
-                        f"    Payload para API seletora (início): {preliminary_api_input_content[:200]}..."
-                    )
-            except Exception as e:
-                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr)
-                sys.exit(1)
+            # AC4.1: A exceção MissingEssentialFileAbort será capturada no bloco try...except geral
+            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
+                TASK_NAME,
+                args, 
+                latest_dir_name_for_essentials,
+                manifest_data_for_context_selection,
+                selector_prompt_content,
+                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                verbose # Passa verbose para logging interno (AC5.1a, b, c)
+            )
 
             response_prelim_str: Optional[str] = None
             suggested_files_from_api: List[str] = []
@@ -276,7 +258,7 @@ def main_resolve_ac():
                             if args.web_search
                             else []
                         )
-                    ),  # Ferramentas baseadas em args.web_search
+                    ),
                     verbose=verbose,
                 )
 
@@ -320,24 +302,31 @@ def main_resolve_ac():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,
+                        max_tokens_for_main_call, # AC3.2
+                        verbose=verbose # AC5.1d, AC5.1e
                     )
                 )
                 if final_selected_files_for_context is None:
                     load_default_context_after_selection_failure = True
-
+        
+        # Lógica de carregamento de contexto, agora usando max_tokens_for_main_call
         if (
             final_selected_files_for_context is not None
             and not load_default_context_after_selection_failure
         ):
             context_parts = core_context.prepare_context_parts(
-                primary_context_dir=None,
-                common_context_dir=None,
+                primary_context_dir=None, # Não usado se include_list é fornecido
+                common_context_dir=None,  # Não usado se include_list é fornecido
                 exclude_list=args.exclude_context,
-                manifest_data=manifest_data_for_context_selection,
+                manifest_data=manifest_data_for_context_selection, # Passar o manifesto completo
                 include_list=final_selected_files_for_context,
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
-        else:
+        else: # Carregamento padrão
             if not latest_context_dir_path:
                 print(
                     "Erro fatal: Nenhum diretório de contexto encontrado para carregamento padrão. Execute generate_context.py.",
@@ -348,10 +337,15 @@ def main_resolve_ac():
                 primary_context_dir=latest_context_dir_path,
                 common_context_dir=core_config.COMMON_CONTEXT_DIR,
                 exclude_list=args.exclude_context,
-                manifest_data=manifest_data_for_context_selection,
+                manifest_data=manifest_data_for_context_selection, # Pode ser None se -sc não foi usado
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
 
-        if not context_parts and verbose:  # Adicionado verbose para não poluir tanto
+        if not context_parts and verbose: 
             print(
                 "Aviso: Nenhuma parte de contexto carregada. A LLM pode não ter informações suficientes.",
                 file=sys.stderr,
@@ -373,7 +367,7 @@ def main_resolve_ac():
                 ] + context_parts
                 try:
                     prompt_final_content = api_client.execute_gemini_call(
-                        core_config.GEMINI_MODEL_RESOLVE,  # Modelo da tarefa
+                        core_config.GEMINI_MODEL_RESOLVE, 
                         contents_step1,
                         config=types.GenerateContentConfig(
                             tools=(
@@ -515,7 +509,10 @@ def main_resolve_ac():
                 "\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma alteração de código foi necessária."
             )
             print("Nenhum arquivo será salvo.")
-
+    except MissingEssentialFileAbort as e: # AC4.1d
+        print(f"\nErro: {e}", file=sys.stderr)
+        print("Fluxo de seleção de contexto interrompido.")
+        sys.exit(1)
     except Exception as e:
         print(f"Erro inesperado na tarefa '{TASK_NAME}': {e}", file=sys.stderr)
         traceback.print_exc()
