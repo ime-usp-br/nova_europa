@@ -24,6 +24,7 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
+from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
 
 from google.genai import types
 
@@ -115,7 +116,7 @@ def main_analyze_ac():
             print(
                 f"Usando Prompt: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
             )
-            GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_RESOLVE
+            # GEMINI_MODEL_STEP1 não é usado no fluxo direto
             GEMINI_MODEL_STEP2 = core_config.GEMINI_MODEL_RESOLVE
 
         initial_prompt_content_original = core_prompts_module.load_and_fill_template(
@@ -153,6 +154,8 @@ def main_analyze_ac():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
+        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -198,41 +201,21 @@ def main_analyze_ac():
                 f"  Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
             )
 
-            all_manifest_files = manifest_data_for_context_selection.get("files", {})
-            # Correção da dict comprehension
-            filtered_manifest_files_for_selection: Dict[str, Any] = {}
-            excluded_count_filter = 0
-            for path, metadata in all_manifest_files.items():
-                if not isinstance(metadata, dict):
-                    excluded_count_filter += 1  # Conta como excluído se não for dict
-                    continue
-                token_c = metadata.get("token_count")
-                if (
-                    isinstance(token_c, int)
-                    and token_c <= core_config.MANIFEST_MAX_TOKEN_FILTER
-                ):
-                    filtered_manifest_files_for_selection[path] = metadata
-                else:
-                    excluded_count_filter += 1
+            # AC4.1: A exceção MissingEssentialFileAbort será capturada aqui
+            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
+                TASK_NAME,
+                args, # cli_args
+                latest_dir_name_for_essentials,
+                manifest_data_for_context_selection,
+                selector_prompt_content,
+                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                verbose
+            )
+
             if verbose:
                 print(
-                    f"    Excluídos {excluded_count_filter} arquivos do manifesto para API seletora (limite de token ou token_count ausente/inválido)."
+                    f"    Payload para API seletora (início): {preliminary_api_input_content[:200]}..."
                 )
-
-            try:
-                filtered_manifest_json = json.dumps(
-                    {"files": filtered_manifest_files_for_selection},
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
-                if verbose:
-                    print(
-                        f"    Payload para API seletora (início): {preliminary_api_input_content[:200]}..."
-                    )
-            except Exception as e:
-                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr)
-                sys.exit(1)
 
             response_prelim_str: Optional[str] = None
             suggested_files_from_api: List[str] = []
@@ -296,7 +279,7 @@ def main_analyze_ac():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,
+                        api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose) # Passar o limite da LLM principal
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -312,6 +295,11 @@ def main_analyze_ac():
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
                 include_list=final_selected_files_for_context,
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
         else:
             if not latest_context_dir_path:
@@ -325,6 +313,11 @@ def main_analyze_ac():
                 common_context_dir=core_config.COMMON_CONTEXT_DIR,
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP2, verbose=verbose),
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
         if not context_parts and verbose:
             print(
@@ -340,6 +333,9 @@ def main_analyze_ac():
             prompt_final_content: Optional[str] = None
             meta_prompt_current = initial_prompt_content_current
             while True:
+                print(
+                    f"\nEtapa 1: Enviando Meta-Prompt + Contexto ({len(context_parts)} partes)..."
+                )
                 contents_step1 = [
                     types.Part.from_text(text=meta_prompt_current)
                 ] + context_parts
@@ -403,7 +399,7 @@ def main_analyze_ac():
 
         if args.only_prompt:
             print(f"\n--- Prompt Final Para Envio (--only-prompt) ---")
-            print(final_prompt_to_send.strip())
+            print(final_prompt_to_send.strip() if final_prompt_to_send else "Não houve resposta")
             print("--- Fim ---")
             sys.exit(0)
 
@@ -481,10 +477,13 @@ def main_analyze_ac():
                 sys.exit(0)
         else:
             print(
-                "\nResposta final da LLM está vazia. Nenhum arquivo será salvo."
-            )  # AC9 #57
-            # Se a resposta é vazia, pode ser intencional pela IA, não salvamos.
-
+                "\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma alteração de código foi necessária."
+            )
+            print("Nenhum arquivo será salvo.")
+    except MissingEssentialFileAbort as e: # AC4.1d
+        print(f"\nErro: {e}", file=sys.stderr)
+        print("Fluxo de seleção de contexto interrompido.")
+        sys.exit(1)
     except Exception as e:
         print(f"Erro inesperado na tarefa '{TASK_NAME}': {e}", file=sys.stderr)
         traceback.print_exc()

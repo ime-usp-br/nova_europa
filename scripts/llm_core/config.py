@@ -31,17 +31,16 @@ GEMINI_MODEL_FLASH = "gemini-2.5-flash-preview-05-20"
 
 MODEL_INPUT_TOKEN_LIMITS: Dict[str, int] = {
     "gemini-2.5-flash-preview-05-20": 250000,
-    "gemini-1.5-flash-preview-0514": 250000, # Mantido para referência, se necessário
-    "gemini-1.5-flash": 1000000,  # Exemplo, verificar documentação oficial para limites corretos
-    "gemini-1.5-pro": 1000000,    # Exemplo, verificar documentação oficial para limites corretos
+    "gemini-1.5-flash-preview-0514": 150000, # Mantido para referência, se necessário
+    "gemini-1.5-flash": 200000,  # Exemplo, verificar documentação oficial para limites corretos
+    "gemini-1.5-pro": 200000,    # Exemplo, verificar documentação oficial para limites corretos
     # Default to a conservative value if model not listed
-    "default": 250000
+    "default": 200000
 }
 DEFAULT_OUTPUT_TOKEN_ESTIMATE = 8192 # Default estimate for model output tokens
 DEFAULT_TOKEN_SAFETY_BUFFER = 2048   # Buffer to avoid hitting hard limits
 
 # Limites de RPM (Requisições Por Minuto) para modelos Gemini (Nível Gratuito como padrão)
-# Fonte: limites_taxas_gemini.md (consultado no contexto)
 MODEL_RPM_LIMITS: Dict[str, int] = {
     "gemini-2.5-flash-preview-05-20": 10, # Baseado em "Pré-lançamento 04-17 do Gemini 2.5 Flash"
     "gemini-1.5-flash-preview-0514": 10,  # Mantendo consistência com o nome similar
@@ -71,11 +70,8 @@ SLEEP_DURATION_SECONDS = 1  # Default sleep duration for rate limiting
 DEFAULT_API_TIMEOUT_SECONDS = 300 # Default timeout for Gemini API calls
 MANIFEST_MAX_TOKEN_FILTER = 200000
 DEFAULT_MAX_FILES_PER_SUMMARY_CALL = 10
-MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL = 75000 # Max tokens for pre-injected essential content
-# Limite de tokens para a chamada da LLM seletora (modelo flash).
-# Deve ser menor que o limite do modelo flash (ex: 1M para gemini-1.5-flash)
-# para acomodar o prompt seletor e o JSON dos sumários.
-SELECTOR_LLM_MAX_INPUT_TOKENS = 200000 # Exemplo, ajuste conforme necessário
+MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL = 120000 # Max tokens for pre-injected essential content
+SELECTOR_LLM_MAX_INPUT_TOKENS = 200000 # Limite para a chamada da LLM seletora
 
 # Default values for arguments
 DEFAULT_TARGET_BRANCH = "main"
@@ -86,37 +82,28 @@ DEFAULT_GH_PROJECT_OWNER = os.getenv("GH_PROJECT_OWNER", "@me")
 DEFAULT_GH_PROJECT_STATUS_FIELD_NAME = os.getenv("GH_PROJECT_STATUS_FIELD_NAME", "Status")
 DEFAULT_RATE_LIMIT_SLEEP = 60 # Sleep for errors like 429, ResourceExhausted (reactive)
 
-# Mapeamento de tarefas e seus argumentos para arquivos essenciais
-# Chave: nome da tarefa (como usado no dispatcher llm_interact.py)
-# Valor: dicionário com chaves "args" e/ou "static"
-#   "args": mapeia o nome do argumento (dest do argparse) para um padrão de nome de arquivo.
-#           Placeholders como {arg_value} ou {nome_do_arg} devem ser usados,
-#           correspondendo ao 'dest' do argumento no argparse.
-#           A lógica de substituição e busca no diretório de contexto será feita pela função que usa este mapa.
-#   "static": uma lista de caminhos de arquivo (relativos à raiz do projeto ou a um dir de contexto)
-#             que são sempre essenciais para a tarefa. Placeholders como {latest_dir_name}
-#             podem ser usados aqui também e serão resolvidos pela lógica de carregamento.
 ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
     "resolve-ac": {
         "args": {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
-            # "ac" não mapeia para um arquivo, mas é usado no prompt.
         },
         "static": [
             "docs/guia_de_desenvolvimento.md",
             "docs/padroes_codigo_boas_praticas.md",
-            "context_llm/code/{latest_dir_name}/phpunit_test_results.txt",
-            "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",
+            "context_llm/code/{latest_dir_name}/phpunit_test_results.txt", # Opcional, pode não existir
+            "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",   # Opcional
+            "context_llm/code/{latest_dir_name}/dusk_test_results.txt", # Opcional
         ],
     },
     "commit-mesage": {
         "args": {
-            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
+            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json", # Opcional, pode não existir
         },
         "static": [
             "context_llm/code/{latest_dir_name}/git_diff_cached.txt",
             "context_llm/code/{latest_dir_name}/git_log.txt",
             "docs/guia_de_desenvolvimento.md",
+            "docs/padroes_codigo_boas_praticas.md",
         ],
     },
     "analyze-ac": {
@@ -126,7 +113,6 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
         "static": [
             "docs/guia_de_desenvolvimento.md",
             "docs/padroes_codigo_boas_praticas.md",
-            "context_llm/code/{latest_dir_name}/gh_project_items_status.json",
         ],
     },
     "create-pr": {
@@ -134,48 +120,53 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
         },
         "static": [
-            "context_llm/code/{latest_dir_name}/git_diff_cached.txt", # ou o diff relevante
-            "context_llm/code/{latest_dir_name}/git_log.txt", # commits do branch
-            "docs/guia_de_desenvolvimento.md", # Para padrões de PR
+            "context_llm/code/{latest_dir_name}/git_diff_cached.txt",
+            "context_llm/code/{latest_dir_name}/git_log.txt",
+            "docs/guia_de_desenvolvimento.md",
+            "docs/padroes_codigo_boas_praticas.md",
         ],
     },
     "update-doc": {
          "args": {
             "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
-            # doc_file é um caso especial, pois o próprio valor do argumento é o path
-            # a lógica de carregamento precisará de um tratamento especial para ele.
-            # Aqui, podemos apenas indicar que o argumento 'doc_file' é relevante.
-            "doc_file": "{doc_file}", # O valor de args.doc_file será o próprio caminho
+            "doc_file": "{doc_file}",
         },
         "static": [
             "docs/versionamento_documentacao.md",
-            "CHANGELOG.md", # Para ser atualizado
-            # diffs da issue
-            "context_llm/code/{latest_dir_name}/git_diff_cached.txt",
+            "docs/padroes_codigo_boas_praticas.md",
+            "CHANGELOG.md",
+            "context_llm/code/{latest_dir_name}/git_diff_cached.txt", # Diff da issue
         ]
     },
-    # Tarefas de correção podem precisar de seus respectivos arquivos de resultado de análise
     "fix-artisan-test": {
-        "static": ["context_llm/code/{latest_dir_name}/phpunit_test_results.txt"]
+        "static": [
+            "context_llm/code/{latest_dir_name}/phpunit_test_results.txt",
+            "docs/padroes_codigo_boas_praticas.md",
+            ]
     },
     "fix-artisan-dusk": {
-        "static": ["context_llm/code/{latest_dir_name}/dusk_test_results.txt"]
+        "static": [
+            "context_llm/code/{latest_dir_name}/dusk_test_results.txt",
+            "docs/padroes_codigo_boas_praticas.md",
+            ]
     },
     "fix-phpstan": {
-        "static": ["context_llm/code/{latest_dir_name}/phpstan_analysis.txt"]
+        "static": [
+            "context_llm/code/{latest_dir_name}/phpstan_analysis.txt",
+            "docs/padroes_codigo_boas_praticas.md",
+            ]
     },
-    # Outras tarefas podem não ter arquivos essenciais baseados em args ou estáticos fixos,
-    # dependendo primariamente do manifest.json para seleção via --select-context.
-    "manifest-summary": { # Esta tarefa não usa pré-injeção, opera sobre o manifest.json que é carregado separadamente
+    "manifest-summary": {
         "static": []
     },
     "create-test-sub-issue": {
         "args": {
-            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json", # Issue pai
+            "issue": "context_llm/code/{latest_dir_name}/github_issue_{issue}_details.json",
         },
         "static": [
-            "docs/guia_de_desenvolvimento.md", # Para padrões de teste
-            ".github/workflows/laravel.yml" # Para contexto de CI
+            "docs/guia_de_desenvolvimento.md",
+            "docs/padroes_codigo_boas_praticas.md",
+            ".github/workflows/laravel.yml" # Opcional
         ]
     },
     "review-issue": {
@@ -188,8 +179,7 @@ ESSENTIAL_FILES_MAP: Dict[str, Dict[str, Any]] = {
             "docs/padroes_codigo_boas_praticas.md",
             "context_llm/code/{latest_dir_name}/git_log.txt",
             "context_llm/code/{latest_dir_name}/gh_pr_list.txt",
-            # O manifesto JSON mais recente é carregado pelo fluxo de --select-context
-            # Se não usar --select-context, a task precisaria carregar explicitamente um manifest.json
+            "context_llm/code/{latest_dir_name}/20250529_085817_manifest.json" # Exemplo, precisa ser dinâmico se for usado assim
         ]
     }
 }

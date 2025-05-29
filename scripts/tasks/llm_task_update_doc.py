@@ -8,7 +8,7 @@ import sys
 import os
 import argparse
 import traceback
-import json  # Não usado diretamente aqui, mas pode ser no futuro para contexto
+import json # Não usado diretamente aqui, mas pode ser no futuro para contexto
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -24,8 +24,10 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import (
     io_utils,
-)  # Usaremos para find_documentation_files e prompt_user_to_select_doc
+) # Usaremos para find_documentation_files e prompt_user_to_select_doc
 from scripts.llm_core import utils as core_utils
+from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
+
 
 from google.genai import types
 
@@ -43,7 +45,7 @@ def add_task_specific_args(parser: argparse.ArgumentParser):
         "-d",
         "--doc-file",
         help="Caminho do arquivo de documentação alvo (relativo à raiz do projeto). Se omitido, será solicitado.",
-        default=None,  # Opcional no parser, lógica da task trata
+        default=None, # Opcional no parser, lógica da task trata
     )
     # O argumento -o/--observation já é adicionado pelo get_common_arg_parser
 
@@ -117,9 +119,9 @@ def main_update_doc():
                 sys.exit(0)
             target_doc_file_str = str(
                 selected_path_relative
-            )  # Convertendo Path para str
+            ) # Convertendo Path para str
 
-        if not target_doc_file_str:  # Double check after potential prompt
+        if not target_doc_file_str: # Double check after potential prompt
             print(
                 "Erro: Arquivo de documentação alvo não foi especificado ou selecionado.",
                 file=sys.stderr,
@@ -162,7 +164,7 @@ def main_update_doc():
         )
         GEMINI_MODEL_TO_USE = (
             core_config.GEMINI_MODEL_GENERAL_TASKS
-        )  # update-doc usa modelo geral
+        ) # update-doc usa modelo geral
 
         initial_prompt_content_original = core_prompts_module.load_and_fill_template(
             template_path_to_load, task_variables
@@ -199,6 +201,8 @@ def main_update_doc():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
+        latest_dir_name_for_essentials = latest_context_dir_path.name if latest_context_dir_path else None
+
 
         if args.select_context:
             print("\nSeleção de Contexto Preliminar Habilitada...")
@@ -229,31 +233,16 @@ def main_update_doc():
             if not selector_prompt_content:
                 sys.exit(1)
 
-            all_manifest_files = manifest_data_for_context_selection.get("files", {})
-            filtered_manifest_files_for_selection: Dict[str, Any] = {
-                p: m
-                for p, m in all_manifest_files.items()
-                if isinstance(m, dict)
-                and (
-                    m.get("token_count") is None
-                    or m.get("token_count", float("inf"))
-                    <= core_config.MANIFEST_MAX_TOKEN_FILTER
-                )
-            }
-            if verbose:
-                print(
-                    f"    Excluídos {len(all_manifest_files) - len(filtered_manifest_files_for_selection)} arquivos do manifesto para API seletora."
-                )
-            try:
-                filtered_manifest_json = json.dumps(
-                    {"files": filtered_manifest_files_for_selection},
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
-            except Exception as e:
-                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr)
-                sys.exit(1)
+            # AC4.1: A exceção MissingEssentialFileAbort será capturada aqui
+            preliminary_api_input_content = core_context.prepare_payload_for_selector_llm(
+                TASK_NAME,
+                args, # cli_args
+                latest_dir_name_for_essentials,
+                manifest_data_for_context_selection,
+                selector_prompt_content,
+                core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                verbose
+            )
 
             suggested_files_from_api: List[str] = []
             try:
@@ -307,7 +296,7 @@ def main_update_doc():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,
+                        api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=verbose)
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -323,6 +312,11 @@ def main_update_doc():
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
                 include_list=final_selected_files_for_context,
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=verbose),
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
         else:
             if not latest_context_dir_path:
@@ -336,6 +330,11 @@ def main_update_doc():
                 common_context_dir=core_config.COMMON_CONTEXT_DIR,
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
+                max_input_tokens_for_call=api_client.calculate_max_input_tokens(GEMINI_MODEL_TO_USE, verbose=verbose),
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
@@ -495,7 +494,10 @@ def main_update_doc():
                 "\nResposta final da LLM está vazia. Isso pode ser esperado se nenhuma atualização de documentação foi necessária."
             )
             print("Nenhum arquivo será salvo.")
-
+    except MissingEssentialFileAbort as e: # AC4.1d
+        print(f"\nErro: {e}", file=sys.stderr)
+        print("Fluxo de seleção de contexto interrompido.")
+        sys.exit(1)
     except Exception as e:
         print(f"Erro inesperado na tarefa '{TASK_NAME}': {e}", file=sys.stderr)
         traceback.print_exc()

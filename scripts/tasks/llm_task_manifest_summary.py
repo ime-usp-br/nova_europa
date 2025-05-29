@@ -26,6 +26,8 @@ from scripts.llm_core import (
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
+from scripts.llm_core.exceptions import MissingEssentialFileAbort # AC4.1
+
 
 from google.genai import types
 
@@ -490,7 +492,10 @@ def main_manifest_summary():
                 sys.exit(1)
         else:
             print("\nNenhum sumário foi gerado ou modificado no manifesto.")
-
+    except MissingEssentialFileAbort as e: # AC4.1d
+        print(f"\nErro: {e}", file=sys.stderr)
+        print("Fluxo de seleção de contexto interrompido.")
+        sys.exit(1)
     except Exception as e:
         print(f"Erro inesperado na tarefa '{TASK_NAME}': {e}", file=sys.stderr)
         traceback.print_exc()
