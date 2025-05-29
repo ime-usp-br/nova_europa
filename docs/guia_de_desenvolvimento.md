@@ -100,8 +100,8 @@ Este ciclo descreve o fluxo recomendado para transformar uma ideia ou necessidad
     *   **Descrição:** Detalhada e contextualizada. Explique o *quê* e o *porquê*. Para bugs, inclua passos para reproduzir, comportamento esperado vs. atual, ambiente. Para features, descreva o objetivo, a motivação e a solução proposta.
     *   **Templates:** **SEMPRE** utilize os templates fornecidos (localizados em `templates/issue_bodies/`) ao criar novas Issues. Eles guiam o preenchimento das informações essenciais:
         *   `bug_body.md`: Para relatar bugs.
-        *   `feature_body.md`: Para novas funcionalidades ou melhorias.
         *   `chore_body.md`: Para tarefas internas, refatorações, atualizações de dependências, etc.
+        *   `feature_body.md`: Para novas funcionalidades ou melhorias.
         *   `test_body.md`: Para definir sub-tarefas de teste para uma issue pai.
     *   **Critérios de Aceite:** **OBRIGATÓRIO.** Defina claramente como você saberá que a Issue está "Pronta" (Done). Use checklists Markdown (`- [ ] Critério 1`). Uma Issue só pode ser considerada concluída quando todos os seus critérios de aceite forem atendidos. Isto deve ser *verificável* (princípio IEEE 830).
 *   **Organização da Issue:**
@@ -269,9 +269,9 @@ A chave é a rastreabilidade via Issues e commits vinculados.
         Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
     *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
         Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`.
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa (ex: `--issue`, `--ac`, `--observation`, `--two-stage`, `--select-context`, `--web-search`, `--generate-context`, etc.).
-    *   Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
+    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Elas incluem: aprimorada seleção de contexto com pré-injeção de arquivos essenciais (AC1.1-1.3); gerenciamento proativo de limites de tokens e RPM da API Gemini (AC2.1-2.3), com cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, estratégias de redução de contexto (substituição por sumário e truncamento), e um rate limiter interno; e melhorias significativas na experiência do usuário ao interagir com a seleção de contexto (AC3.1-3.4, AC4.1, AC5.1).
+    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue` (para especificar uma Issue do GitHub), `--ac` (para critérios de aceite), `--observation` (feedback adicional para a LLM), `--two-stage` (habilita um fluxo com meta-prompt para gerar o prompt final), `--select-context` (permite a seleção interativa de arquivos de contexto, aprimorada com informações detalhadas e tratamento de arquivos ausentes), `--web-search` (ativa a ferramenta de busca para a LLM), `--generate-context` (aciona a geração de contexto inicial), entre outros.
+    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes Automatizados
 
