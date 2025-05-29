@@ -24,6 +24,8 @@ from scripts.llm_core import context as core_context
 from scripts.llm_core import prompts as core_prompts_module
 from scripts.llm_core import io_utils
 from scripts.llm_core import utils as core_utils
+from scripts.llm_core.exceptions import MissingEssentialFileAbort
+
 
 from google.genai import types
 
@@ -91,10 +93,6 @@ def main_fix_artisan_dusk():
 
         task_variables: Dict[str, str] = {
             "OBSERVACAO_ADICIONAL": args.observation,
-            # Esta task pode não precisar de variáveis de issue/ac se os prompts
-            # são genéricos o suficiente para inferir dos resultados dos testes.
-            # "NUMERO_DA_ISSUE": args.issue if args.issue else "",
-            # "NUMERO_DO_AC": args.ac if args.ac else "",
         }
 
         if args.two_stage:
@@ -102,21 +100,15 @@ def main_fix_artisan_dusk():
                 core_config.META_PROMPT_DIR / META_PROMPT_TEMPLATE_NAME
             )
             print(f"\nFluxo de Duas Etapas Selecionado")
-            print(
-                f"Usando Meta-Prompt: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
-            )
             GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_GENERAL_TASKS
-            GEMINI_MODEL_STEP2 = (
-                core_config.GEMINI_MODEL_RESOLVE
-            )  # Usar modelo de resolução para gerar código
         else:
             template_path_to_load = core_config.TEMPLATE_DIR / PROMPT_TEMPLATE_NAME
             print(f"\nFluxo Direto Selecionado")
-            print(
-                f"Usando Prompt: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
-            )
             GEMINI_MODEL_STEP1 = core_config.GEMINI_MODEL_RESOLVE  # Não usado
-            GEMINI_MODEL_STEP2 = core_config.GEMINI_MODEL_RESOLVE
+        print(
+            f"Usando Template: {template_path_to_load.relative_to(core_config.PROJECT_ROOT)}"
+        )
+        GEMINI_MODEL_STEP2 = core_config.GEMINI_MODEL_RESOLVE
 
         initial_prompt_content_original = core_prompts_module.load_and_fill_template(
             template_path_to_load, task_variables
@@ -153,9 +145,15 @@ def main_fix_artisan_dusk():
         latest_context_dir_path = core_context.find_latest_context_dir(
             core_config.CONTEXT_DIR_BASE
         )
+        latest_dir_name_for_essentials = (
+            latest_context_dir_path.name if latest_context_dir_path else None
+        )
+
+        max_tokens_for_main_call = api_client.calculate_max_input_tokens(
+            GEMINI_MODEL_STEP2, verbose=verbose
+        )  # AC5.2
 
         if args.select_context:
-            # ... (lógica de seleção de contexto, similar a outras tasks) ...
             print("\nSeleção de Contexto Preliminar Habilitada...")
             latest_manifest_path = core_context.find_latest_manifest_json(
                 core_config.MANIFEST_DATA_DIR
@@ -170,6 +168,10 @@ def main_fix_artisan_dusk():
                 or "files" not in manifest_data_for_context_selection
             ):
                 sys.exit(1)
+            if verbose:
+                print(
+                    f"  AC5.1: Manifesto carregado para seleção: {latest_manifest_path.relative_to(core_config.PROJECT_ROOT)}"
+                )
 
             context_selector_prompt_path = (
                 core_prompts_module.find_context_selector_prompt(
@@ -183,35 +185,29 @@ def main_fix_artisan_dusk():
             )
             if not selector_prompt_content:
                 sys.exit(1)
-
-            all_manifest_files = manifest_data_for_context_selection.get("files", {})
-            filtered_manifest_files_for_selection: Dict[str, Any] = {
-                p: m
-                for p, m in all_manifest_files.items()
-                if isinstance(m, dict)
-                and (
-                    m.get("token_count") is None
-                    or m.get("token_count", float("inf"))
-                    <= core_config.MANIFEST_MAX_TOKEN_FILTER
-                )
-            }
             if verbose:
                 print(
-                    f"    Excluídos {len(all_manifest_files) - len(filtered_manifest_files_for_selection)} arquivos do manifesto para API seletora."
+                    f"  AC5.1: Usando Prompt Seletor: {context_selector_prompt_path.relative_to(core_config.PROJECT_ROOT)}"
                 )
-            try:
-                filtered_manifest_json = json.dumps(
-                    {"files": filtered_manifest_files_for_selection},
-                    indent=2,
-                    ensure_ascii=False,
+
+            preliminary_api_input_content = (
+                core_context.prepare_payload_for_selector_llm(
+                    TASK_NAME,
+                    args,
+                    latest_dir_name_for_essentials,
+                    manifest_data_for_context_selection,
+                    selector_prompt_content,
+                    core_config.MAX_ESSENTIAL_TOKENS_FOR_SELECTOR_CALL,
+                    verbose,
                 )
-                preliminary_api_input_content = f"{selector_prompt_content}\n\n```json\n{filtered_manifest_json}\n```"
-            except Exception as e:
-                print(f"Erro ao serializar manifesto filtrado: {e}", file=sys.stderr)
-                sys.exit(1)
+            )
 
             suggested_files_from_api: List[str] = []
             try:
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {core_config.GEMINI_MODEL_FLASH}. MAX_INPUT_TOKENS_PER_CALL (para esta chamada seletora, não o principal): {core_config.SELECTOR_LLM_MAX_INPUT_TOKENS}"
+                    )
                 response_prelim_str = api_client.execute_gemini_call(
                     core_config.GEMINI_MODEL_FLASH,
                     [types.Part.from_text(text=preliminary_api_input_content)],
@@ -227,8 +223,8 @@ def main_fix_artisan_dusk():
                         )
                     ),
                     verbose=verbose,
+                    max_input_tokens_for_this_call=core_config.SELECTOR_LLM_MAX_INPUT_TOKENS,
                 )
-                # ... (parsing da resposta da API preliminar) ...
                 cleaned_response_str = response_prelim_str.strip()
                 if cleaned_response_str.startswith("```json"):
                     cleaned_response_str = cleaned_response_str[7:].strip()
@@ -263,7 +259,8 @@ def main_fix_artisan_dusk():
                     core_context.confirm_and_modify_selection(
                         suggested_files_from_api,
                         manifest_data_for_context_selection,
-                        core_config.SUMMARY_TOKEN_LIMIT_PER_CALL,
+                        max_tokens_for_main_call,
+                        verbose=verbose,
                     )
                 )
                 if final_selected_files_for_context is None:
@@ -279,6 +276,11 @@ def main_fix_artisan_dusk():
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
                 include_list=final_selected_files_for_context,
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose,
             )
         else:
             if not latest_context_dir_path:
@@ -292,6 +294,11 @@ def main_fix_artisan_dusk():
                 common_context_dir=core_config.COMMON_CONTEXT_DIR,
                 exclude_list=args.exclude_context,
                 manifest_data=manifest_data_for_context_selection,
+                max_input_tokens_for_call=max_tokens_for_main_call,
+                task_name_for_essentials=TASK_NAME,
+                cli_args_for_essentials=args,
+                latest_dir_name_for_essentials=latest_dir_name_for_essentials,
+                verbose=verbose,
             )
         if not context_parts and verbose:
             print("Aviso: Nenhuma parte de contexto carregada.", file=sys.stderr)
@@ -309,6 +316,10 @@ def main_fix_artisan_dusk():
                     types.Part.from_text(text=meta_prompt_current)
                 ] + context_parts
                 try:
+                    if verbose:  # AC5.2
+                        print(
+                            f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP1}. MAX_INPUT_TOKENS_PER_CALL: {api_client.calculate_max_input_tokens(GEMINI_MODEL_STEP1, verbose=False)}"
+                        )
                     prompt_final_content = api_client.execute_gemini_call(
                         GEMINI_MODEL_STEP1,
                         contents_step1,
@@ -324,6 +335,9 @@ def main_fix_artisan_dusk():
                             )
                         ),
                         verbose=verbose,
+                        max_input_tokens_for_this_call=api_client.calculate_max_input_tokens(
+                            GEMINI_MODEL_STEP1, verbose=False
+                        ),
                     )
                     print("\n--- Prompt Final Gerado (Etapa 1) ---")
                     print(prompt_final_content.strip())
@@ -368,11 +382,7 @@ def main_fix_artisan_dusk():
 
         if args.only_prompt:
             print(f"\n--- Prompt Final Para Envio (--only-prompt) ---")
-            print(
-                final_prompt_to_send.strip()
-                if final_prompt_to_send
-                else "Não houve resposta"
-            )
+            print(final_prompt_to_send.strip() if final_prompt_to_send else "")
             print("--- Fim ---")
             sys.exit(0)
 
@@ -387,8 +397,12 @@ def main_fix_artisan_dusk():
                 types.Part.from_text(text=final_prompt_current)
             ] + context_parts
             try:
+                if verbose:  # AC5.2
+                    print(
+                        f"  AC5.2: Chamando API Gemini. Modelo: {GEMINI_MODEL_STEP2}. MAX_INPUT_TOKENS_PER_CALL: {max_tokens_for_main_call}"
+                    )
                 final_response_content = api_client.execute_gemini_call(
-                    core_config.GEMINI_MODEL_RESOLVE,
+                    GEMINI_MODEL_STEP2,  # Modelo para código
                     contents_final,
                     config=types.GenerateContentConfig(
                         tools=(
@@ -402,6 +416,7 @@ def main_fix_artisan_dusk():
                         )
                     ),
                     verbose=verbose,
+                    max_input_tokens_for_this_call=max_tokens_for_main_call,
                 )
                 print("\n--- Resposta Final ---")
                 print(final_response_content.strip() if final_response_content else "")
@@ -412,7 +427,6 @@ def main_fix_artisan_dusk():
                     user_choice_final, observation_final = io_utils.confirm_step(
                         "Prosseguir com esta resposta final?"
                     )
-
                 if user_choice_final == "y":
                     break
                 elif user_choice_final == "q":
@@ -442,8 +456,6 @@ def main_fix_artisan_dusk():
             )
             sys.exit(1)
 
-        # A resposta da LLM deve conter os blocos de código
-        # Esta task não cria PRs, apenas salva o código sugerido.
         if final_response_content.strip():
             save_confirm_choice, _ = io_utils.confirm_step(
                 "Confirmar salvamento desta resposta (código corrigido)?"
@@ -459,7 +471,10 @@ def main_fix_artisan_dusk():
                 "\nResposta final da LLM está vazia. Isso pode indicar que nenhuma correção foi sugerida ou que os erros não puderam ser resolvidos."
             )
             print("Nenhum arquivo será salvo.")
-
+    except MissingEssentialFileAbort as e:
+        print(f"\nErro: {e}", file=sys.stderr)
+        print("Fluxo de seleção de contexto interrompido.")
+        sys.exit(1)
     except Exception as e:
         print(f"Erro inesperado na tarefa '{TASK_NAME}': {e}", file=sys.stderr)
         traceback.print_exc()

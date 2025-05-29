@@ -1,37 +1,48 @@
 **Sua Tarefa ÚNICA e ABSOLUTAMENTE RESTRITA:**
-Com base na descrição da tarefa principal e no manifesto JSON fornecido, selecione os arquivos **MAIS RELEVANTES** do manifesto que fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
+Com base na descrição da tarefa principal, no conteúdo essencial pré-injetado e no manifesto JSON dos demais arquivos fornecido, selecione os arquivos **ADICIONAIS MAIS RELEVANTES** do manifesto JSON que, *juntamente com o conteúdo essencial já fornecido*, fornecerão o contexto ótimo para a IA realizar a tarefa principal. Sua seleção deve priorizar os arquivos mais críticos primeiro e, em seguida, adicionar arquivos relevantes adicionais para utilizar o máximo possível do limite de tokens do manifesto (aproximadamente 200k tokens), mantendo a relevância.
 
 **Tarefa Principal:** Revisar a Issue GitHub `__NUMERO_DA_ISSUE__` e gerar um corpo Markdown atualizado e completo para ela. A revisão deve considerar o estado atual do projeto, possíveis mudanças de rumo desde a criação da issue, e garantir que a descrição e os Critérios de Aceite estejam alinhados com as práticas e documentação atuais.
 
-**Manifesto JSON Fornecido:**
-Você receberá um dicionário JSON (aninhado sob a chave `files`) contendo metadados de arquivos do projeto (path, type, summary, token_count, etc.). Este manifesto JÁ FOI FILTRADO para excluir arquivos individuais muito grandes (>200k tokens).
+**Contexto Fornecido:**
+Você receberá:
+1.  O conteúdo integral de arquivos "essenciais" para a tarefa, pré-injetados diretamente abaixo.
+2.  Um manifesto JSON (aninhado sob a chave `files`) contendo sumários e metadados de *outros* arquivos do projeto.
+
+**Conteúdo Essencial Pré-Injetado:**
+{{ESSENTIAL_FILES_CONTENT}}
+
+**Manifesto JSON dos Demais Arquivos:**
+```json
+{{REMAINING_MANIFEST_JSON}}
+```
 
 **Seu Processo de Seleção:**
 1.  Entenda profundamente o objetivo da **Tarefa Principal**: revisar e atualizar o corpo da Issue `__NUMERO_DA_ISSUE__`.
-2.  Analise os metadados de CADA arquivo no `manifest.json` fornecido (path, type, summary).
-3.  Selecione APENAS os arquivos CRÍTICOS que contenham:
-    *   **OBRIGATÓRIO:** Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`) - a base da revisão.
-    *   **OBRIGATÓRIO:** Toda a documentação principal do projeto (`README.md`, todos os `docs/*.md`) para garantir alinhamento com padrões e guias atuais.
-    *   **ALTAMENTE RELEVANTE:** O estado atual do projeto: histórico recente (`git_log.txt`), status atual (`git_status.txt`), manifesto (`manifest.json` ou `_manifest.json`), estrutura (`project_tree_L*.txt`), rotas (`artisan_route_list.json`), dependências (`composer_show.txt`, `npm_list*`).
+2.  Analise o **Conteúdo Essencial Pré-Injetado** E os metadados/sumários de CADA arquivo no **Manifesto JSON dos Demais Arquivos**.
+3.  Selecione APENAS os arquivos CRÍTICOS do **Manifesto JSON dos Demais Arquivos** que contenham:
+    *   **OBRIGATÓRIO:** Os detalhes completos da Issue `__NUMERO_DA_ISSUE__` (`github_issue___NUMERO_DA_ISSUE___details.json`) - *se não foi pré-injetado*.
+    *   **OBRIGATÓRIO:** Toda a documentação principal do projeto (`README.md`, todos os `docs/*.md`) para garantir alinhamento com padrões e guias atuais - *se não foram pré-injetados*.
+    *   **ALTAMENTE RELEVANTE:** O estado atual do projeto: histórico recente (`git_log.txt`), status atual (`git_status.txt`), manifesto (`manifest.json` ou `_manifest.json`), estrutura (`project_tree_L*.txt`), rotas (`artisan_route_list.json`), dependências (`composer_show.txt`, `npm_list*`) - *se não foram pré-injetados*.
     *   **ALTAMENTE RELEVANTE:** Outras Issues e PRs recentes (`gh_pr_list.txt`, outros `github_issue_*_details.json`) que possam indicar mudanças de contexto ou decisões relevantes.
     *   **RELEVANTE (Se o `summary` indicar):** Código fonte (`app/...`, `resources/views/...`, `tests/...`) que seja *diretamente* relacionado ao *assunto* da Issue `__NUMERO_DA_ISSUE__`, para ajudar a avaliar se a descrição original ainda faz sentido.
 4.  **Priorize:** Detalhes da issue alvo, *toda* a documentação principal, estado atual do projeto e histórico recente são essenciais. Código fonte relacionado é útil, mas secundário à documentação para esta tarefa específica de *revisão da issue*.
 5.  **Exclua:** Arquivos de contexto muito antigos (se identificáveis), diffs específicos (a menos que o `summary` indique uma mudança crucial), arquivos de build, arquivos de configuração muito genéricos, a menos que seus `summary` indiquem relevância direta para a revisão da Issue `__NUMERO_DA_ISSUE__`.
+    *   **NÃO** inclua arquivos que já foram fornecidos no **Conteúdo Essencial Pré-Injetado**.
 
 **Formato de Saída OBRIGATÓRIO E ESTRITO:**
-Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do manifesto.
+Sua resposta DEVE ser **APENAS E SOMENTE APENAS** um objeto JSON válido contendo UMA ÚNICA chave chamada `relevant_files`. O valor desta chave DEVE ser uma LISTA (array JSON) de strings, onde cada string é o caminho relativo EXATO de um arquivo selecionado do **Manifesto JSON dos Demais Arquivos**.
 
 **Exemplo de Saída:**
 ```json
 {
   "relevant_files": [
-    "context_llm/code/YYYYMMDD_HHMMSS/github_issue___NUMERO_DA_ISSUE___details.json",
-    "README.md",
-    "docs/guia_de_desenvolvimento.md",
-    "docs/padroes_codigo_boas_praticas.md",
     "context_llm/code/YYYYMMDD_HHMMSS/git_log.txt",
     "context_llm/code/YYYYMMDD_HHMMSS/manifest.json",
-    "context_llm/code/YYYYMMDD_HHMMSS/gh_pr_list.txt",
     "app/Http/Controllers/MaybeRelatedController.php"
   ]
 }
+```
+**REGRAS ADICIONAIS:**
+-   **NÃO** inclua NENHUM texto explicativo, introdução, saudação ou qualquer outra coisa fora do objeto JSON.
+-   Sua resposta completa DEVE começar com `{` e terminar com `}`.
+-   Se NENHUM arquivo *adicional* do manifesto JSON for considerado relevante, retorne `{"relevant_files": []}`.

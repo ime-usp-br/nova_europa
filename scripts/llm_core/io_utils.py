@@ -76,6 +76,29 @@ def confirm_step(prompt_message: str) -> Tuple[str, Optional[str]]:
             )
 
 
+def prompt_user_for_missing_essential_file(relative_path_str: str) -> bool:
+    """
+    Pergunta ao usuário se deseja continuar sem um arquivo essencial ausente ou abortar.
+    Retorna True para continuar, False para abortar.
+    AC4.1b
+    """
+    prompt_text = f"  AVISO (AC4.1a): Arquivo essencial '{relative_path_str}' não encontrado no disco. Deseja (C)ontinuar sem este arquivo ou (A)bortar a tarefa? [A]: "
+    while True:
+        # AC4.1a: Log do aviso (o prompt em si já informa o usuário)
+        print(
+            prompt_text, end=""
+        )  # Imprime o prompt sem newline para input na mesma linha
+        choice = input().strip().lower()
+        if choice in ["c", "continuar"]:
+            return True
+        elif choice in ["a", "abortar", ""]:  # Padrão é abortar
+            return False
+        else:
+            print(
+                "  Entrada inválida. Por favor, digite 'C' para continuar ou 'A' para abortar."
+            )
+
+
 def parse_pr_content(llm_output: str) -> Tuple[Optional[str], Optional[str]]:
     """Parses the LLM output for create-pr task to extract PR title and body."""
     title: Optional[str] = None

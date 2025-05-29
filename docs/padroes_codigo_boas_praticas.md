@@ -204,7 +204,7 @@ public function processOrder(Request $request)
 
 *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`).
 *   **Script de Geração de Contexto (`scripts/generate_context.py`):** Ferramenta Python para coletar contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar `llm_interact.py`.
-*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python que utiliza o contexto gerado e meta-prompts (`templates/meta-prompts/` e `templates/prompts/`) para interagir com a API do Google Gemini. Auxilia em tarefas como gerar código, commits, análise de ACs, docs, PRs. Use `python scripts/llm_interact.py -h`.
+*   **Script de Interação com LLM (`scripts/llm_interact.py`):** Ferramenta Python modularizada que atua como um dispatcher para diversas tarefas de LLM (gerar código, commits, análise de ACs, docs, PRs). Utiliza contexto gerado e meta-prompts, e inclui recursos avançados de gerenciamento de API e experiência do usuário. Use `python scripts/llm_interact.py -h`.
 
 ## Uso de Termos RFC 2119 na Documentação
 

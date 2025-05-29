@@ -278,3 +278,59 @@ def test_prompt_user_to_select_doc_invalid_then_valid(mock_input: MagicMock, cap
 def test_prompt_user_to_select_doc_empty_list():
     selected = io_utils.prompt_user_to_select_doc([])
     assert selected is None
+
+
+# --- Testes para AC4.1 ---
+@patch("builtins.input")
+def test_prompt_user_for_missing_essential_file_continue(mock_input: MagicMock, capsys):
+    mock_input.return_value = "c"
+    result = io_utils.prompt_user_for_missing_essential_file("missing.txt")
+    assert result is True
+    captured = capsys.readouterr()  # Captura o que foi impresso
+    assert (
+        "AVISO (AC4.1a): Arquivo essencial 'missing.txt' não encontrado no disco. Deseja (C)ontinuar sem este arquivo ou (A)bortar a tarefa? [A]: "
+        in captured.out
+    )
+
+
+@patch("builtins.input")
+def test_prompt_user_for_missing_essential_file_abort_explicit(
+    mock_input: MagicMock, capsys
+):
+    mock_input.return_value = "a"
+    result = io_utils.prompt_user_for_missing_essential_file("missing.txt")
+    assert result is False
+    captured = capsys.readouterr()
+    assert (
+        "AVISO (AC4.1a): Arquivo essencial 'missing.txt' não encontrado no disco. Deseja (C)ontinuar sem este arquivo ou (A)bortar a tarefa? [A]: "
+        in captured.out
+    )
+
+
+@patch("builtins.input")
+def test_prompt_user_for_missing_essential_file_abort_default(
+    mock_input: MagicMock, capsys
+):
+    mock_input.return_value = ""  # Default é abortar
+    result = io_utils.prompt_user_for_missing_essential_file("missing.txt")
+    assert result is False
+    captured = capsys.readouterr()
+    assert (
+        "AVISO (AC4.1a): Arquivo essencial 'missing.txt' não encontrado no disco. Deseja (C)ontinuar sem este arquivo ou (A)bortar a tarefa? [A]: "
+        in captured.out
+    )
+
+
+@patch("builtins.input")
+def test_prompt_user_for_missing_essential_file_invalid_then_continue(
+    mock_input: MagicMock, capsys
+):
+    mock_input.side_effect = ["x", "c"]  # Entrada inválida, depois 'c'
+    result = io_utils.prompt_user_for_missing_essential_file("missing.txt")
+    assert result is True
+    captured = capsys.readouterr()
+    assert (
+        "Entrada inválida. Por favor, digite 'C' para continuar ou 'A' para abortar."
+        in captured.out
+    )
+    assert mock_input.call_count == 2
