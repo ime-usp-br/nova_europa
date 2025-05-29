@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_manifest.py (v1.23.1 - Persist Context Summaries)
+# generate_manifest.py (v0.1.0)
 #
 # Script para gerar um manifesto JSON estruturado do projeto, catalogando
 # arquivos relevantes e extraindo metadados essenciais.

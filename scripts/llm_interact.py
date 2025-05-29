@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# llm_interact.py (v3.0.0 - Modularized)
+# llm_interact.py (v0.1.0)
 #
 # Script principal para interagir com a API Gemini.
 # Atua como um dispatcher para scripts de tarefas individuais localizados em scripts/tasks/.

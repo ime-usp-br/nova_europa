@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# run_tests.py (Python version of run_tests.sh - v1.1)
+# run_tests.py (v0.1.0)
 #
 # Script para executar as suítes de teste do projeto (PHPUnit e Laravel Dusk).
 # Gerencia o início e parada dos serviços necessários para os testes Dusk

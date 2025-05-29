@@ -1,7 +1,7 @@
 **Termo de Abertura do Projeto: Laravel 12 USP Starter Kit**
 
 **Versão:** 0.1.0<br>
-**Data:** 2025-04-12
+**Data:** 2025-05-29
 
 **1. Título do Projeto:**
 Laravel 12 USP Starter Kit

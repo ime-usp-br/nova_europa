@@ -1,7 +1,7 @@
 # Padrões de Código e Boas Práticas
 
 **Versão:** 0.1.0<br>
-**Data:** 2025-04-12
+**Data:** 2025-05-29
 
 Manter um código limpo, consistente e fácil de entender é crucial para a manutenabilidade e evolução de qualquer projeto. Este starter kit adota e **REQUER** a aderência às seguintes práticas e padrões:
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # ==============================================================================
-# generate_context.py (v1.8 - Add pytest execution)
+# generate_context.py (v0.1.0)
 #
 # Coleta informações de contexto abrangentes de um projeto de desenvolvimento
 # (com foco em Laravel/PHP e Python) e seu ambiente para auxiliar LLMs.
