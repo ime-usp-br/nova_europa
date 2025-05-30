@@ -1,0 +1,43 @@
+TITLE: [FEAT][Localization] Detectar e Aplicar Locale com Base no Idioma do Navegador
+TYPE: feature
+LABELS: localization,feature,todo,middleware,ux
+ASSIGNEE: @me
+PROJECT: Laravel 12 Starter Kit
+MILESTONE:
+FEATURE_MOTIVATION: Atualmente, o locale da aplicação é definido estaticamente (provavelmente via `.env` e `config/app.php`). Para melhorar a experiência do usuário (UX), especialmente para usuários internacionais ou com configurações de idioma específicas no navegador, o locale da aplicação deveria ser, por padrão, definido dinamicamente com base no idioma principal configurado no navegador do usuário. Isso proporcionaria uma experiência mais nativa e acessível desde o primeiro acesso.
+
+FEATURE_DESCRIPTION: Esta funcionalidade visa implementar um mecanismo que, ao primeiro acesso de um usuário ou quando nenhum locale estiver explicitamente definido (ex: por preferência do usuário salva ou seleção manual), detecte o idioma preferencial do navegador através do header `Accept-Language`. Com base nessa detecção, a aplicação tentará definir o locale correspondente, desde que este esteja disponível e configurado como um locale suportado no sistema. Caso o idioma do navegador não seja suportado ou não possa ser mapeado para um locale da aplicação, o sistema deve recorrer ao locale de fallback padrão definido em `config('app.fallback_locale')`.
+
+PROPOSED_SOLUTION:
+1.  **Middleware para Detecção:**
+    *   Criar um novo middleware (ex: `DetectBrowserLanguageMiddleware`).
+    *   Este middleware será responsável por:
+        *   Obter o idioma preferencial do header `Accept-Language` da requisição HTTP (Laravel já oferece ` $request->getPreferredLanguage()`).
+        *   Mapear o código do idioma detectado (ex: `pt-br`, `pt`, `en-us`, `en`) para um dos locales suportados pela aplicação (ex: `pt_BR`, `en`). Uma lista de locales suportados pela aplicação deverá ser definida (ex: em `config/app.php` ou um novo arquivo de configuração de localização).
+        *   Se um locale correspondente e suportado for encontrado, definir o locale da aplicação usando `App::setLocale($mappedLocale)`.
+        *   Se nenhum locale correspondente for encontrado ou se o idioma detectado não for suportado, utilizar o `config('app.fallback_locale')`.
+    *   Considerar se o locale detectado deve ser armazenado na sessão do usuário para persistir durante a navegação, evitando a redetecção em cada request.
+2.  **Registro do Middleware:**
+    *   Registrar o novo middleware no grupo `web` em `bootstrap/app.php` (ou `app/Http/Kernel.php` dependendo da estrutura de preferência para middlewares globais/de grupo), garantindo que ele execute cedo no ciclo de vida da requisição, mas após o início da sessão (se a persistência na sessão for implementada).
+3.  **Configuração de Locales Suportados:**
+    *   Adicionar uma nova chave de configuração em `config/app.php` (ex: `supported_locales`) contendo um array dos locales que a aplicação suporta (ex: `['en', 'pt_BR']`). O middleware usará esta lista para validar o idioma detectado.
+4.  **Prioridade:**
+    *   A detecção do idioma do navegador deve ter prioridade mais baixa que um locale explicitamente definido pelo usuário (se essa funcionalidade for implementada futuramente) ou um locale já definido na sessão (se a persistência for implementada). Para a primeira implementação, pode-se assumir que, se nenhum locale estiver na sessão, a detecção do navegador ocorre.
+
+ACCEPTANCE_CRITERIA:
+-   [ ] **AC1:** Middleware (`DetectBrowserLanguageMiddleware`) criado e registrado corretamente no grupo `web`.
+-   [ ] **AC2:** O middleware obtém corretamente o idioma preferencial do header `Accept-Language` da requisição.
+-   [ ] **AC3:** Uma lista configurável de locales suportados pela aplicação existe (ex: em `config/app.php` ou similar).
+-   [ ] **AC4:** Se o idioma do navegador (ex: `pt-br` ou `pt`) corresponder a um locale suportado (`pt_BR`), a aplicação define `App::setLocale('pt_BR')`.
+-   [ ] **AC5:** Se o idioma do navegador (ex: `en-us` ou `en`) corresponder a outro locale suportado (`en`), a aplicação define `App::setLocale('en')`.
+-   [ ] **AC6:** Se o idioma do navegador (ex: `fr`) não corresponder a nenhum locale suportado, a aplicação utiliza o `config('app.fallback_locale')` (ex: `en` ou `pt_BR`).
+-   [ ] **AC7 (Opcional, mas Recomendável):** O locale determinado (detectado ou fallback) é armazenado na sessão do usuário para persistir durante a navegação.
+-   [ ] **AC8:** A funcionalidade não interfere com a capacidade de definir o locale manualmente (ex: via um seletor de idiomas, se implementado futuramente). *Este AC pode ser complexo e pode ser adiado/simplificado: a detecção do navegador só ocorre se nenhum locale estiver na sessão.*
+-   [ ] **AC9:** Testes de Feature (PHPUnit) são criados para verificar:
+    -   A correta aplicação do locale quando o header `Accept-Language` é `pt-BR` (ou `pt`).
+    -   A correta aplicação do locale quando o header `Accept-Language` é `en-US` (ou `en`).
+    -   A correta aplicação do locale de fallback quando o header `Accept-Language` é de um idioma não suportado (ex: `fr`).
+    -   (Se AC7 implementado) O locale é armazenado e recuperado da sessão.
+-   [ ] **AC10:** Código PHP/Blade formatado corretamente via `./vendor/bin/pint`.
+-   [ ] **AC11:** Código passa na análise estática via `./vendor/bin/phpstan analyse`.
+-   [ ] **AC12:** Documentação (`README.md` ou Wiki) é atualizada para descrever a nova funcionalidade de detecção de locale e como configurar os locales suportados.

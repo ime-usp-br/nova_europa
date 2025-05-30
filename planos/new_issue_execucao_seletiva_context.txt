@@ -1,0 +1,61 @@
+TITLE: [DevTools][Feature] Permitir Execução Seletiva de Estágios em \`generate_context.py\` com Fallback de Contexto
+TYPE: feature
+LABELS: devtools,python,feature,performance,context-generation,todo
+ASSIGNEE: @me
+PROJECT: Laravel 12 Starter Kit
+MILESTONE:
+FEATURE_MOTIVATION:
+O script `scripts/generate_context.py` atualmente executa todas as etapas de coleta de contexto, o que pode ser demorado. Frequentemente, o desenvolvedor pode precisar apenas de uma ou algumas seções atualizadas (ex: `git_log.txt`, `artisan_route_list.json`, ou detalhes de uma nova issue). A execução completa do script nesses casos é ineficiente. Além disso, para manter a integridade do diretório de contexto gerado (que deve ser um snapshot completo), arquivos de etapas não executadas precisam ser copiados da execução anterior mais recente.
+
+FEATURE_DESCRIPTION:
+Modificar o script `scripts/generate_context.py` para permitir que o usuário especifique quais "estágios" (ou "módulos" de coleta) devem ser executados.
+1.  O script deve aceitar um novo argumento de linha de comando (ex: `--stages` ou `--run-only`) que aceite uma lista de nomes de estágios a serem executados (ex: `git`, `artisan`, `github_issues`, `phpunit`).
+2.  Se nenhum estágio for especificado, o script deve executar todos os estágios (comportamento padrão atual).
+3.  Para os estágios que **não** forem executados na chamada atual, o script deve:
+    *   Identificar o diretório de contexto gerado imediatamente anterior (o segundo mais recente).
+    *   Copiar os arquivos correspondentes a esses estágios pulados do diretório anterior para o novo diretório de contexto que está sendo gerado. Isso garante que o novo diretório de contexto seja sempre um snapshot completo e atualizado, combinando arquivos recém-gerados com os mais recentes de estágios não executados.
+4.  O arquivo `manifest.md` gerado no novo diretório de contexto deve listar todos os arquivos presentes (tanto os recém-gerados quanto os copiados).
+
+PROPOSED_SOLUTION:
+1.  **Definir "Estágios":** Mapear as funções de coleta existentes (ex: `collect_git_info`, `collect_artisan_info`, `collect_github_issue_details`, `run_tests`, `run_quality_checks`, etc.) para nomes de estágios curtos e intuitivos (ex: `git`, `artisan`, `gh_issues`, `phpunit`, `phpstan`).
+2.  **Argumento de Linha de Comando:**
+    *   Implementar um argumento `parser.add_argument('--stages', nargs='*', help='Lista de estágios para executar (ex: git artisan gh_issues). Se omitido, todos são executados.')`.
+    *   Validar os nomes dos estágios fornecidos contra a lista de estágios definidos.
+3.  **Lógica de Execução Condicional:**
+    *   No fluxo principal do script, iterar sobre os estágios definidos. Se o argumento `--stages` foi fornecido, executar apenas os estágios presentes na lista do argumento. Se não, executar todos.
+4.  **Lógica de Fallback/Cópia:**
+    *   Implementar uma função para encontrar o "diretório de contexto imediatamente anterior" (ou seja, o segundo mais recente em `context_llm/code/`). Se não existir, logar um aviso e prosseguir sem copiar (apenas os arquivos dos estágios selecionados serão gerados).
+    *   Para cada estágio *não executado* na chamada atual:
+        *   Identificar os arquivos que *seriam gerados* por esse estágio (pode ser por um padrão de nome, ex: `git_*.txt` para o estágio `git`, ou as funções de coleta podem retornar uma lista dos arquivos que gerariam).
+        *   Verificar se esses arquivos existem no diretório de contexto anterior.
+        *   Se existirem, copiá-los (com `shutil.copy2`) para o novo diretório de contexto.
+5.  **Geração do `manifest.md`:** Assegurar que a função `generate_manifest` seja chamada *após* todas as execuções de estágios e cópias de fallback, para que o `manifest.md` reflita o conteúdo final do novo diretório de contexto.
+6.  **Logging:** Melhorar o logging para indicar claramente quais estágios estão sendo executados, quais estão sendo pulados e quais arquivos estão sendo copiados do contexto anterior.
+
+TECHNICAL_DETAILS:
+*   Manter um dicionário mapeando nomes de estágios para as funções de coleta correspondentes e, opcionalmente, para os padrões de nome dos arquivos que elas geram.
+    ```python
+    STAGES_CONFIG = {
+        "git": {"func": collect_git_info, "outputs": ["git_log.txt", "git_status.txt", ...]},
+        "artisan": {"func": collect_artisan_info, "outputs": ["artisan_route_list.json", ...]},
+        # ...
+    }
+    ```
+*   Ao copiar, se um arquivo específico de um estágio pulado não existir no contexto anterior, logar um aviso mas não falhar o script inteiro, pois o objetivo é ter o *mais recente possível*.
+
+ACCEPTANCE_CRITERIA:
+-   [ ] **AC1:** Novo argumento de linha de comando `--stages` (ou similar, ex: `-s`) é implementado e aceita uma lista de nomes de estágios.
+-   [ ] **AC2:** Se `--stages` não for fornecido, o script executa todos os estágios de coleta de contexto (comportamento padrão atual preservado).
+-   [ ] **AC3:** Se `--stages` for fornecido com um ou mais nomes de estágios válidos (ex: `python scripts/generate_context.py --stages git artisan`), apenas esses estágios são executados para gerar novos arquivos.
+-   [ ] **AC4:** Se um estágio é especificado em `--stages`, seus arquivos correspondentes são gerados no novo diretório de contexto.
+-   [ ] **AC5:** Se um estágio *não* é especificado em `--stages` (e não é a execução padrão de todos):
+    -   [ ] **AC5.1:** O script tenta localizar o diretório de contexto imediatamente anterior.
+    -   [ ] **AC5.2:** Se o diretório anterior existir, os arquivos que seriam gerados pelo estágio pulado são copiados do diretório anterior para o novo diretório de contexto.
+    -   [ ] **AC5.3:** Se um arquivo específico de um estágio pulado não existir no diretório anterior, um aviso é logado, e o arquivo não estará presente no novo diretório.
+-   [ ] **AC6:** Se nenhum diretório de contexto anterior for encontrado, e estágios forem pulados, apenas os arquivos dos estágios executados estarão presentes no novo diretório, e um aviso é logado.
+-   [ ] **AC7:** O arquivo `manifest.md` gerado no novo diretório de contexto lista corretamente **todos** os arquivos presentes, sejam eles recém-gerados ou copiados do contexto anterior.
+-   [ ] **AC8:** O script lida corretamente com nomes de estágios inválidos fornecidos via `--stages` (ex: exibe erro e lista estágios válidos).
+-   [ ] **AC9:** O logging do script é claro sobre quais estágios estão sendo executados, quais pulados, e quais arquivos copiados.
+-   [ ] **AC10:** A performance geral para execução de estágios específicos é notavelmente mais rápida do que a execução completa.
+-   [ ] **AC11:** Documentação do script (`README.md` ou `docs/guia_de_desenvolvimento.md`) é atualizada para incluir o novo argumento `--stages` e exemplos de uso.
+-   [ ] **AC12:** Código Python adere às convenções do PEP 8 e passa nas verificações de qualidade do projeto.
