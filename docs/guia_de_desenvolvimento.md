@@ -75,7 +75,14 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
     *   **Google Chrome ou Chromium:** Necessário para a execução dos testes Dusk.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
 *   **(Opcional) Ferramentas de Desenvolvimento Adicionais:**
-    *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto e ambiente. **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
+    *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.** **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
+        **Exemplos de Uso:**
+        *   **Execução Completa (Padrão):** `python scripts/generate_context.py`
+            *   Coleta todas as informações (Git, Artisan, GitHub, etc.) e cria um novo diretório de contexto completo.
+        *   **Execução Seletiva (Ex: apenas Git e Artisan):** `python scripts/generate_context.py --stages git artisan`
+            *   Executa apenas os estágios `git` e `artisan`, gerando novos arquivos para eles. Arquivos de outros estágios (ex: `github_issues_details.json`) serão copiados do diretório de contexto gerado anteriormente, se existirem.
+        *   **Atualização de Detalhes de Issue (Ex: apenas GitHub Issues):** `python scripts/generate_context.py --stages github_issues`
+            *   Atualiza apenas os detalhes das Issues do GitHub, copiando o restante do contexto da última execução para garantir um diretório de contexto completo.
     *   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):** Ferramentas Python para automatizar interações com a API do Google Gemini. `llm_interact.py` atua como dispatcher para os scripts de tarefa em `scripts/tasks/`. **PODEM** ser usadas para auxiliar em tarefas de desenvolvimento. Requerem `python3 >= 3.10`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
     *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano. Requer `python3 >= 3.8`, `gh` CLI, `jq`.
 
@@ -261,7 +268,14 @@ A chave é a rastreabilidade via Issues e commits vinculados.
 *   **Laravel Pint:** (`vendor/bin/pint`) Formatador PSR-12. Use antes de commitar.
 *   **Larastan:** (`vendor/bin/phpstan analyse`) Análise estática. Execute regularmente.
 *   **Script de Criação de Issues (`scripts/create_issue.py`):** Automatiza a criação/edição de Issues no GitHub a partir de planos `.txt`.
-*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Coleta contexto (`context_llm/code/<timestamp>/`) para LLMs. Execute antes de usar as ferramentas de LLM.
+*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.**
+    **Exemplos de Uso:**
+    *   **Execução Completa (Padrão):** `python scripts/generate_context.py`
+        *   Coleta todas as informações (Git, Artisan, GitHub, etc.) e cria um novo diretório de contexto completo.
+    *   **Execução Seletiva (Ex: apenas Git e Artisan):** `python scripts/generate_context.py --stages git artisan`
+        *   Executa apenas os estágios `git` e `artisan`, gerando novos arquivos para eles. Arquivos de outros estágios (ex: `github_issues_details.json`) serão copiados do diretório de contexto gerado anteriormente, se existirem.
+    *   **Atualização de Detalhes de Issue (Ex: apenas GitHub Issues):** `python scripts/generate_context.py --stages github_issues`
+        *   Atualiza apenas os detalhes das Issues do GitHub, copiando o restante do contexto da última execução para garantir um diretório de contexto completo.
 *   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
     A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
     *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
@@ -270,7 +284,7 @@ A chave é a rastreabilidade via Issues e commits vinculados.
     *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
         Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
     *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Elas incluem: aprimorada seleção de contexto com pré-injeção de arquivos essenciais (AC1.1-1.3); gerenciamento proativo de limites de tokens e RPM da API Gemini (AC2.1-2.3), com cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, estratégias de redução de contexto (substituição por sumário e truncamento), e um rate limiter interno; e melhorias significativas na experiência do usuário ao interagir com a seleção de contexto (AC3.1-3.4, AC4.1, AC5.1).
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue` (para especificar uma Issue do GitHub), `--ac` (para critérios de aceite), `--observation` (feedback adicional para a LLM), `--two-stage` (habilita um fluxo com meta-prompt para gerar o prompt final), `--select-context` (permite a seleção interativa de arquivos de contexto, aprimorada com informações detalhadas e tratamento de arquivos ausentes), `--web-search` (ativa a ferramenta de busca para a LLM), `--generate-context` (aciona a geração de contexto inicial), entre outros.
+    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue` (para especificar uma Issue do GitHub), `--ac` (para critérios de aceite), `--observation` (feedback adicional para a LLM), `--two-stage` (habilita um fluxo com meta-prompt para gerar o prompt final), `--select-context` (permite a seleção interativa de arquivos de contexto, aprimorada com informações detalhadas e tratamento de arquivos ausentes), `--web-search` (ativa a ferramenta de busca para a LLM), `--generate-context` (para acionar a geração de contexto inicial), entre outros.
     * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes Automatizados
