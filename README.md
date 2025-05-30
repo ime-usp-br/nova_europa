@@ -1,7 +1,7 @@
 # Laravel 12 USP Starter Kit
 
 **Versão:** 0.1.0<br>
-**Data:** 2025-04-17
+**Data:** 2025-05-29
 
 [![Status da Build](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -48,7 +48,7 @@ Este Starter Kit vem pré-configurado com:
     *   Componentes Blade básicos e reutilizáveis, adaptados visualmente às diretrizes da USP (Planejado).
 *   **Ferramentas de Qualidade:**
     *   **Laravel Pint:** Para formatação automática de código (PSR-12).
-    *   **Larastan (PHPStan):** Para análise estática de código focada em Laravel.
+    *   **Larastan (PHPStan):** Para análise estática de código.
     *   **EditorConfig:** Para manter a consistência de estilo entre editores.
 *   **Testes Automatizados:**
     *   Estrutura inicial com testes unitários e de feature (**PHPUnit** como framework padrão, configurado pelo Breeze).
