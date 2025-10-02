@@ -56,19 +56,6 @@ Este Starter Kit vem pré-configurado com:
     *   **Laravel Dusk:** Para testes de browser End-to-End.
     *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais (Planejado).
 *   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
-*   **Ferramentas de Desenvolvimento:**
-    *   Script Python (`scripts/create_issue.py`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
-    *   Script Python (`scripts/generate_context.py`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado. (Refs #69)**
-    *   **Scripts de Interação com LLM:**
-        A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-        *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-            Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-            Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-        *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-            Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-        *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Incluem: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto interativamente.
-        *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue`, `--ac`, `--observation`, `--two-stage` (fluxo com meta-prompt), `--select-context` (para seleção interativa de contexto, agora com exibição de contagem de tokens e tratamento de arquivos ausentes/truncados), `--web-search` (com tool calling), `--generate-context` (para acionar o script de geração de contexto), etc.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
 *Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md).*
@@ -90,7 +77,6 @@ Este Starter Kit vem pré-configurado com:
 *   **Permissões:** `spatie/laravel-permission`
 *   **Testes:** **PHPUnit**, **Laravel Dusk**
 *   **Qualidade:** Laravel Pint, Larastan
-*   **Ferramentas Dev:** Python 3.x, `google-genai`, `python-dotenv`, `tqdm` (para scripts LLM)
 
 ## 5. Instalação
 
@@ -102,7 +88,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
     *   Node.js (v18+) e NPM
     *   Git
     *   **Google Chrome** ou **Chromium** instalado (para testes Dusk)
-    *   (Opcional, para ferramentas de dev) Python >= 3.10, Pip, `gh` CLI, `jq`
 
 2.  **Clonar o Repositório:**
     ```bash
@@ -135,7 +120,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         *   `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: Credenciais do seu banco de dados.
         *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail).
         *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
-        *   **(Opcional) `GEMINI_API_KEY`:** Adicione sua chave da API Google Gemini para usar os scripts de LLM. Pode conter múltiplas chaves separadas por `|`.
 
 6.  **Banco de Dados e Dados Iniciais:**
     *   Execute as migrações para criar todas as tabelas necessárias:
@@ -163,15 +147,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
     *   **Criar/Verificar `.env.dusk.local`:** Crie este arquivo na raiz do projeto (se não existir) e configure-o para o ambiente de teste do Dusk. Um exemplo (`.env.dusk.local`) já está incluído neste repositório. Preste atenção especial a:
         *   `APP_URL=http://127.0.0.1:8000` (ou a URL que `php artisan serve` usa)
         *   `DB_CONNECTION=sqlite` e `DB_DATABASE=database/testing/dusk.sqlite` (recomendado usar um banco de dados SQLite separado para testes Dusk)
-
-9.  **(Opcional) Configurar Ferramentas de Desenvolvimento:**
-    *   Instale Python 3.10+ e Pip, se necessário.
-    *   Instale as dependências Python para os scripts LLM:
-        ```bash
-        pip install google-genai python-dotenv tqdm
-        ```
-    *   Instale a `gh` CLI e `jq` se for usar os scripts `scripts/create_issue.py` ou algum script de tarefa LLM (ex: `scripts/tasks/llm_task_create_pr.py`).
-    *   Torne os scripts Python executáveis: `chmod +x scripts/*.py scripts/tasks/*.py`.
 
 Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
@@ -215,18 +190,6 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 *   **Larastan (PHPStan):** Ferramenta de análise estática para encontrar erros sem executar o código.
     *   Para analisar: `vendor/bin/phpstan analyse`
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
-*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
-*   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.**
-*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
-    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Incluem: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto interativamente.
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue`, `--ac`, `--observation`, `--two-stage` (fluxo com meta-prompt), `--select-context` (para seleção interativa de contexto, agora com exibição de contagem de tokens e tratamento de arquivos ausentes/truncados), `--web-search` (com tool calling), `--generate-context` (para acionar o script de geração de contexto), etc.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes
 
@@ -293,8 +256,6 @@ Em resumo:
 4.  Abra um **Pull Request (PR)** claro, vinculando-o à Issue (`Closes #<ID>`).
 5.  Aguarde a revisão (mesmo que seja auto-revisão) e a passagem da CI.
 6.  Faça o **Merge** do PR.
-
-*(Considere usar os scripts `scripts/create_issue.py` e `scripts/llm_interact.py` (ou os scripts de tarefa em `scripts/tasks/`) para agilizar a criação de issues e a geração de commits/PRs)*.
 
 ## 12. Licença
 

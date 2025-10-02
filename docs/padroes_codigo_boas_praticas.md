@@ -202,25 +202,7 @@ public function processOrder(Request $request)
 
 ### Ferramentas de Desenvolvimento e Automação
 
-*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
-*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.**
-    **Exemplos de Uso:**
-    *   **Execução Completa (Padrão):** `python scripts/generate_context.py`
-        *   Coleta todas as informações (Git, Artisan, GitHub, etc.) e cria um novo diretório de contexto completo.
-    *   **Execução Seletiva (Ex: apenas Git e Artisan):** `python scripts/generate_context.py --stages git artisan`
-        *   Executa apenas os estágios `git` e `artisan`, gerando novos arquivos para eles. Arquivos de outros estágios (ex: `github_issues_details.json`) serão copiados do diretório de contexto gerado anteriormente, se existirem.
-    *   **Atualização de Detalhes de Issue (Ex: apenas GitHub Issues):** `python scripts/generate_context.py --stages github_issues`
-        *   Atualiza apenas os detalhes das Issues do GitHub, copiando o restante do contexto da última execução para garantir um diretório de contexto completo.
-*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
-    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Incluem: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto interativamente.
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue`, `--ac`, `--observation`, `--two-stage` (fluxo com meta-prompt), `--select-context` (para seleção interativa de contexto, agora com exibição de contagem de tokens e tratamento de arquivos ausentes/truncados), `--web-search` (com tool calling), `--generate-context` (para acionar o script de geração de contexto), etc.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
+*   **GitHub CLI (`gh`):** Ferramenta oficial do GitHub para automação de Issues, PRs e workflows diretamente do terminal. Use `gh issue create` para criar Issues rapidamente.
 
 ## Uso de Termos RFC 2119 na Documentação
 
