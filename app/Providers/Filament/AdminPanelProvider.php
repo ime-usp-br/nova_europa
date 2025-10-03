@@ -6,12 +6,10 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -27,25 +25,71 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
-            ->registration(false)
-            ->passwordReset()
-            ->emailVerification()
             ->profile()
             ->colors([
                 'primary' => Color::hex('#1094AB'), // USP Blue Primary
+                'warning' => Color::hex('#FCB421'), // USP Yellow
             ])
             ->darkMode(true)
+            ->renderHook(
+                PanelsRenderHook::BODY_START,
+                fn (): string => view('components.usp.filament-header')->render(),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_START,
+                fn (): string => '<style>
+                    /* Fundo principal */
+                    .dark .fi-body {
+                        background-color: #111827 !important;
+                    }
+                    .dark .fi-sidebar {
+                        background-color: #1f2937 !important;
+                    }
+                    .dark .fi-topbar {
+                        background-color: #1f2937 !important;
+                    }
+
+                    /* Headers e títulos */
+                    .dark .fi-header {
+                        background-color: #111827 !important;
+                    }
+                    .dark .fi-section-header {
+                        background-color: transparent !important;
+                    }
+                    .fi-header {
+                        background-color: #f9fafb;
+                    }
+                    .dark .fi-page {
+                        background-color: transparent !important;
+                    }
+
+                    /* Cards das páginas de gestão */
+                    .dark .fi-section {
+                        background-color: rgba(31, 41, 55, 0.5) !important;
+                    }
+                    .dark .fi-ta-ctn {
+                        background-color: rgba(31, 41, 55, 0.5) !important;
+                    }
+                    .dark .fi-fo-section {
+                        background-color: rgba(31, 41, 55, 0.5) !important;
+                    }
+
+                    /* Esconder topbar e sidebar padrão do Filament */
+                    .fi-topbar {
+                        display: none !important;
+                    }
+                    .fi-sidebar {
+                        display: none !important;
+                    }
+                    .fi-main {
+                        margin-left: 0 !important;
+                    }
+                </style>',
+            )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
-            ->pages([
-                Dashboard::class,
-            ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
-            ->widgets([
-                AccountWidget::class,
-                FilamentInfoWidget::class,
-            ])
+            ->widgets([])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
