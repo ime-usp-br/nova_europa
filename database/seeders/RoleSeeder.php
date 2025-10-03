@@ -27,7 +27,7 @@ class RoleSeeder extends Seeder
         Role::firstOrCreate(['name' => 'usp_user', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'external_user', 'guard_name' => 'web']);
 
-        // Add other roles if needed, for example:
-        // Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        // Admin role for Filament panel access
+        Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
     }
 }
