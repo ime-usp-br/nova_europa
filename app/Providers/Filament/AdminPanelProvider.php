@@ -9,6 +9,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Enums\Width;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -31,6 +32,7 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => Color::hex('#FCB421'), // USP Yellow
             ])
             ->darkMode(true)
+            ->maxContentWidth(Width::SevenExtraLarge)
             ->renderHook(
                 PanelsRenderHook::BODY_START,
                 fn (): string => view('components.usp.filament-header')->render(),
@@ -83,6 +85,23 @@ class AdminPanelProvider extends PanelProvider
                     }
                     .fi-main {
                         margin-left: 0 !important;
+                    }
+
+                    /* Centralizar conteúdo do painel */
+                    .fi-main {
+                        max-width: 80rem !important;
+                        margin-left: auto !important;
+                        margin-right: auto !important;
+                        padding-left: 1rem !important;
+                        padding-right: 1rem !important;
+                    }
+
+                    /* Padding responsivo igual ao header: px-4 padrão, px-8 em lg+ */
+                    @media (min-width: 1024px) {
+                        .fi-main {
+                            padding-left: 2rem !important;
+                            padding-right: 2rem !important;
+                        }
                     }
                 </style>',
             )

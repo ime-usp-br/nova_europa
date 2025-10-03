@@ -4,23 +4,59 @@
         .dark header {
             background-color: #1f2937 !important;
         }
+
+        /* Container dos logos */
+        .usp-logos-container {
+            max-width: 80rem;
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        /* Padding responsivo igual ao header da home: px-4 (1rem) padrão, px-8 (2rem) em telas lg+ */
+        @media (min-width: 1024px) {
+            .usp-logos-container {
+                padding-left: 2rem;
+                padding-right: 2rem;
+            }
+        }
+
+        /* Responsividade: esconde logos em telas menores que 640px (sm breakpoint) */
+        @media (max-width: 639px) {
+            .usp-logos-container {
+                display: none !important;
+            }
+        }
     </style>
     {{-- Parte Superior com Logos --}}
-    <div style="max-width: 80rem; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem;">
-        <div style="display: flex; align-items: center; padding-top: 0.75rem; padding-bottom: 0.75rem; gap: 1rem;">
+    <div class="usp-logos-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; padding-bottom: 0.75rem;">
             {{-- Logo USP Imagem --}}
-            <a href="http://www.usp.br" target="_blank" title="Portal da USP" style="flex-shrink: 0;">
-                <img src="{{ Vite::asset('resources/images/usp/usp-logo.png') }}"
-                     width="122" height="49" alt="Logotipo da Universidade de São Paulo"
-                     style="height: 3rem; width: auto;">
-            </a>
+            <div style="flex-shrink: 0;">
+                <a href="http://www.usp.br" target="_blank" title="Portal da USP">
+                    <img src="{{ Vite::asset('resources/images/usp/usp-logo.png') }}"
+                         width="122" height="49" alt="Logotipo da Universidade de São Paulo"
+                         style="height: 3rem; width: auto;">
+                </a>
+            </div>
 
             {{-- Logo USP Texto --}}
-            <a href="http://www.usp.br" target="_blank" title="Universidade de São Paulo" style="flex-shrink: 0;">
-                <img src="{{ Vite::asset('resources/images/usp/usp-logo-texto.png') }}"
-                     alt="Universidade de São Paulo"
-                     style="height: 2.75rem; width: auto;">
-            </a>
+            <div style="flex-shrink: 0; margin-left: 1rem;">
+                <a href="http://www.usp.br" target="_blank" title="Universidade de São Paulo">
+                    <img src="{{ Vite::asset('resources/images/usp/usp-logo-texto.png') }}"
+                         alt="Universidade de São Paulo"
+                         style="height: 2.75rem; width: auto;">
+                </a>
+            </div>
+
+            {{-- Espaço Flexível - Centraliza os logos --}}
+            <div style="flex-grow: 1;"></div>
+
+            {{-- Conteúdo Adicional Direita (Links Usuário, etc.) --}}
+            <div style="display: flex; align-items: center;">
+                {{-- Links de usuário aqui, se houver --}}
+            </div>
         </div>
     </div>
 
