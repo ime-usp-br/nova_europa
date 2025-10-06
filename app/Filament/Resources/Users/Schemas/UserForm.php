@@ -31,7 +31,7 @@ class UserForm
                     ->label('Email Verified At'),
                 TextInput::make('password')
                     ->password()
-                    ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                    ->dehydrateStateUsing(fn (?string $state): ?string => $state ? Hash::make($state) : null)
                     ->dehydrated(fn ($state) => filled($state))
                     ->required(fn (string $context): bool => $context === 'create')
                     ->maxLength(255),

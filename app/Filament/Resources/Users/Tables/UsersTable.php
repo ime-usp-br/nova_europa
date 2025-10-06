@@ -59,12 +59,14 @@ class UsersTable
                         'verified' => 'Verified',
                         'unverified' => 'Unverified',
                     ])
-                    ->query(function ($query, array $data) {
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
                         if ($data['value'] === 'verified') {
                             return $query->whereNotNull('email_verified_at');
                         } elseif ($data['value'] === 'unverified') {
                             return $query->whereNull('email_verified_at');
                         }
+
+                        return $query;
                     }),
             ])
             ->recordActions([

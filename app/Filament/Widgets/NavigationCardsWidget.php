@@ -13,6 +13,9 @@ class NavigationCardsWidget extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
+    /**
+     * @return array<int, array{title: string, description: string, icon: string, url: string, color: string, stats: int}>
+     */
     public function getNavigationCards(): array
     {
         return [

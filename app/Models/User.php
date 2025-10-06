@@ -11,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use Uspdev\SenhaunicaSocialite\Traits\HasSenhaunica;
 
-class User extends Authenticatable implements MustVerifyEmail, FilamentUser
+class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -56,9 +56,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 
     /**
      * Determine if the user can access the Filament panel.
-     *
-     * @param  Panel  $panel
-     * @return bool
      */
     public function canAccessPanel(Panel $panel): bool
     {
