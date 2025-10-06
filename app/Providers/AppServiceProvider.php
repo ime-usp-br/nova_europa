@@ -2,15 +2,19 @@
 
 namespace App\Providers;
 
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
+use App\Observers\PermissionObserver;
+use App\Observers\RoleObserver;
+use App\Policies\AuditPolicy;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use OwenIt\Auditing\Models\Audit;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -40,5 +44,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Permission::class, PermissionPolicy::class);
+        Gate::policy(Audit::class, AuditPolicy::class);
+
+        // Register observers for auditing Spatie models
+        Role::observe(RoleObserver::class);
+        Permission::observe(PermissionObserver::class);
     }
 }

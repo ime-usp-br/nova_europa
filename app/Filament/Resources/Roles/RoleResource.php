@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Roles;
 
+use App\Filament\Resources\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\Roles\Pages\ManageRoles;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -15,7 +16,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Spatie\Permission\Models\Role;
+use App\Models\Role;
 use UnitEnum;
 
 class RoleResource extends Resource
@@ -81,6 +82,13 @@ class RoleResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            AuditsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

@@ -8,16 +8,28 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 use Uspdev\SenhaunicaSocialite\Traits\HasSenhaunica;
 
-class User extends Authenticatable implements FilamentUser, MustVerifyEmail
+class User extends Authenticatable implements FilamentUser, MustVerifyEmail, Auditable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
     use HasRoles;
     use HasSenhaunica;
+    use \OwenIt\Auditing\Auditable;
+
+    /**
+     * Attributes to exclude from the Audit.
+     *
+     * @var array<string>
+     */
+    protected $auditExclude = [
+        'password',
+        'remember_token',
+    ];
 
     /**
      * The attributes that are mass assignable.

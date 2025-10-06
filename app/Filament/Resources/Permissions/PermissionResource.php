@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Permissions;
 
 use App\Filament\Resources\Permissions\Pages\ManagePermissions;
+use App\Filament\Resources\RelationManagers\AuditsRelationManager;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -15,7 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use UnitEnum;
 
 class PermissionResource extends Resource
@@ -73,6 +74,13 @@ class PermissionResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            AuditsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

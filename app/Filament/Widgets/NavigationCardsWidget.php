@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\AuditResource;
 use App\Filament\Resources\Permissions\PermissionResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Users\UserResource;
@@ -42,6 +43,14 @@ class NavigationCardsWidget extends Widget
                 'url' => PermissionResource::getUrl('index'),
                 'color' => 'warning',
                 'stats' => \Spatie\Permission\Models\Permission::count(),
+            ],
+            [
+                'title' => 'Logs de Auditoria',
+                'description' => 'Visualizar histórico de alterações',
+                'icon' => 'heroicon-o-document-text',
+                'url' => AuditResource::getUrl('index'),
+                'color' => 'info',
+                'stats' => \OwenIt\Auditing\Models\Audit::count(),
             ],
         ];
     }
