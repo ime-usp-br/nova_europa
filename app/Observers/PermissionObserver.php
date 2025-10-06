@@ -20,7 +20,9 @@ class PermissionObserver
      */
     public function updated(Permission $permission): void
     {
-        $this->createAuditLog($permission, 'updated', $permission->getOriginal(), $permission->getAttributes());
+        /** @var array<string, mixed> $original */
+        $original = $permission->getOriginal();
+        $this->createAuditLog($permission, 'updated', $original, $permission->getAttributes());
     }
 
     /**
@@ -28,13 +30,18 @@ class PermissionObserver
      */
     public function deleted(Permission $permission): void
     {
-        $this->createAuditLog($permission, 'deleted', $permission->getOriginal(), []);
+        /** @var array<string, mixed> $original */
+        $original = $permission->getOriginal();
+        $this->createAuditLog($permission, 'deleted', $original, []);
     }
 
     /**
      * Create an audit log entry.
+     *
+     * @param  array<string, mixed>  $old
+     * @param  array<string, mixed>  $new
      */
-    protected function createAuditLog($model, string $event, array $old = [], array $new = []): void
+    protected function createAuditLog(Permission $model, string $event, array $old = [], array $new = []): void
     {
         // Remove timestamps if they're the only changes
         if ($event === 'updated' && count(array_diff_key($old, $new)) === 0) {
@@ -46,8 +53,9 @@ class PermissionObserver
             }
         }
 
+        $user = auth()->user();
         Audit::create([
-            'user_type' => auth()->check() ? get_class(auth()->user()) : null,
+            'user_type' => $user !== null ? get_class($user) : null,
             'user_id' => auth()->id(),
             'event' => $event,
             'auditable_type' => get_class($model),

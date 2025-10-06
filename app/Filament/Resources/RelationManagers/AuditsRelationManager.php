@@ -55,15 +55,18 @@ class AuditsRelationManager extends RelationManager
                             $new = $record->new_values;
 
                             foreach ($new as $key => $value) {
+                                $valueStr = is_scalar($value) ? (string) $value : json_encode($value);
                                 if (isset($old[$key]) && $old[$key] != $value) {
-                                    $changes[] = "{$key}: {$old[$key]} → {$value}";
-                                } elseif (!isset($old[$key])) {
-                                    $changes[] = "{$key}: {$value}";
+                                    $oldValueStr = is_scalar($old[$key]) ? (string) $old[$key] : json_encode($old[$key]);
+                                    $changes[] = "{$key}: {$oldValueStr} → {$valueStr}";
+                                } elseif (! isset($old[$key])) {
+                                    $changes[] = "{$key}: {$valueStr}";
                                 }
                             }
                         } elseif ($record->new_values) {
                             foreach ($record->new_values as $key => $value) {
-                                $changes[] = "{$key}: {$value}";
+                                $valueStr = is_scalar($value) ? (string) $value : json_encode($value);
+                                $changes[] = "{$key}: {$valueStr}";
                             }
                         }
 

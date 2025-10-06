@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh label create:*)",
+      "mcp__context7__get-library-docs",
+      "Bash(gh issue view:*)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__playwright__browser_navigate"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

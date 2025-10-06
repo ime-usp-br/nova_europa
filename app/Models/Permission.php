@@ -10,6 +10,8 @@ class Permission extends SpatiePermission
 {
     /**
      * Get the audits for the permission.
+     *
+     * @return MorphMany<Audit, $this>
      */
     public function audits(): MorphMany
     {

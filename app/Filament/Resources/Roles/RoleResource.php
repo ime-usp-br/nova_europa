@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Roles;
 
 use App\Filament\Resources\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\Roles\Pages\ManageRoles;
+use App\Models\Role;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -16,7 +17,6 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use App\Models\Role;
 use UnitEnum;
 
 class RoleResource extends Resource

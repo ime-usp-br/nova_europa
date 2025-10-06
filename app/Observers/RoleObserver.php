@@ -20,7 +20,9 @@ class RoleObserver
      */
     public function updated(Role $role): void
     {
-        $this->createAuditLog($role, 'updated', $role->getOriginal(), $role->getAttributes());
+        /** @var array<string, mixed> $original */
+        $original = $role->getOriginal();
+        $this->createAuditLog($role, 'updated', $original, $role->getAttributes());
     }
 
     /**
@@ -28,13 +30,18 @@ class RoleObserver
      */
     public function deleted(Role $role): void
     {
-        $this->createAuditLog($role, 'deleted', $role->getOriginal(), []);
+        /** @var array<string, mixed> $original */
+        $original = $role->getOriginal();
+        $this->createAuditLog($role, 'deleted', $original, []);
     }
 
     /**
      * Create an audit log entry.
+     *
+     * @param  array<string, mixed>  $old
+     * @param  array<string, mixed>  $new
      */
-    protected function createAuditLog($model, string $event, array $old = [], array $new = []): void
+    protected function createAuditLog(Role $model, string $event, array $old = [], array $new = []): void
     {
         // Remove timestamps if they're the only changes
         if ($event === 'updated' && count(array_diff_key($old, $new)) === 0) {
@@ -46,8 +53,9 @@ class RoleObserver
             }
         }
 
+        $user = auth()->user();
         Audit::create([
-            'user_type' => auth()->check() ? get_class(auth()->user()) : null,
+            'user_type' => $user !== null ? get_class($user) : null,
             'user_id' => auth()->id(),
             'event' => $event,
             'auditable_type' => get_class($model),

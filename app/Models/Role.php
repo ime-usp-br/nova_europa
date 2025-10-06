@@ -10,6 +10,8 @@ class Role extends SpatieRole
 {
     /**
      * Get the audits for the role.
+     *
+     * @return MorphMany<Audit, $this>
      */
     public function audits(): MorphMany
     {

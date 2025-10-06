@@ -8,15 +8,13 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Section;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Models\Audit;
 use UnitEnum;
@@ -45,7 +43,16 @@ class AuditResource extends Resource
                     ->schema([
                         Placeholder::make('user')
                             ->label('Usuário')
-                            ->content(fn (Audit $record): string => $record->user ? $record->user->name . ' (' . $record->user->email . ')' : 'Sistema'),
+                            ->content(function (Audit $record): string {
+                                $user = $record->user;
+                                if ($user === null || ! is_object($user)) {
+                                    return 'Sistema';
+                                }
+                                $name = property_exists($user, 'name') && is_scalar($user->name) ? (string) $user->name : 'Unknown';
+                                $email = property_exists($user, 'email') && is_scalar($user->email) ? (string) $user->email : 'unknown';
+
+                                return $name.' ('.$email.')';
+                            }),
 
                         TextInput::make('user_type')
                             ->label('Tipo de Usuário')
@@ -73,7 +80,14 @@ class AuditResource extends Resource
 
                         Placeholder::make('created_at')
                             ->label('Data/Hora')
-                            ->content(fn (Audit $record): string => $record->created_at->format('d/m/Y H:i:s')),
+                            ->content(function (Audit $record): string {
+                                $createdAt = property_exists($record, 'created_at') ? $record->created_at : null;
+                                if ($createdAt instanceof \Illuminate\Support\Carbon) {
+                                    return $createdAt->format('d/m/Y H:i:s');
+                                }
+
+                                return '';
+                            }),
                     ])
                     ->columns(4),
 
@@ -119,7 +133,15 @@ class AuditResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->default('Sistema')
-                    ->description(fn (Audit $record): ?string => $record->user?->email),
+                    ->description(function (Audit $record): ?string {
+                        $user = $record->user;
+                        if ($user === null || ! is_object($user)) {
+                            return null;
+                        }
+                        $email = property_exists($user, 'email') ? $user->email : null;
+
+                        return is_scalar($email) ? (string) $email : null;
+                    }),
 
                 TextColumn::make('event')
                     ->label('Evento')
