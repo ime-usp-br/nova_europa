@@ -83,15 +83,15 @@ jobs:
         cp .env.dusk.ci .env.dusk
         mkdir -p database/testing
         touch database/testing/dusk.sqlite
-        php artisan migrate --database=sqlite --path=database/migrations --env=dusk.local --force
+        php artisan migrate --database=sqlite --path=database/migrations --env=dusk --force
         php artisan dusk:chrome-driver --detect --no-interaction
-        php artisan serve --port=8000 --env=dusk.local &
+        php artisan serve --port=8000 --env=dusk &
         echo "Aguardando servidor da aplicação iniciar..."
         sleep 8
         ./vendor/laravel/dusk/bin/chromedriver-linux --port=9515 &
         echo "Aguardando ChromeDriver iniciar..."
         sleep 8
-        php artisan dusk --env=dusk.local
+        php artisan dusk --env=dusk
 
     - name: Upload Artefatos Dusk (em caso de falha)
       if: failure()
