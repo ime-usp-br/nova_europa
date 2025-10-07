@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+# Gera o freetds.conf a partir do template e das variáveis de ambiente
+# Define valores padrão caso as variáveis não estejam no .env
+REPLICADO_HOST_VAL=$REPLICADO_HOST
+REPLICADO_PORT_VAL=$REPLICADO_PORT
+
+# Usa 'sed' para substituir os placeholders no template e criar o arquivo final
+sed -e "s/__REPLICADO_HOST__/$REPLICADO_HOST_VAL/g" \
+    -e "s/__REPLICADO_PORT__/$REPLICADO_PORT_VAL/g" \
+    /etc/freetds/freetds.conf.template > /etc/freetds/freetds.conf
+
+if [ "$SUPERVISOR_PHP_USER" != "root" ] && [ "$SUPERVISOR_PHP_USER" != "sail" ]; then
+    echo "You should set SUPERVISOR_PHP_USER to either 'sail' or 'root'."
+    exit 1
+fi
+
+if [ ! -z "$WWWUSER" ]; then
+    usermod -u $WWWUSER sail
+fi
+
+if [ ! -d /.composer ]; then
+    mkdir /.composer
+fi
+
+chmod -R ugo+rw /.composer
+
+if [ $# -gt 0 ]; then
+    if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
+        exec "$@"
+    else
+        exec gosu $WWWUSER "$@"
+    fi
+else
+    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+fi

@@ -1,3 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@source "../views/**/*.blade.php";
+@source "../../app/Filament/**/*.php";
+@source "../views/filament/**/*.blade.php";
+@source "../../vendor/filament/**/*.blade.php";
+
+@theme {
+  --color-usp-blue-pri: #1094AB;
+  --color-usp-blue-sec: #64C4D2;
+  --color-usp-yellow: #FCB421;
+
+  --font-family-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+
+@plugin "@tailwindcss/forms";

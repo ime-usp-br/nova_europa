@@ -43,9 +43,9 @@ class LoginTest extends DuskTestCase
                 ->assertVisible('@email-input')
                 ->assertVisible('@password-input')
                 ->assertVisible('@login-button')
-                ->assertSeeIn('@login-button', strtoupper(__('Log in')))
+                ->assertSeeIn('@login-button', __('Log in'))
                 ->assertVisible('@senhaunica-login-button')
-                ->assertSeeIn('@senhaunica-login-button', strtoupper(__('Login with Senha Única USP')))
+                ->assertSeeIn('@senhaunica-login-button', __('Login with Senha Única USP'))
                 ->assertVisible('@forgot-password-link')
                 ->assertSeeIn('@forgot-password-link', __('Forgot your password?'))
                 ->assertVisible('@register-link')
@@ -171,7 +171,7 @@ class LoginTest extends DuskTestCase
                 ->assertVisible('@password-input')
                 ->assertVisible('@password-confirmation-input')
                 ->assertVisible('@register-button')
-                ->assertSeeIn('@register-button', strtoupper(__('Register')))
+                ->assertSeeIn('@register-button', __('Register'))
                 ->assertVisible('@already-registered-link')
                 ->assertSeeIn('@already-registered-link', __('Already registered?'));
         });

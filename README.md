@@ -56,19 +56,6 @@ Este Starter Kit vem pré-configurado com:
     *   **Laravel Dusk:** Para testes de browser End-to-End.
     *   Facilitadores (`Fakes`) para testar integrações com Senha Única e Replicado sem depender dos serviços reais (Planejado).
 *   **Documentação:** README detalhado e [Wiki do Projeto](https://github.com/ime-usp-br/laravel_12_starter_kit/wiki) para guias aprofundados.
-*   **Ferramentas de Desenvolvimento:**
-    *   Script Python (`scripts/create_issue.py`) para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
-    *   Script Python (`scripts/generate_context.py`) para coletar contexto abrangente do projeto e ambiente para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado. (Refs #69)**
-    *   **Scripts de Interação com LLM:**
-        A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-        *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-            Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-            Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-        *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-            Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-        *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Incluem: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto interativamente.
-        *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue`, `--ac`, `--observation`, `--two-stage` (fluxo com meta-prompt), `--select-context` (para seleção interativa de contexto, agora com exibição de contagem de tokens e tratamento de arquivos ausentes/truncados), `--web-search` (com tool calling), `--generate-context` (para acionar o script de geração de contexto), etc.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 *   **Configurações Adicionais:** Filas com driver `database`, exemplo de `supervisor.conf`, LogViewer básico (Planejado).
 
 *Para uma lista completa de funcionalidades incluídas e excluídas, consulte o [Termo de Abertura do Projeto](./docs/termo_abertura_projeto.md).*
@@ -90,19 +77,105 @@ Este Starter Kit vem pré-configurado com:
 *   **Permissões:** `spatie/laravel-permission`
 *   **Testes:** **PHPUnit**, **Laravel Dusk**
 *   **Qualidade:** Laravel Pint, Larastan
-*   **Ferramentas Dev:** Python 3.x, `google-genai`, `python-dotenv`, `tqdm` (para scripts LLM)
 
 ## 5. Instalação
 
-Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) e Laravel Dusk pré-instalados e configurados. Siga os passos abaixo para iniciar seu projeto:
+Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) e Laravel Dusk pré-instalados e configurados. Você pode escolher entre instalação tradicional ou usando Docker com Laravel Sail.
+
+### 5.1. Instalação com Laravel Sail (Recomendado)
+
+Laravel Sail fornece um ambiente Docker completo com PHP, MySQL, Redis, Selenium e outras dependências pré-configuradas.
+
+1.  **Pré-requisitos:**
+    *   Docker e Docker Compose instalados
+    *   Git
+
+2.  **Clonar o Repositório:**
+    ```bash
+    git clone https://github.com/ime-usp-br/laravel_12_starter_kit.git seu-novo-projeto
+    cd seu-novo-projeto
+    ```
+
+3.  **Configurar Ambiente:**
+    *   Copie o arquivo de exemplo `.env`:
+        ```bash
+        cp .env.example .env
+        ```
+    *   **Edite o arquivo `.env`** e configure as variáveis essenciais para Sail:
+        ```bash
+        APP_NAME=Laravel
+        APP_URL=http://localhost
+        APP_PORT=8000
+
+        # Configuração do banco de dados para Sail
+        DB_CONNECTION=mysql
+        DB_HOST=mysql
+        DB_PORT=3306
+        DB_DATABASE=laravel12_usp_starter_kit
+        DB_USERNAME=sail
+        DB_PASSWORD=password
+
+        # Configuração de usuário Docker
+        WWWUSER=1000
+        WWWGROUP=1000
+        ```
+    *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
+
+4.  **Iniciar Containers Docker:**
+    ```bash
+    ./vendor/bin/sail up -d
+    ```
+    *(Na primeira execução, as imagens Docker serão construídas, o que pode levar alguns minutos)*
+
+5.  **Gerar Chave da Aplicação:**
+    ```bash
+    ./vendor/bin/sail artisan key:generate
+    ```
+
+6.  **Instalar Dependências Frontend:**
+    ```bash
+    ./vendor/bin/sail npm install
+    ```
+
+7.  **Executar Migrações e Seeders:**
+    ```bash
+    ./vendor/bin/sail artisan migrate --seed
+    ```
+
+8.  **Compilar Assets Frontend:**
+    ```bash
+    ./vendor/bin/sail npm run dev
+    ```
+    *(Mantenha este comando rodando em um terminal separado durante o desenvolvimento)*
+
+9.  **Configurar Usuário Admin:**
+
+    Após a migração e seeding, você pode atribuir o perfil Admin a um usuário:
+    ```bash
+    ./vendor/bin/sail artisan tinker
+    ```
+    No tinker, execute:
+    ```php
+    $user = App\Models\User::where('email', 'seu-email@usp.br')->first();
+    $user->assignRole('Admin');
+    ```
+
+**Atalho:** Para simplificar comandos, você pode criar um alias:
+```bash
+alias sail='./vendor/bin/sail'
+```
+
+Agora você pode usar `sail up -d`, `sail artisan migrate`, `sail npm run dev`, etc.
+
+### 5.2. Instalação Tradicional (Sem Docker)
 
 1.  **Pré-requisitos:**
     *   PHP >= 8.2 (com extensões comuns do Laravel: ctype, fileinfo, json, mbstring, openssl, PDO, tokenizer, xml, etc.)
     *   Composer
     *   Node.js (v18+) e NPM
     *   Git
+    *   MySQL/MariaDB ou outro banco de dados compatível
     *   **Google Chrome** ou **Chromium** instalado (para testes Dusk)
-    *   (Opcional, para ferramentas de dev) Python >= 3.10, Pip, `gh` CLI, `jq`
 
 2.  **Clonar o Repositório:**
     ```bash
@@ -135,7 +208,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         *   `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: Credenciais do seu banco de dados.
         *   `MAIL_*`: Configurações de e-mail (importante para verificação de e-mail).
         *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
-        *   **(Opcional) `GEMINI_API_KEY`:** Adicione sua chave da API Google Gemini para usar os scripts de LLM. Pode conter múltiplas chaves separadas por `|`.
 
 6.  **Banco de Dados e Dados Iniciais:**
     *   Execute as migrações para criar todas as tabelas necessárias:
@@ -159,23 +231,47 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         ```bash
         php artisan dusk:chrome-driver --detect
         ```
-        *(Se encontrar erros de conexão SSL/TLS (`cURL error 28`), resolva problemas de rede/firewall/certificados antes de continuar).*
     *   **Criar/Verificar `.env.dusk.local`:** Crie este arquivo na raiz do projeto (se não existir) e configure-o para o ambiente de teste do Dusk. Um exemplo (`.env.dusk.local`) já está incluído neste repositório. Preste atenção especial a:
         *   `APP_URL=http://127.0.0.1:8000` (ou a URL que `php artisan serve` usa)
         *   `DB_CONNECTION=sqlite` e `DB_DATABASE=database/testing/dusk.sqlite` (recomendado usar um banco de dados SQLite separado para testes Dusk)
 
-9.  **(Opcional) Configurar Ferramentas de Desenvolvimento:**
-    *   Instale Python 3.10+ e Pip, se necessário.
-    *   Instale as dependências Python para os scripts LLM:
-        ```bash
-        pip install google-genai python-dotenv tqdm
-        ```
-    *   Instale a `gh` CLI e `jq` se for usar os scripts `scripts/create_issue.py` ou algum script de tarefa LLM (ex: `scripts/tasks/llm_task_create_pr.py`).
-    *   Torne os scripts Python executáveis: `chmod +x scripts/*.py scripts/tasks/*.py`.
-
 Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
 ## 6. Uso Básico
+
+### 6.1. Com Laravel Sail
+
+1.  **Iniciar Containers (se não estiverem rodando):**
+    ```bash
+    ./vendor/bin/sail up -d
+    ```
+
+2.  **Acessar a Aplicação:**
+    *   Abra seu navegador e acesse `http://localhost:8000` (ou a porta definida em `APP_PORT`).
+    *   Páginas de autenticação: `/login` (Senha Única), `/login/local`, `/register`.
+    *   Painel administrativo: `/admin` (requer autenticação e role Admin)
+
+3.  **Parar Containers:**
+    ```bash
+    ./vendor/bin/sail down
+    ```
+
+4.  **Comandos Úteis:**
+    ```bash
+    # Executar comandos Artisan
+    ./vendor/bin/sail artisan migrate
+
+    # Executar npm
+    ./vendor/bin/sail npm run dev
+
+    # Acessar shell do container
+    ./vendor/bin/sail shell
+
+    # Ver logs
+    ./vendor/bin/sail logs
+    ```
+
+### 6.2. Instalação Tradicional
 
 1.  **Iniciar Servidores (Desenvolvimento):**
     *   Para o servidor web PHP embutido:
@@ -190,11 +286,13 @@ Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 2.  **Acessar a Aplicação:**
     *   Abra seu navegador e acesse a `APP_URL` definida no `.env` (geralmente `http://localhost:8000`).
     *   Páginas de autenticação: `/login` (Senha Única), `/login/local`, `/register`.
+    *   Painel administrativo: `/admin` (requer autenticação e role Admin)
 
-3.  **Credenciais Padrão:**
-    *   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
-        *   **Email:** `test@example.com`
-        *   **Senha:** `password`
+### 6.3. Credenciais Padrão
+
+*   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
+    *   **Email:** `test@example.com`
+    *   **Senha:** `password`
 
 ## 7. Configurações Específicas da USP
 
@@ -215,18 +313,6 @@ Este Starter Kit inclui ferramentas para ajudar a manter a qualidade e a consist
 *   **Larastan (PHPStan):** Ferramenta de análise estática para encontrar erros sem executar o código.
     *   Para analisar: `vendor/bin/phpstan analyse`
 *   **EditorConfig:** Arquivo `.editorconfig` na raiz para padronizar configurações básicas do editor (indentação, fim de linha, etc.). Garanta que seu editor tenha o plugin EditorConfig instalado e ativado.
-*   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano (`planos/*.txt`) e templates (`templates/issue_bodies/*.md`).
-*   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.**
-*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
-    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Incluem: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto interativamente.
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue`, `--ac`, `--observation`, `--two-stage` (fluxo com meta-prompt), `--select-context` (para seleção interativa de contexto, agora com exibição de contagem de tokens e tratamento de arquivos ausentes/truncados), `--web-search` (com tool calling), `--generate-context` (para acionar o script de geração de contexto), etc.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes
 
@@ -293,8 +379,6 @@ Em resumo:
 4.  Abra um **Pull Request (PR)** claro, vinculando-o à Issue (`Closes #<ID>`).
 5.  Aguarde a revisão (mesmo que seja auto-revisão) e a passagem da CI.
 6.  Faça o **Merge** do PR.
-
-*(Considere usar os scripts `scripts/create_issue.py` e `scripts/llm_interact.py` (ou os scripts de tarefa em `scripts/tasks/`) para agilizar a criação de issues e a geração de commits/PRs)*.
 
 ## 12. Licença
 

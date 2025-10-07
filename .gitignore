@@ -3,6 +3,9 @@
 /public/build
 /public/hot
 /public/storage
+/public/css/filament
+/public/js/filament
+/public/fonts
 /storage/*.key
 /storage/pail
 /vendor
@@ -21,13 +24,4 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-source_code_string.txt
-/context_llm/
-/llm_outputs/
-/scripts/data/
 /docs/laravel_12
-context_selected.txt
-/scripts/__pycache__/
-/scripts/llm_core/__pycache__/
-/scripts/tasks/__pycache__/
-/__pycache__

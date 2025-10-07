@@ -9,11 +9,6 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Adicionado
 
-*   **[DevTools][Feature] Adiciona funcionalidade de execução seletiva de estágios no script de geração de contexto (`scripts/generate_context.py`), permitindo especificar quais partes do contexto devem ser atualizadas e copiando arquivos de estágios não executados do contexto anterior para garantir a completude. (Resolve #69)**
-*   **[TEST][AUTH] Adiciona testes de Feature (PHPUnit) e Browser (Dusk) para a UI de login local (#20), incluindo configuração, ambiente de teste dedicado (`.env.dusk.local`), integração CI e documentação de execução local para Dusk. (#31)**
-*   **[DevTools] Ferramenta de Interação com LLM (`scripts/llm_interact.py`):** Adiciona script Python para automatizar tarefas de desenvolvimento (geração de código para ACs, mensagens de commit, criação de PRs, atualização de documentação, análise de ACs) usando a API Gemini e o contexto do projeto. Inclui flags para geração de contexto (`-g`), pesquisa web (`-w`), confirmação automática (`-y`), modo apenas meta-prompt (`-om`), espera (`-ws`), seleção de arquivo de doc (`-d`), criação de PRs (`create-pr` com `-i`, `-b`, `--draft`), tratamento de rate limit e mais. (Refs #28)
-*   **[DevTools] Meta-prompts para LLM:** Adicionados templates (`project_templates/meta-prompts/`) para guiar a IA na geração de código, mensagens de commit, análises de AC, atualizações de documentação e criação de PRs.
-*   **[DevTools] Planos de Desenvolvimento:** Adicionados arquivos de plano (`planos/`) para documentar o desenvolvimento futuro e servir de exemplo para o script `criar_issues_script.sh`.
 *   **Estrutura Base do Projeto:**
     *   Configuração inicial do projeto Laravel 12.
     *   Dependências padrão do Laravel via `composer.json` e `package.json`.
@@ -60,9 +55,6 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
     *   Adicionado `docs/padroes_codigo_boas_praticas.md` (v0.1.0) definindo convenções.
     *   Adicionado `docs/versionamento_documentacao.md` (v0.1.0) definindo a estratégia de versionamento para arquivos `.md`.
     *   Adicionado ADR `docs/adr/001-criar-issues-script-challenges.md` (v0.1.0) sobre o script de automação.
-    *   Adicionado script de automação `criar_issues_script.sh` para criação/edição de Issues no GitHub.
-    *   Adicionados templates de corpo de Issue para o script (`project_templates/issue_bodies/`).
-    *   Adicionado arquivo de exemplo para o script de issues (`planos/plano_exemplo.txt`).
     *   Criado `CHANGELOG.md` inicial.
 *   **Localização:**
     *   Adicionado pacote `laravel-lang/common` e suas dependências para traduções padronizadas (commit `d097fb3`).
@@ -74,20 +66,24 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
     *   Adicionado logo do IME à tela de login (`login.blade.php`) (commit `2695909`).
 
 ### Alterado
-*   **[DevTools] Aprimorado o script de interação com LLM (scripts/llm_interact.py e scripts/llm_core/) para: pré-injeção de arquivos essenciais no contexto da LLM seletora; gerenciamento proativo de limites de tokens e RPM da API Gemini (cálculo dinâmico de MAX_INPUT_TOKENS_PER_CALL, redução de contexto por sumário/truncamento e rate limiter de chamadas); e melhorias na experiência do usuário ao selecionar contexto (exibição de contagem de tokens, tratamento de arquivos essenciais ausentes). (Resolve #56)**
-*   **[DevTools]** Refatorado o script `scripts/llm_interact.py` para uma arquitetura modular. O script principal agora atua como um dispatcher, e as tarefas individuais foram movidas para scripts dedicados em `scripts/tasks/` (ex: `llm_task_resolve_ac.py`). Funcionalidades centrais foram movidas para `scripts/llm_core/`. (Resolve #57)
-*   **[DevTools] Script de geração de contexto migrado de Bash (`gerar_contexto_llm.sh`) para Python (`scripts/generate_context.py`) para melhor manutenibilidade, robustez e extensibilidade, mantendo a funcionalidade de coleta original. (#35)**
 *   Nível de análise do PHPStan elevado para 10.
 *   README.md atualizado para refletir o estado do projeto (v0.1.0).
 *   Guias de desenvolvimento e ADRs movidos para o diretório `docs/`.
 *   Cabeçalhos de versão/data adicionados aos documentos `.md` versionados.
-*   Estrutura de saída do script `gerar_contexto_llm.sh` modificada para colocar todos os arquivos no diretório raiz do timestamp.
 *   View `welcome.blade.php` reformulada para usar o cabeçalho USP e fornecer links básicos.
 *   View `login.blade.php` modificada para localização e adição de botões Senha Única/Registro.
 *   Layout `guest.blade.php` modificado para usar o cabeçalho USP e remover logo de aplicação padrão.
 
 ### Removido
 
+*   **[Chore][Breaking] Infraestrutura de automação Python completamente removida (#73):**
+    *   Diretórios: `scripts/`, `tests/python/`, `planos/`, `templates/context_selectors/`, `templates/issue_bodies/`, `templates/meta-prompts/`, `templates/prompts/`
+    *   Arquivos de configuração: `pytest.ini`, `conftest.py`, `requirements-dev.txt`, `.pytest_cache/`
+    *   Steps Python removidos do workflow CI (`.github/workflows/laravel.yml`)
+    *   Entradas Python removidas do `.gitignore`
+    *   Referências removidas da documentação (README.md, guias)
+    *   **Justificativa:** Ferramentas modernas de IA (Claude Code, GitHub Copilot, etc.) oferecem capacidades superiores para automação de desenvolvimento, eliminando a necessidade de manter scripts customizados Python
+    *   **Migração:** Desenvolvedores devem adotar ferramentas modernas de IA para automação; Issues podem ser criadas via `gh` CLI
 *   Conteúdo padrão do `README.md` do Laravel.
 *   Logo `<x-application-logo />` do layout `guest.blade.php`.
 

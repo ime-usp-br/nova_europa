@@ -51,7 +51,7 @@ class PasswordResetTest extends DuskTestCase
                 ->assertPresent('@ime-logo-dark')
                 ->assertVisible('@email-input')
                 ->assertVisible('@send-reset-link-button')
-                ->assertSeeIn('@send-reset-link-button', mb_strtoupper(__('Email Password Reset Link')))
+                ->assertSeeIn('@send-reset-link-button', __('Email Password Reset Link'))
                 ->assertVisible('@login-link')
                 ->assertSeeIn('@login-link', __('Log in'));
         });
@@ -81,7 +81,7 @@ class PasswordResetTest extends DuskTestCase
                 ->assertVisible('@password-input')
                 ->assertVisible('@password-confirmation-input')
                 ->assertVisible('@reset-password-button')
-                ->assertSeeIn('@reset-password-button', mb_strtoupper(__('Reset Password')));
+                ->assertSeeIn('@reset-password-button', __('Reset Password'));
         });
     }
 }

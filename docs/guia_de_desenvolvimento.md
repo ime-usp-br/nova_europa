@@ -74,17 +74,6 @@ Para seguir esta estratégia de desenvolvimento, as seguintes ferramentas são e
     *   **Laravel Dusk:** Ferramenta para testes de browser End-to-End. Executado via `php artisan dusk`.
     *   **Google Chrome ou Chromium:** Necessário para a execução dos testes Dusk.
 *   **EditorConfig:** O arquivo `.editorconfig` incluído no Starter Kit ajuda a manter estilos de codificação consistentes (espaçamento, fim de linha) entre diferentes editores e IDEs. Garanta que seu editor tenha um plugin EditorConfig instalado e ativado.
-*   **(Opcional) Ferramentas de Desenvolvimento Adicionais:**
-    *   **Script de Geração de Contexto LLM (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.** **DEVE** ser usada para gerar o contexto necessário para a ferramenta de interação com LLM. Requer `jq`. Opcionalmente usa `tree`, `cloc`, `composer`, `npm`.
-        **Exemplos de Uso:**
-        *   **Execução Completa (Padrão):** `python scripts/generate_context.py`
-            *   Coleta todas as informações (Git, Artisan, GitHub, etc.) e cria um novo diretório de contexto completo.
-        *   **Execução Seletiva (Ex: apenas Git e Artisan):** `python scripts/generate_context.py --stages git artisan`
-            *   Executa apenas os estágios `git` e `artisan`, gerando novos arquivos para eles. Arquivos de outros estágios (ex: `github_issues_details.json`) serão copiados do diretório de contexto gerado anteriormente, se existirem.
-        *   **Atualização de Detalhes de Issue (Ex: apenas GitHub Issues):** `python scripts/generate_context.py --stages github_issues`
-            *   Atualiza apenas os detalhes das Issues do GitHub, copiando o restante do contexto da última execução para garantir um diretório de contexto completo.
-    *   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):** Ferramentas Python para automatizar interações com a API do Google Gemini. `llm_interact.py` atua como dispatcher para os scripts de tarefa em `scripts/tasks/`. **PODEM** ser usadas para auxiliar em tarefas de desenvolvimento. Requerem `python3 >= 3.10`, Pip, e a instalação de `google-genai`, `python-dotenv`, `tqdm`. Requer `GEMINI_API_KEY` no `.env`.
-    *   **Script de Criação de Issues (`scripts/create_issue.py`):** Ferramenta Python para automação de criação/edição de Issues no GitHub a partir de arquivos de plano. Requer `python3 >= 3.8`, `gh` CLI, `jq`.
 
 ## 4. Ciclo de Vida Detalhado do Desenvolvimento
 
@@ -154,7 +143,6 @@ O desenvolvimento de código deve ser sempre guiado por uma Issue específica.
     *   **Formato:** `<tipo>(<escopo_opcional>): <descrição imperativa concisa> (#<ID_da_Issue>)`
     *   **Tipos Comuns:** `feat:` (nova feature), `fix:` (correção de bug), `refactor:` (mudança que não altera comportamento externo), `chore:` (manutenção, build), `test:` (adição/ajuste de testes), `docs:` (mudanças na documentação).
     *   **Exemplo:** `feat: Adiciona rota e controller para logout (#124)`
-    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `commit-mesage` (ex: `python scripts/llm_interact.py commit-mesage -i 124 -g`) ou o script de tarefa direto (`python scripts/tasks/llm_task_commit_mesage.py -i 124 -g`) para gerar uma mensagem de commit sugerida, baseada nas alterações em stage e no histórico do projeto. **REVISE** a mensagem gerada antes de usar.
 
 ### 4.5. Fase 5: Integração e Revisão (Pull Requests)
 
@@ -167,7 +155,6 @@ Mesmo trabalhando sozinho, usar Pull Requests (PRs) é uma excelente prática.
     *   **Título:** Claro e relacionado à Issue (GitHub pode sugerir baseado no branch/commits).
     *   **Descrição:** Resuma as mudanças. **OBRIGATÓRIO** usar `Closes #<ID>` ou `Fixes #<ID>` para vincular o PR à Issue e garantir seu fechamento automático no merge.
     *   **Revisão:** Revise seu próprio código no PR. Isso ajuda a pegar erros antes do merge.
-    *   **Opcional:** Utilize o script `scripts/llm_interact.py` com a tarefa `create-pr` (ex: `python scripts/llm_interact.py create-pr -i 124 -g`) ou o script de tarefa direto (`python scripts/tasks/llm_task_create_pr.py -i 124 -g`) para gerar automaticamente o título e corpo do PR, e opcionalmente criá-lo no GitHub. **REVISE** o conteúdo gerado.
 *   **Integração Contínua (CI):** A abertura/atualização do PR deve disparar automaticamente os workflows do GitHub Actions configurados no Starter Kit (testes, Pint, Larastan). O PR só deve ser mergeado se a CI passar.
 
 ### 4.6. Fase 6: Merge e Conclusão
@@ -180,54 +167,36 @@ Mesmo trabalhando sozinho, usar Pull Requests (PRs) é uma excelente prática.
 
 O merge no branch principal pode ser o gatilho para um processo de deploy (manual ou automatizado via GitHub Actions) para um ambiente de testes ou produção. Isso está fora do escopo estrito deste guia, mas é o próximo passo natural.
 
-## 5. Automatizando a Criação de Issues com `gh` CLI e Python
+## 5. Automatizando a Criação de Issues com `gh` CLI
 
-Para acelerar a criação de Issues a partir de um plano de ação ou lista de tarefas, especialmente após uma sessão de planejamento, podemos usar a `gh` CLI e o script Python fornecido.
+Para acelerar a criação de Issues a partir de um plano de ação ou lista de tarefas, especialmente após uma sessão de planejamento, você pode usar a `gh` CLI diretamente.
 
 ### 5.1. Propósito da Automação
 
-*   **Velocidade:** Criar múltiplas Issues rapidamente.
-*   **Consistência:** Usar templates e aplicar labels/assignees padrão.
+*   **Velocidade:** Criar Issues rapidamente via linha de comando.
+*   **Consistência:** Aplicar labels/assignees/milestones padrão.
 *   **Integração:** Gerar Issues diretamente do terminal.
 
-### 5.2. Formatos de Arquivo de Input (`planos/*.txt`)
+### 5.2. Criando Issues com `gh`
 
-Utilize um formato estruturado para o arquivo de plano (ex: `planos/plano_exemplo.txt`), onde cada bloco define uma issue e seus metadados usando pares `KEY: VALUE`. Consulte o arquivo de exemplo para detalhes do formato.
+Use o comando `gh issue create` para criar Issues interativamente ou com flags:
 
-### 5.3. Templates de Corpo de Issue
+```bash
+# Criar Issue interativamente
+gh issue create
 
-Utilize os templates Markdown localizados em `templates/issue_bodies/`:
+# Criar Issue com título e corpo
+gh issue create --title "feat: Adicionar botão de logout" --body "## Descrição\nImplementar botão de logout no header"
 
-*   `bug_body.md`
-*   `chore_body.md`
-*   `feature_body.md`
-*   `test_body.md`
-*   `default_body.md` (Usado como fallback)
+# Criar Issue com labels e milestone
+gh issue create --title "fix: Corrigir erro 404" --label bug --label high-priority --milestone "Sprint 1"
+```
 
-### 5.4. Script de Automação Python (`scripts/create_issue.py`)
+### 5.3. Fluxo de Trabalho com `gh` CLI
 
-O script `scripts/create_issue.py` incluído no repositório lê um arquivo de plano estruturado e cria ou **edita** Issues no GitHub.
-
-*   **Funcionalidades Principais:** Consulte a docstring do script para detalhes completos sobre parsing, uso de templates, verificação de duplicatas, manipulação de labels/milestones/projetos.
-*   **Como Usar:**
-    1.  Certifique-se de ter `python3 >= 3.8`, `gh` CLI e `jq` instalados e o `gh` autenticado.
-    2.  (Opcional) Crie/modifique os templates em `templates/issue_bodies/`.
-    3.  Crie seu arquivo de plano (ex: `planos/ciclo_atual.txt`).
-    4.  Execute o script, passando o nome do arquivo de plano e, opcionalmente, um milestone:
-        ```bash
-        # Criar/Editar issues do plano, sem milestone específico
-        python scripts/create_issue.py planos/ciclo_atual.txt
-
-        # Criar/Editar issues, associando-as ao milestone "Sprint 1" (cria se não existir com desc)
-        python scripts/create_issue.py --milestone-title "Sprint 1" --milestone-desc "Objetivos da Sprint 1" planos/ciclo_atual.txt
-        ```
-    5.  Verifique as Issues criadas/editadas no GitHub e no seu quadro Kanban.
-
-### 5.5. Fluxo de Trabalho com Automação
-
-1.  **Planejamento:** Defina suas tarefas no arquivo de plano estruturado.
-2.  **Execução do Script:** Rode `python scripts/create_issue.py seu_plano.txt [--milestone-title ...]`.
-3.  **Gerenciamento:** Suas Issues aparecerão no GitHub e no quadro Kanban.
+1.  **Planejamento:** Identifique as tarefas que precisam ser criadas.
+2.  **Criação:** Use `gh issue create` para criar cada Issue.
+3.  **Gerenciamento:** As Issues aparecerão no GitHub e no quadro Kanban.
 4.  **Desenvolvimento:** Prossiga com o fluxo normal (Fase 4).
 
 ## 6. Documentação do Projeto
@@ -267,25 +236,6 @@ A chave é a rastreabilidade via Issues e commits vinculados.
 
 *   **Laravel Pint:** (`vendor/bin/pint`) Formatador PSR-12. Use antes de commitar.
 *   **Larastan:** (`vendor/bin/phpstan analyse`) Análise estática. Execute regularmente.
-*   **Script de Criação de Issues (`scripts/create_issue.py`):** Automatiza a criação/edição de Issues no GitHub a partir de planos `.txt`.
-*   **Script de Geração de Contexto (`scripts/generate_context.py`):** Ferramenta Python para coletar informações abrangentes do projeto (código, Git, GitHub, ambiente, etc.) e salvá-las em `context_llm/code/<timestamp>/` para uso por LLMs, **com a capacidade de executar seletivamente estágios de coleta via argumento `--stages` e copiar arquivos de estágios não executados do contexto anterior para garantir a completude do diretório gerado.**
-    **Exemplos de Uso:**
-    *   **Execução Completa (Padrão):** `python scripts/generate_context.py`
-        *   Coleta todas as informações (Git, Artisan, GitHub, etc.) e cria um novo diretório de contexto completo.
-    *   **Execução Seletiva (Ex: apenas Git e Artisan):** `python scripts/generate_context.py --stages git artisan`
-        *   Executa apenas os estágios `git` e `artisan`, gerando novos arquivos para eles. Arquivos de outros estágios (ex: `github_issues_details.json`) serão copiados do diretório de contexto gerado anteriormente, se existirem.
-    *   **Atualização de Detalhes de Issue (Ex: apenas GitHub Issues):** `python scripts/generate_context.py --stages github_issues`
-        *   Atualiza apenas os detalhes das Issues do GitHub, copiando o restante do contexto da última execução para garantir um diretório de contexto completo.
-*   **Scripts de Interação com LLM (`scripts/llm_interact.py` e `scripts/tasks/llm_task_*.py`):**
-    A ferramenta de interação com LLM foi modularizada. O script principal `scripts/llm_interact.py` agora funciona como um **dispatcher**. Você pode invocar tarefas específicas através dele ou executar os scripts de tarefa individuais diretamente.
-    *   **Dispatcher:** `python scripts/llm_interact.py <nome_da_tarefa> [argumentos_da_tarefa...]`
-        Ex: `python scripts/llm_interact.py resolve-ac --issue 123 --ac 1`
-        Se `<nome_da_tarefa>` for omitido, o dispatcher listará as tarefas disponíveis interativamente.
-    *   **Scripts de Tarefa Individuais:** Localizados em `scripts/tasks/`, podem ser executados diretamente.
-        Ex: `python scripts/tasks/llm_task_resolve_ac.py --issue 123 --ac 1 [outros_argumentos_comuns...]`
-    *   **Funcionalidades Comuns:** As funcionalidades centrais (configuração, parsing de argumentos comuns, carregamento de contexto, interação com API, I/O) estão em `scripts/llm_core/`. Elas incluem: aprimorada seleção de contexto com pré-injeção de arquivos essenciais (AC1.1-1.3); gerenciamento proativo de limites de tokens e RPM da API Gemini (AC2.1-2.3), com cálculo dinâmico de `MAX_INPUT_TOKENS_PER_CALL`, estratégias de redução de contexto (substituição por sumário e truncamento), e um rate limiter interno; e melhorias significativas na experiência do usuário ao interagir com a seleção de contexto (AC3.1-3.4, AC4.1, AC5.1).
-    *   **Argumentos Comuns:** Use `-h` ou `--help` em qualquer script de tarefa ou no dispatcher para ver as opções comuns e específicas da tarefa. Destacam-se: `--issue` (para especificar uma Issue do GitHub), `--ac` (para critérios de aceite), `--observation` (feedback adicional para a LLM), `--two-stage` (habilita um fluxo com meta-prompt para gerar o prompt final), `--select-context` (permite a seleção interativa de arquivos de contexto, aprimorada com informações detalhadas e tratamento de arquivos ausentes), `--web-search` (ativa a ferramenta de busca para a LLM), `--generate-context` (para acionar a geração de contexto inicial), entre outros.
-    * Requer `google-genai`, `python-dotenv`, `tqdm` e uma `GEMINI_API_KEY` válida no arquivo `.env`.
 
 ## 9. Testes Automatizados
 

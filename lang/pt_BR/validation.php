@@ -152,39 +152,6 @@ return [
     'uppercase' => 'O :attribute deve ser maiúsculo.',
     'url' => 'O formato da URL informada para o campo :attribute é inválido.',
     'uuid' => 'O campo :attribute deve ser um UUID válido.',
-
-    /*
-    |--------------------------------------------------------------------------
-    | Custom Validation Language Lines
-    |--------------------------------------------------------------------------
-    |
-    | Here you may specify custom validation messages for attributes using the
-    | convention "attribute.rule" to name the lines. This makes it quick to
-    | specify a specific custom language line for a given attribute rule.
-    |
-    */
-
-    'custom' => [
-        'attribute-name' => [
-            'rule-name' => 'custom-message',
-        ],
-        'codpes' => [ // Changed to match 'codpes.replicado_validation_failed' structure
-            'replicado_validation_failed' => 'A combinação de Número USP e Email é inválida nos registros da USP.',
-            'replicado_service_unavailable' => 'Não foi possível verificar as credenciais USP neste momento. Por favor, tente novamente mais tarde.',
-        ],
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Custom Validation Attributes
-    |--------------------------------------------------------------------------
-    |
-    | The following language lines are used to swap our attribute placeholder
-    | with something more reader friendly such as "E-Mail Address" instead
-    | of "email". This simply helps us make our message more expressive.
-    |
-    */
-
     'attributes' => [
         'address' => 'endereço',
         'affiliate_url' => 'URL de afiliado',
@@ -198,6 +165,7 @@ return [
         'birthday' => 'aniversário',
         'body' => 'conteúdo',
         'city' => 'cidade',
+        'codpes' => 'Número USP (codpes)',
         'company' => 'empresa',
         'compilation' => 'compilação',
         'concept' => 'conceito',
@@ -286,6 +254,7 @@ return [
         'size' => 'tamanho',
         'skills' => 'habilidades',
         'slug' => 'lesma',
+        'sou_da_usp' => 'Sou da USP',
         'specialization' => 'especialização',
         'started_at' => 'começou às',
         'state' => 'estado',
@@ -311,7 +280,11 @@ return [
         'winner' => 'ganhador',
         'work' => 'trabalho',
         'year' => 'ano',
-        'codpes' => 'Número USP (codpes)',
-        'sou_da_usp' => 'Sou da USP',
+    ],
+    'custom' => [
+        'codpes' => [
+            'replicado_service_unavailable' => 'Não foi possível verificar as credenciais USP neste momento. Por favor, tente novamente mais tarde.',
+            'replicado_validation_failed' => 'A combinação de Número USP e Email é inválida nos registros da USP.',
+        ],
     ],
 ];
