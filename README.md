@@ -1,7 +1,7 @@
 # Laravel 12 USP Starter Kit
 
-**Versão:** 0.1.0<br>
-**Data:** 2025-05-29
+**Versão:** 0.1.2<br>
+**Data:** 2025-10-07
 
 [![Status da Build](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/laravel_12_starter_kit/actions/workflows/laravel.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
