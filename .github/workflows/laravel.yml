@@ -80,7 +80,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgtk-3-0 libgbm-dev libasound2t64 xvfb
-        cp .env.dusk.local .env.dusk
+        cp .env.dusk.ci .env.dusk
         mkdir -p database/testing
         touch database/testing/dusk.sqlite
         php artisan migrate --database=sqlite --path=database/migrations --env=dusk.local --force

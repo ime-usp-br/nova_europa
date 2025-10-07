@@ -52,7 +52,7 @@ class AdminAuthorizationTest extends TestCase
     {
         $response = $this->get('/admin');
 
-        $response->assertRedirect('/admin/login');
+        $response->assertRedirect('/login/local');
     }
 
     public function test_user_with_admin_role_can_access_panel(): void
