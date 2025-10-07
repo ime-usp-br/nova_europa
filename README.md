@@ -80,13 +80,101 @@ Este Starter Kit vem pré-configurado com:
 
 ## 5. Instalação
 
-Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) e Laravel Dusk pré-instalados e configurados. Siga os passos abaixo para iniciar seu projeto:
+Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, Alpine.js, Tailwind CSS com Dark Mode) e Laravel Dusk pré-instalados e configurados. Você pode escolher entre instalação tradicional ou usando Docker com Laravel Sail.
+
+### 5.1. Instalação com Laravel Sail (Recomendado)
+
+Laravel Sail fornece um ambiente Docker completo com PHP, MySQL, Redis, Selenium e outras dependências pré-configuradas.
+
+1.  **Pré-requisitos:**
+    *   Docker e Docker Compose instalados
+    *   Git
+
+2.  **Clonar o Repositório:**
+    ```bash
+    git clone https://github.com/ime-usp-br/laravel_12_starter_kit.git seu-novo-projeto
+    cd seu-novo-projeto
+    ```
+
+3.  **Configurar Ambiente:**
+    *   Copie o arquivo de exemplo `.env`:
+        ```bash
+        cp .env.example .env
+        ```
+    *   **Edite o arquivo `.env`** e configure as variáveis essenciais para Sail:
+        ```bash
+        APP_NAME=Laravel
+        APP_URL=http://localhost
+        APP_PORT=8000
+
+        # Configuração do banco de dados para Sail
+        DB_CONNECTION=mysql
+        DB_HOST=mysql
+        DB_PORT=3306
+        DB_DATABASE=laravel12_usp_starter_kit
+        DB_USERNAME=sail
+        DB_PASSWORD=password
+
+        # Configuração de usuário Docker
+        WWWUSER=1000
+        WWWGROUP=1000
+        ```
+    *   **Credenciais USP:** Adicione e configure as variáveis para `uspdev/senhaunica-socialite` e `uspdev/replicado` (veja a seção 7).
+
+4.  **Iniciar Containers Docker:**
+    ```bash
+    ./vendor/bin/sail up -d
+    ```
+    *(Na primeira execução, as imagens Docker serão construídas, o que pode levar alguns minutos)*
+
+5.  **Gerar Chave da Aplicação:**
+    ```bash
+    ./vendor/bin/sail artisan key:generate
+    ```
+
+6.  **Instalar Dependências Frontend:**
+    ```bash
+    ./vendor/bin/sail npm install
+    ```
+
+7.  **Executar Migrações e Seeders:**
+    ```bash
+    ./vendor/bin/sail artisan migrate --seed
+    ```
+
+8.  **Compilar Assets Frontend:**
+    ```bash
+    ./vendor/bin/sail npm run dev
+    ```
+    *(Mantenha este comando rodando em um terminal separado durante o desenvolvimento)*
+
+9.  **Configurar Usuário Admin:**
+
+    Após a migração e seeding, você pode atribuir o perfil Admin a um usuário:
+    ```bash
+    ./vendor/bin/sail artisan tinker
+    ```
+    No tinker, execute:
+    ```php
+    $user = App\Models\User::where('email', 'seu-email@usp.br')->first();
+    $user->assignRole('Admin');
+    ```
+
+**Atalho:** Para simplificar comandos, você pode criar um alias:
+```bash
+alias sail='./vendor/bin/sail'
+```
+
+Agora você pode usar `sail up -d`, `sail artisan migrate`, `sail npm run dev`, etc.
+
+### 5.2. Instalação Tradicional (Sem Docker)
 
 1.  **Pré-requisitos:**
     *   PHP >= 8.2 (com extensões comuns do Laravel: ctype, fileinfo, json, mbstring, openssl, PDO, tokenizer, xml, etc.)
     *   Composer
     *   Node.js (v18+) e NPM
     *   Git
+    *   MySQL/MariaDB ou outro banco de dados compatível
     *   **Google Chrome** ou **Chromium** instalado (para testes Dusk)
 
 2.  **Clonar o Repositório:**
@@ -143,7 +231,6 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
         ```bash
         php artisan dusk:chrome-driver --detect
         ```
-        *(Se encontrar erros de conexão SSL/TLS (`cURL error 28`), resolva problemas de rede/firewall/certificados antes de continuar).*
     *   **Criar/Verificar `.env.dusk.local`:** Crie este arquivo na raiz do projeto (se não existir) e configure-o para o ambiente de teste do Dusk. Um exemplo (`.env.dusk.local`) já está incluído neste repositório. Preste atenção especial a:
         *   `APP_URL=http://127.0.0.1:8000` (ou a URL que `php artisan serve` usa)
         *   `DB_CONNECTION=sqlite` e `DB_DATABASE=database/testing/dusk.sqlite` (recomendado usar um banco de dados SQLite separado para testes Dusk)
@@ -151,6 +238,40 @@ Este Starter Kit já vem com o Laravel Breeze (Stack TALL - Livewire Class API, 
 Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 
 ## 6. Uso Básico
+
+### 6.1. Com Laravel Sail
+
+1.  **Iniciar Containers (se não estiverem rodando):**
+    ```bash
+    ./vendor/bin/sail up -d
+    ```
+
+2.  **Acessar a Aplicação:**
+    *   Abra seu navegador e acesse `http://localhost:8000` (ou a porta definida em `APP_PORT`).
+    *   Páginas de autenticação: `/login` (Senha Única), `/login/local`, `/register`.
+    *   Painel administrativo: `/admin` (requer autenticação e role Admin)
+
+3.  **Parar Containers:**
+    ```bash
+    ./vendor/bin/sail down
+    ```
+
+4.  **Comandos Úteis:**
+    ```bash
+    # Executar comandos Artisan
+    ./vendor/bin/sail artisan migrate
+
+    # Executar npm
+    ./vendor/bin/sail npm run dev
+
+    # Acessar shell do container
+    ./vendor/bin/sail shell
+
+    # Ver logs
+    ./vendor/bin/sail logs
+    ```
+
+### 6.2. Instalação Tradicional
 
 1.  **Iniciar Servidores (Desenvolvimento):**
     *   Para o servidor web PHP embutido:
@@ -165,11 +286,13 @@ Seu ambiente de desenvolvimento com o Starter Kit deve estar pronto para uso.
 2.  **Acessar a Aplicação:**
     *   Abra seu navegador e acesse a `APP_URL` definida no `.env` (geralmente `http://localhost:8000`).
     *   Páginas de autenticação: `/login` (Senha Única), `/login/local`, `/register`.
+    *   Painel administrativo: `/admin` (requer autenticação e role Admin)
 
-3.  **Credenciais Padrão:**
-    *   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
-        *   **Email:** `test@example.com`
-        *   **Senha:** `password`
+### 6.3. Credenciais Padrão
+
+*   Se você rodou `php artisan db:seed` (ou `migrate --seed`) após a instalação, pode usar o usuário local criado:
+    *   **Email:** `test@example.com`
+    *   **Senha:** `password`
 
 ## 7. Configurações Específicas da USP
 
