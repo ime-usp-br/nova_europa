@@ -24,7 +24,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             FilamentAdminSeeder::class,
-            // Other seeders can be added here
+            BlocoSeeder::class,
+            TrilhaSeeder::class,
         ]);
     }
 }
