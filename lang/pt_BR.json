@@ -266,5 +266,22 @@
     "Yes": "Sim",
     "You are receiving this email because we received a password reset request for your account.": "Você recebeu esse e-mail porque foi solicitado uma redefinição de senha na sua conta.",
     "You're logged in!": "Você está logado!",
-    "Your email address is unverified.": "Seu endereço de e-mail não foi verificado."
+    "Your email address is unverified.": "Seu endereço de e-mail não foi verificado.",
+    "Added At": "Adicionado em",
+    "Add Course": "Adicionar Disciplina",
+    "Back to Dashboard": "Voltar ao Dashboard",
+    "Course Code": "Código da Disciplina",
+    "Courses": "Disciplinas",
+    "Curriculum Code": "Código do Currículo",
+    "Curriculum code this block applies to": "Código do currículo ao qual este bloco se aplica",
+    "Lecture Credits": "Créditos Aula",
+    "Minimum number of courses the student must complete from this block": "Número mínimo de disciplinas que o aluno deve cursar neste bloco",
+    "Name of the block (e.g., \"Introduction to Education Studies\")": "Nome do bloco (ex: \"Introdução aos Estudos da Educação\")",
+    "Number of lecture credits required for this block": "Número de créditos aula exigidos para este bloco",
+    "Number of work credits required for this block": "Número de créditos trabalho exigidos para este bloco",
+    "Required Lecture Credits": "Créditos Aula Exigidos",
+    "Required Number of Courses": "Número de Disciplinas Exigidas",
+    "Required Work Credits": "Créditos Trabalho Exigidos",
+    "USP course code (e.g., \"EDF0285\", \"MAT0130\")": "Código USP da disciplina (ex: \"EDF0285\", \"MAT0130\")",
+    "Work Credits": "Créditos Trabalho"
 }

@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\AuditResource;
+use App\Filament\Resources\Blocos\BlocoResource;
 use App\Filament\Resources\Permissions\PermissionResource;
 use App\Filament\Resources\Roles\RoleResource;
 use App\Filament\Resources\Users\UserResource;
@@ -35,6 +36,14 @@ class NavigationCardsWidget extends Widget
                 'url' => RoleResource::getUrl('index'),
                 'color' => 'success',
                 'stats' => \Spatie\Permission\Models\Role::count(),
+            ],
+            [
+                'title' => 'Blocos',
+                'description' => 'Gerenciar blocos de disciplinas',
+                'icon' => 'heroicon-o-cube',
+                'url' => BlocoResource::getUrl('index'),
+                'color' => 'info',
+                'stats' => \App\Models\Bloco::count(),
             ],
             [
                 'title' => 'Permissões',
