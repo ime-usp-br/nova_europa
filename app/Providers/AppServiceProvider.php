@@ -2,12 +2,16 @@
 
 namespace App\Providers;
 
+use App\Models\Bloco;
+use App\Models\BlocoDisciplina;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Observers\PermissionObserver;
 use App\Observers\RoleObserver;
 use App\Policies\AuditPolicy;
+use App\Policies\BlocoDisciplinaPolicy;
+use App\Policies\BlocoPolicy;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
 use App\Policies\UserPolicy;
@@ -45,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Permission::class, PermissionPolicy::class);
         Gate::policy(Audit::class, AuditPolicy::class);
+        Gate::policy(Bloco::class, BlocoPolicy::class);
+        Gate::policy(BlocoDisciplina::class, BlocoDisciplinaPolicy::class);
 
         // Register observers for auditing Spatie models
         Role::observe(RoleObserver::class);
