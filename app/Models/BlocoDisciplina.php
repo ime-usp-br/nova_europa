@@ -27,7 +27,7 @@ class BlocoDisciplina extends Model
     /**
      * Get the bloco that owns this disciplina.
      *
-     * @return BelongsTo<Bloco, BlocoDisciplina>
+     * @return BelongsTo<Bloco, $this>
      */
     public function bloco(): BelongsTo
     {

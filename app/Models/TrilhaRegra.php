@@ -22,7 +22,7 @@ class TrilhaRegra extends Model
     /**
      * Get the trilha that owns this regra.
      *
-     * @return BelongsTo<Trilha, TrilhaRegra>
+     * @return BelongsTo<Trilha, $this>
      */
     public function trilha(): BelongsTo
     {
@@ -32,7 +32,7 @@ class TrilhaRegra extends Model
     /**
      * Get the disciplinas associated with this regra.
      *
-     * @return HasMany<TrilhaDisciplina>
+     * @return HasMany<TrilhaDisciplina, $this>
      */
     public function disciplinas(): HasMany
     {

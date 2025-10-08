@@ -20,7 +20,7 @@ class Trilha extends Model
     /**
      * Get the regras associated with this trilha.
      *
-     * @return HasMany<TrilhaRegra>
+     * @return HasMany<TrilhaRegra, $this>
      */
     public function regras(): HasMany
     {
