@@ -28,7 +28,7 @@ class TrilhaDisciplina extends Model
     /**
      * Get the regra that owns this disciplina.
      *
-     * @return BelongsTo<TrilhaRegra, TrilhaDisciplina>
+     * @return BelongsTo<TrilhaRegra, $this>
      */
     public function regra(): BelongsTo
     {

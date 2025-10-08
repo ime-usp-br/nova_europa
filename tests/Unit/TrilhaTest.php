@@ -14,7 +14,7 @@ class TrilhaTest extends TestCase
      */
     public function test_trilha_has_fillable_attributes(): void
     {
-        $trilha = new Trilha();
+        $trilha = new Trilha;
 
         $expected = [
             'nome',
@@ -29,7 +29,7 @@ class TrilhaTest extends TestCase
      */
     public function test_trilha_has_many_regras_relationship(): void
     {
-        $trilha = new Trilha();
+        $trilha = new Trilha;
 
         $relation = $trilha->regras();
 

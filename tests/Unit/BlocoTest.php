@@ -14,7 +14,7 @@ class BlocoTest extends TestCase
      */
     public function test_bloco_has_fillable_attributes(): void
     {
-        $bloco = new Bloco();
+        $bloco = new Bloco;
 
         $expected = [
             'nome',
@@ -32,7 +32,7 @@ class BlocoTest extends TestCase
      */
     public function test_bloco_has_many_disciplinas_relationship(): void
     {
-        $bloco = new Bloco();
+        $bloco = new Bloco;
 
         $relation = $bloco->disciplinas();
 

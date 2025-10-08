@@ -23,7 +23,7 @@ class Bloco extends Model
     /**
      * Get the disciplines associated with this bloco.
      *
-     * @return HasMany<BlocoDisciplina>
+     * @return HasMany<BlocoDisciplina, $this>
      */
     public function disciplinas(): HasMany
     {
