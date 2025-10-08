@@ -6,6 +6,7 @@ use App\Filament\Resources\AuditResource;
 use App\Filament\Resources\Blocos\BlocoResource;
 use App\Filament\Resources\Permissions\PermissionResource;
 use App\Filament\Resources\Roles\RoleResource;
+use App\Filament\Resources\Trilhas\TrilhaResource;
 use App\Filament\Resources\Users\UserResource;
 use Filament\Widgets\Widget;
 
@@ -44,6 +45,14 @@ class NavigationCardsWidget extends Widget
                 'url' => BlocoResource::getUrl('index'),
                 'color' => 'info',
                 'stats' => \App\Models\Bloco::count(),
+            ],
+            [
+                'title' => 'Trilhas',
+                'description' => 'Gerenciar trilhas de conhecimento',
+                'icon' => 'heroicon-o-map-pin',
+                'url' => TrilhaResource::getUrl('index'),
+                'color' => 'success',
+                'stats' => \App\Models\Trilha::count(),
             ],
             [
                 'title' => 'Permissões',
