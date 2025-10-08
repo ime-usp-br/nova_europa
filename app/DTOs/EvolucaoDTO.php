@@ -15,17 +15,17 @@ class EvolucaoDTO
 {
     /**
      * @param  array{codpes: int, nompes: string|null, codcur: int|null, nomcur: string|null}  $aluno  Student basic information
-     * @param  array{codcrl: string, curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretra: int}>}  $curriculo  Curriculum information
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretra: int, rstfim: string, notfim: float|null}>  $disciplinasObrigatorias  Mandatory courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretra: int, rstfim: string, notfim: float|null}>  $disciplinasEletivas  Elective courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretra: int, rstfim: string, notfim: float|null}>  $disciplinasLivres  Free choice courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretra: int, rstfim: string, notfim: float|null}>  $disciplinasExtraCurriculares  Extra-curricular courses
+     * @param  array{codcrl: string, curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>}  $curriculo  Curriculum information
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasObrigatorias  Mandatory courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasEletivas  Elective courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasLivres  Free choice courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasExtraCurriculares  Extra-curricular courses
      * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosObrigatorios  Mandatory credits (completed and required)
      * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosEletivos  Elective credits (completed and required)
      * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosLivres  Free choice credits (completed and required)
      * @param  array{obrigatorios: float, eletivos: float, livres: float, total: float}  $porcentagensConsolidacao  Completion percentages
      * @param  int  $semestreEstagio  Calculated internship semester
-     * @param  Collection<int, array{bloco_id: int, nome: string, creditos_obtidos: array{aula: int, trabalho: int}, creditos_exigidos: array{aula: int, trabalho: int}, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretra: int}>}>|null  $blocos  Blocos validation (45024 only)
+     * @param  Collection<int, array{bloco_id: int, nome: string, creditos_obtidos: array{aula: int, trabalho: int}, creditos_exigidos: array{aula: int, trabalho: int}, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int}>}>|null  $blocos  Blocos validation (45024 only)
      * @param  Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, tipo: string, regra: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>|null  $trilhas  Trilhas validation (45052 only)
      */
     public function __construct(
