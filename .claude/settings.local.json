@@ -6,7 +6,10 @@
       "Bash(gh issue view:*)",
       "mcp__sequential-thinking__sequentialthinking",
       "mcp__playwright__browser_navigate",
-      "Bash(./vendor/bin/sail test:*)"
+      "Bash(./vendor/bin/sail test:*)",
+      "Bash(./vendor/bin/sail artisan make:migration:*)",
+      "Bash(./vendor/bin/sail artisan make:model Bloco)",
+      "Bash(./vendor/bin/sail artisan make:model:*)"
     ],
     "deny": [],
     "ask": []
