@@ -334,5 +334,8 @@
     "Class": "Aula",
     "Work": "Trabalho",
     "Failed to generate PDF: :message": "Falha ao gerar PDF: :message",
-    "Course code is required to generate PDF": "Código do curso é obrigatório para gerar PDF"
+    "Course code is required to generate PDF": "Código do curso é obrigatório para gerar PDF",
+    "No courses outside curriculum": "Nenhuma disciplina fora do currículo",
+    ":period period": ":periodº período",
+    "Work Credits": "Créditos Trabalho"
 }

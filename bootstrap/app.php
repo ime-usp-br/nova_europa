@@ -14,13 +14,6 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
-        then: function () {
-            // Load test routes only in local environment
-            if (app()->environment('local')) {
-                Route::middleware('web')
-                    ->group(base_path('routes/web-test.php'));
-            }
-        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->redirectGuestsTo(function (Request $request) {
