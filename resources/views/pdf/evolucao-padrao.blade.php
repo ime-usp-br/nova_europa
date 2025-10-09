@@ -12,320 +12,379 @@
         }
 
         body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 10pt;
-            line-height: 1.4;
-            color: #333;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 8pt;
+            line-height: 1.2;
+            color: #000;
         }
 
         .header {
-            text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #333;
+            margin-bottom: 10px;
         }
 
         .header h1 {
-            font-size: 16pt;
-            margin-bottom: 5px;
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 3px;
         }
 
-        .header h2 {
-            font-size: 12pt;
-            font-weight: normal;
-            color: #666;
+        .header-info {
+            font-size: 8pt;
+            margin-bottom: 2px;
         }
 
-        .info-section {
-            margin-bottom: 15px;
-            display: grid;
-            grid-template-columns: 150px 1fr;
-            gap: 5px;
-        }
-
-        .info-label {
+        .header-info strong {
             font-weight: bold;
         }
 
         .section-title {
-            font-size: 11pt;
-            font-weight: bold;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            padding: 5px;
-            background-color: #f0f0f0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-
-        table th {
-            background-color: #e0e0e0;
-            padding: 5px;
-            text-align: center;
             font-size: 9pt;
             font-weight: bold;
-            border: 1px solid #999;
+            margin-top: 8px;
+            margin-bottom: 4px;
         }
 
-        table td {
-            padding: 5px;
+        /* Grid for mandatory courses (semesters) */
+        .grid-semestres {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        .grid-semestres th {
+            border: 1px solid #000;
+            padding: 2px;
             text-align: center;
-            font-size: 8pt;
-            border: 1px solid #ccc;
-        }
-
-        /* Color coding for courses */
-        @if($colorido)
-        .aprovado {
-            background-color: #d6f5d6; /* Light green */
-        }
-
-        .devendo {
-            background-color: #ffe6e6; /* Light red */
-        }
-
-        .cursando {
-            background-color: #ffffe6; /* Light yellow */
-        }
-        @else
-        .aprovado {
-            background-color: #ffffff;
-        }
-
-        .devendo {
-            background-color: #e6e6e6;
-        }
-
-        .cursando {
-            background-color: #e6e6e6;
-        }
-        @endif
-
-        .consolidacao {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border: 1px solid #999;
-        }
-
-        .consolidacao-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            text-align: center;
-        }
-
-        .consolidacao-item {
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-
-        .consolidacao-item strong {
-            display: block;
-            font-size: 11pt;
-            margin-bottom: 5px;
-        }
-
-        .consolidacao-item .percentage {
-            font-size: 14pt;
             font-weight: bold;
-            color: #0066cc;
-        }
-
-        .legenda {
-            margin-top: 15px;
             font-size: 8pt;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border: 1px solid #ccc;
+            background-color: #fff;
         }
 
-        .legenda-item {
-            display: inline-block;
-            margin-right: 15px;
+        .grid-semestres td {
+            border: 1px solid #000;
+            padding: 3px;
+            vertical-align: top;
+            font-size: 7pt;
+            min-height: 40px;
+        }
+
+        .disciplina-item {
+            margin-bottom: 4px;
+        }
+
+        .disciplina-codigo {
+            font-weight: bold;
+            font-size: 7.5pt;
+        }
+
+        .disciplina-creditos {
+            font-size: 7pt;
+        }
+
+        .disciplina-turma {
+            font-size: 6.5pt;
+            color: #333;
+        }
+
+        /* Simple tables for electives/free/extra */
+        .simple-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        .simple-table th {
+            border: 1px solid #000;
+            padding: 3px;
+            text-align: center;
+            font-weight: normal;
+            font-size: 8pt;
+            background-color: #fff;
+        }
+
+        .simple-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            vertical-align: top;
+            font-size: 7pt;
+            min-height: 30px;
+        }
+
+        /* Credit consolidation table */
+        .consolidacao-table {
+            width: 70%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+
+        .consolidacao-table th {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 8pt;
+        }
+
+        .consolidacao-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            font-size: 8pt;
+        }
+
+        /* Parecer section */
+        .parecer {
+            margin-top: 10px;
+            font-size: 8pt;
+        }
+
+        .parecer-checkbox {
+            margin: 5px 0;
+        }
+
+        .parecer-observacoes {
+            margin-top: 5px;
+        }
+
+        .parecer-assinatura {
+            margin-top: 10px;
+        }
+
+        /* Footer */
+        .footer {
+            position: fixed;
+            bottom: 5px;
+            right: 10px;
+            font-size: 7pt;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <!-- Header -->
     <div class="header">
-        <h1>{{ __('Student Academic Evolution') }}</h1>
-        <h2>{{ __('University of São Paulo - Institute of Mathematics and Statistics') }}</h2>
+        <h1>{{ __('Student Evolution in Course') }}</h1>
+        <div class="header-info">
+            <strong>{{ __('Student') }}:</strong> {{ $dados->aluno['codpes'] }} {{ $dados->aluno['nompes'] }}
+            <strong>{{ __('Program') }}:</strong> {{ $dados->aluno['codpgm'] ?? '' }}
+            <strong>{{ __('Admission') }}:</strong> {{ $dados->aluno['dtainivin'] ? \Carbon\Carbon::parse($dados->aluno['dtainivin'])->format('d/m/Y') : '' }}
+            <strong>{{ __('Status') }}:</strong> {{ $dados->aluno['stapgm'] ?? '' }}
+        </div>
+        <div class="header-info">
+            <strong>{{ __('Course') }}:</strong> {{ $dados->aluno['codcur'] }} {{ $dados->aluno['nomcur'] }}
+            <strong>{{ __('Qualification') }}:</strong> {{ $dados->aluno['codhab'] ?? 0 }} {{ $dados->aluno['nomhab'] ?? '' }}
+        </div>
+        <div class="header-info">
+            <strong>{{ __('Curriculum') }}:</strong> {{ $dados->curriculo['codcrl'] }}
+            <strong>{{ __('Validity') }}:</strong>
+            @if(isset($dados->curriculo['curriculo']['dtainicrl']))
+                {{ \Carbon\Carbon::parse($dados->curriculo['curriculo']['dtainicrl'])->format('d/m/Y') }}
+            @endif
+            -
+            @if(isset($dados->curriculo['curriculo']['dtafimcrl']))
+                {{ \Carbon\Carbon::parse($dados->curriculo['curriculo']['dtafimcrl'])->format('d/m/Y') }}
+            @endif
+            <strong>{{ __('Studying') }}:</strong> {{ __(':period period (:internship for internship purposes)', ['period' => $dados->semestreEstagio, 'internship' => $dados->semestreEstagio]) }}
+        </div>
     </div>
 
-    <!-- Student Information -->
-    <div class="info-section">
-        <div class="info-label">{{ __('Student Name') }}:</div>
-        <div>{{ $dados->aluno['nompes'] }}</div>
-
-        <div class="info-label">{{ __('USP Number') }}:</div>
-        <div>{{ $dados->aluno['codpes'] }}</div>
-
-        <div class="info-label">{{ __('Course') }}:</div>
-        <div>{{ $dados->aluno['codcur'] }} - {{ $dados->aluno['nomcur'] }}</div>
-
-        <div class="info-label">{{ __('Curriculum') }}:</div>
-        <div>{{ $dados->curriculo['codcrl'] }}</div>
-
-        <div class="info-label">{{ __('Report Date') }}:</div>
-        <div>{{ now()->format('d/m/Y H:i') }}</div>
-    </div>
-
-    <!-- Mandatory Courses -->
+    <!-- Mandatory Courses Grid -->
     <div class="section-title">{{ __('Mandatory Courses') }}</div>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 15%">{{ __('Code') }}</th>
-                <th style="width: 45%">{{ __('Course Name') }}</th>
-                <th style="width: 10%">{{ __('Class Credits') }}</th>
-                <th style="width: 10%">{{ __('Work Credits') }}</th>
-                <th style="width: 20%">{{ __('Status') }}</th>
-            </tr>
-        </thead>
+    <table class="grid-semestres">
         <tbody>
-            @forelse($dados->disciplinasObrigatorias as $disciplina)
-            <tr class="{{ $disciplina['rstfim'] === 'A' || $disciplina['rstfim'] === 'D' ? 'aprovado' : ($disciplina['rstfim'] === 'MA' ? 'cursando' : 'devendo') }}">
-                <td>{{ $disciplina['coddis'] }}</td>
-                <td style="text-align: left;">{{ $disciplina['nomdis'] }}</td>
-                <td>{{ $disciplina['creaul'] }}</td>
-                <td>{{ $disciplina['cretrb'] }}</td>
-                <td>{{ $disciplina['rstfim'] }}</td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="5">{{ __('No mandatory courses completed') }}</td>
-            </tr>
-            @endforelse
+            @for($sem = 1; $sem <= 8; $sem++)
+                <tr>
+                    <th style="width: 5%">{{ $sem }}</th>
+                    @if(isset($dados->disciplinasPorSemestre[$sem]) && $dados->disciplinasPorSemestre[$sem]->isNotEmpty())
+                        @foreach($dados->disciplinasPorSemestre[$sem] as $disc)
+                            @php
+                                // DEBUG: Log discipline data in template
+                                if ($disc['rstfim'] === null) {
+                                    \Log::info('Blade template - cursando discipline', [
+                                        'coddis' => $disc['coddis'],
+                                        'codtur' => $disc['codtur'] ?? 'NULL',
+                                        'discrl' => $disc['discrl'] ?? 'NULL',
+                                        'rstfim' => $disc['rstfim'] ?? 'NULL',
+                                        'codtur_empty' => empty($disc['codtur']),
+                                    ]);
+                                }
+                            @endphp
+                            <td style="width: 15.83%">
+                                <div class="disciplina-item">
+                                    <div class="disciplina-codigo">
+                                        {{ $disc['coddis'] }} {!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}
+                                    </div>
+                                    @if($disc['rstfim'] === null)
+                                        {{-- rstfim = null: Currently enrolled OR pending --}}
+                                        @if(!empty($disc['codtur']))
+                                            {{-- Has codtur = currently enrolled (cursando) --}}
+                                            <div class="disciplina-turma">
+                                                {{ $disc['codtur'] }}
+                                                @if(!empty($disc['discrl']))
+                                                    [{{ $disc['discrl'] }}]
+                                                @endif
+                                                (Cursando)
+                                            </div>
+                                        @endif
+                                        {{-- No codtur = pending course, no second line --}}
+                                    @elseif($disc['rstfim'] === 'D')
+                                        <div class="disciplina-turma">
+                                            @if(!empty($disc['discrl']))
+                                                [{{ $disc['discrl'] }}] (AE)
+                                            @else
+                                                (AE)
+                                            @endif
+                                        </div>
+                                    @elseif(str_starts_with($disc['rstfim'], 'EQ'))
+                                        <div class="disciplina-turma">
+                                            {{ $disc['rstfim'] }} (A)
+                                        </div>
+                                    @else
+                                        {{-- A or MA - show codtur --}}
+                                        <div class="disciplina-turma">
+                                            @if(!empty($disc['codtur']))
+                                                {{ $disc['codtur'] }}
+                                            @endif
+                                            @if(!empty($disc['discrl']))
+                                                [{{ $disc['discrl'] }}]
+                                            @endif
+                                            ({{ $disc['rstfim'] }})
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                        @endforeach
+                        {{-- Fill remaining cells to complete 6 columns --}}
+                        @for($i = $dados->disciplinasPorSemestre[$sem]->count(); $i < 6; $i++)
+                            <td style="width: 15.83%">&nbsp;</td>
+                        @endfor
+                    @else
+                        {{-- Empty semester - 6 empty cells --}}
+                        @for($i = 0; $i < 6; $i++)
+                            <td style="width: 15.83%">&nbsp;</td>
+                        @endfor
+                    @endif
+                </tr>
+            @endfor
         </tbody>
     </table>
 
     <!-- Elective Courses -->
     <div class="section-title">{{ __('Elective Courses') }}</div>
-    <table>
+    <table class="simple-table">
         <thead>
             <tr>
-                <th style="width: 15%">{{ __('Code') }}</th>
-                <th style="width: 45%">{{ __('Course Name') }}</th>
-                <th style="width: 10%">{{ __('Class Credits') }}</th>
-                <th style="width: 10%">{{ __('Work Credits') }}</th>
-                <th style="width: 20%">{{ __('Status') }}</th>
+                @for($i = 0; $i < 6; $i++)
+                    <th style="width: 16.66%">&nbsp;</th>
+                @endfor
             </tr>
         </thead>
         <tbody>
-            @forelse($dados->disciplinasEletivas as $disciplina)
-            <tr class="{{ $disciplina['rstfim'] === 'A' || $disciplina['rstfim'] === 'D' ? 'aprovado' : ($disciplina['rstfim'] === 'MA' ? 'cursando' : 'devendo') }}">
-                <td>{{ $disciplina['coddis'] }}</td>
-                <td style="text-align: left;">{{ $disciplina['nomdis'] }}</td>
-                <td>{{ $disciplina['creaul'] }}</td>
-                <td>{{ $disciplina['cretrb'] }}</td>
-                <td>{{ $disciplina['rstfim'] }}</td>
-            </tr>
-            @empty
             <tr>
-                <td colspan="5">{{ __('No elective courses completed') }}</td>
+                @for($i = 0; $i < 6; $i++)
+                    <td>&nbsp;</td>
+                @endfor
             </tr>
-            @endforelse
         </tbody>
     </table>
 
     <!-- Free Elective Courses -->
     <div class="section-title">{{ __('Free Elective Courses') }}</div>
-    <table>
+    <table class="simple-table">
         <thead>
             <tr>
-                <th style="width: 15%">{{ __('Code') }}</th>
-                <th style="width: 45%">{{ __('Course Name') }}</th>
-                <th style="width: 10%">{{ __('Class Credits') }}</th>
-                <th style="width: 10%">{{ __('Work Credits') }}</th>
-                <th style="width: 20%">{{ __('Status') }}</th>
+                @for($i = 0; $i < 6; $i++)
+                    <th style="width: 16.66%">&nbsp;</th>
+                @endfor
             </tr>
         </thead>
         <tbody>
-            @forelse($dados->disciplinasLivres as $disciplina)
-            <tr class="{{ $disciplina['rstfim'] === 'A' || $disciplina['rstfim'] === 'D' ? 'aprovado' : ($disciplina['rstfim'] === 'MA' ? 'cursando' : 'devendo') }}">
-                <td>{{ $disciplina['coddis'] }}</td>
-                <td style="text-align: left;">{{ $disciplina['nomdis'] }}</td>
-                <td>{{ $disciplina['creaul'] }}</td>
-                <td>{{ $disciplina['cretrb'] }}</td>
-                <td>{{ $disciplina['rstfim'] }}</td>
-            </tr>
-            @empty
             <tr>
-                <td colspan="5">{{ __('No free elective courses completed') }}</td>
+                @for($i = 0; $i < 6; $i++)
+                    <td>&nbsp;</td>
+                @endfor
             </tr>
-            @endforelse
         </tbody>
     </table>
 
-    <!-- Extra-curricular Courses -->
-    @if($dados->disciplinasExtraCurriculares->isNotEmpty())
-    <div class="section-title">{{ __('Extra-curricular Courses') }}</div>
-    <table>
+    <!-- Out of Curriculum Courses -->
+    <div class="section-title">{{ __('Out of Curriculum Courses') }}</div>
+    <table class="simple-table">
         <thead>
             <tr>
-                <th style="width: 15%">{{ __('Code') }}</th>
-                <th style="width: 45%">{{ __('Course Name') }}</th>
-                <th style="width: 10%">{{ __('Class Credits') }}</th>
-                <th style="width: 10%">{{ __('Work Credits') }}</th>
-                <th style="width: 20%">{{ __('Status') }}</th>
+                @for($i = 0; $i < 6; $i++)
+                    <th style="width: 16.66%">&nbsp;</th>
+                @endfor
             </tr>
         </thead>
         <tbody>
-            @foreach($dados->disciplinasExtraCurriculares as $disciplina)
-            <tr class="aprovado">
-                <td>{{ $disciplina['coddis'] }}</td>
-                <td style="text-align: left;">{{ $disciplina['nomdis'] }}</td>
-                <td>{{ $disciplina['creaul'] }}</td>
-                <td>{{ $disciplina['cretrb'] }}</td>
-                <td>{{ $disciplina['rstfim'] }}</td>
+            <tr>
+                @for($i = 0; $i < 6; $i++)
+                    <td>&nbsp;</td>
+                @endfor
             </tr>
-            @endforeach
         </tbody>
     </table>
-    @endif
 
-    <!-- Consolidation -->
-    <div class="consolidacao">
-        <div class="section-title" style="margin-top: 0;">{{ __('Credit Consolidation') }}</div>
-        <div class="consolidacao-grid">
-            <div class="consolidacao-item">
-                <strong>{{ __('Mandatory') }}</strong>
-                <div>{{ __('Obtained') }}: {{ $dados->creditosObrigatorios['total'] }}</div>
-                <div>{{ __('Required') }}: {{ $dados->creditosObrigatorios['exigidos_total'] }}</div>
-                <div class="percentage">{{ number_format($dados->porcentagensConsolidacao['obrigatorios'], 1) }}%</div>
-            </div>
-            <div class="consolidacao-item">
-                <strong>{{ __('Elective') }}</strong>
-                <div>{{ __('Obtained') }}: {{ $dados->creditosEletivos['total'] }}</div>
-                <div>{{ __('Required') }}: {{ $dados->creditosEletivos['exigidos_total'] }}</div>
-                <div class="percentage">{{ number_format($dados->porcentagensConsolidacao['eletivos'], 1) }}%</div>
-            </div>
-            <div class="consolidacao-item">
-                <strong>{{ __('Free Elective') }}</strong>
-                <div>{{ __('Obtained') }}: {{ $dados->creditosLivres['total'] }}</div>
-                <div>{{ __('Required') }}: {{ $dados->creditosLivres['exigidos_total'] }}</div>
-                <div class="percentage">{{ number_format($dados->porcentagensConsolidacao['livres'], 1) }}%</div>
-            </div>
-            <div class="consolidacao-item">
-                <strong>{{ __('Total') }}</strong>
-                <div>{{ __('Overall Completion') }}</div>
-                <div class="percentage" style="font-size: 16pt; margin-top: 5px;">{{ number_format($dados->porcentagensConsolidacao['total'], 1) }}%</div>
-            </div>
+    <!-- Credit Consolidation -->
+    <table class="consolidacao-table">
+        <thead>
+            <tr>
+                <th rowspan="2">{{ __('Credits') }}</th>
+                <th colspan="2">{{ __('Mandatory') }}</th>
+                <th colspan="2">{{ __('Elective') }}</th>
+                <th colspan="2">{{ __('Free Elective') }}</th>
+            </tr>
+            <tr>
+                <th>{{ __('Obtained') }}</th>
+                <th>{{ __('Required') }}</th>
+                <th>{{ __('Obtained') }}</th>
+                <th>{{ __('Required') }}</th>
+                <th>{{ __('Obtained') }}</th>
+                <th>{{ __('Required') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>{{ __('Class') }}</strong></td>
+                <td>{{ $dados->creditosObrigatorios['aula'] }}</td>
+                <td>{{ $dados->creditosObrigatorios['exigidos_aula'] }}</td>
+                <td>{{ $dados->creditosEletivos['aula'] }}</td>
+                <td>{{ $dados->creditosEletivos['exigidos_aula'] }}</td>
+                <td>{{ $dados->creditosLivres['aula'] }}</td>
+                <td>{{ $dados->creditosLivres['exigidos_aula'] }}</td>
+            </tr>
+            <tr>
+                <td><strong>{{ __('Work') }}</strong></td>
+                <td>{{ $dados->creditosObrigatorios['trabalho'] }}</td>
+                <td>{{ $dados->creditosObrigatorios['exigidos_trabalho'] }}</td>
+                <td>{{ $dados->creditosEletivos['trabalho'] }}</td>
+                <td>{{ $dados->creditosEletivos['exigidos_trabalho'] }}</td>
+                <td>{{ $dados->creditosLivres['trabalho'] }}</td>
+                <td>{{ (int) ($dados->creditosLivres['exigidos_trabalho']) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Course Coordination Review -->
+    <div class="parecer">
+        <div class="section-title">{{ __('Course Coordination Review') }}</div>
+        <div class="parecer-checkbox">
+            {{ __('All requirements for course completion were met') }} ( ) {{ __('Yes') }} ( ) {{ __('No') }}
+        </div>
+        <div class="parecer-observacoes">
+            <strong>{{ __('Observations') }}:</strong>
+            <div style="border-bottom: 1px solid #000; height: 40px;"></div>
+        </div>
+        <div class="parecer-assinatura">
+            <strong>{{ __('Date and Signature') }}:</strong>
+            <div style="border-bottom: 1px solid #000; height: 20px; width: 300px;"></div>
         </div>
     </div>
 
-    <!-- Legend -->
-    <div class="legenda">
-        <strong>{{ __('Legend') }}:</strong>
-        <span class="legenda-item">A = {{ __('Approved') }}</span>
-        <span class="legenda-item">D = {{ __('Waived') }}</span>
-        <span class="legenda-item">MA = {{ __('Enrolled') }}</span>
-        <span class="legenda-item">{{ __('EQUIVALENTE') }} = {{ __('Fulfilled by equivalence') }}</span>
+    <!-- Footer -->
+    <div class="footer">
+        Sistema Europa - {{ now()->format('d/m/Y H:i:s') }}
     </div>
 </body>
 </html>

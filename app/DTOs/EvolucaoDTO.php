@@ -14,15 +14,16 @@ use Illuminate\Support\Collection;
 class EvolucaoDTO
 {
     /**
-     * @param  array{codpes: int, nompes: string|null, codcur: int|null, nomcur: string|null}  $aluno  Student basic information
+     * @param  array{codpes: int, nompes: string|null, codcur: int|null, nomcur: string|null, codhab: int|null, nomhab: string|null, codpgm: int|null, stapgm: string|null, dtainivin: string|null}  $aluno  Student complete information
      * @param  array{codcrl: string, curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>}  $curriculo  Curriculum information
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasObrigatorias  Mandatory courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasEletivas  Elective courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasLivres  Free choice courses completed
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasExtraCurriculares  Extra-curricular courses
-     * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosObrigatorios  Mandatory credits (completed and required)
-     * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosEletivos  Elective credits (completed and required)
-     * @param  array{aula: int, trabalho: int, total: int, exigidos_aula: int, exigidos_trabalho: int, exigidos_total: int}  $creditosLivres  Free choice credits (completed and required)
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasObrigatorias  Mandatory courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasEletivas  Elective courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasLivres  Free choice courses completed
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasExtraCurriculares  Extra-curricular courses
+     * @param  array<int, Collection>  $disciplinasPorSemestre  Mandatory courses organized by ideal semester
+     * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosObrigatorios  Mandatory credits (completed and required, separated by type)
+     * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosEletivos  Elective credits (completed and required, separated by type)
+     * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosLivres  Free choice credits (completed and required, separated by type)
      * @param  array{obrigatorios: float, eletivos: float, livres: float, total: float}  $porcentagensConsolidacao  Completion percentages
      * @param  int  $semestreEstagio  Calculated internship semester
      * @param  Collection<int, array{bloco_id: int, nome: string, creditos_obtidos: array{aula: int, trabalho: int}, creditos_exigidos: array{aula: int, trabalho: int}, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int}>}>|null  $blocos  Blocos validation (45024 only)
@@ -35,6 +36,7 @@ class EvolucaoDTO
         public Collection $disciplinasEletivas,
         public Collection $disciplinasLivres,
         public Collection $disciplinasExtraCurriculares,
+        public array $disciplinasPorSemestre,
         public array $creditosObrigatorios,
         public array $creditosEletivos,
         public array $creditosLivres,
