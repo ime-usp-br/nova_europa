@@ -314,5 +314,7 @@
     "Class": "Class",
     "Work": "Work",
     "Failed to generate PDF: :message": "Failed to generate PDF: :message",
-    "Course code is required to generate PDF": "Course code is required to generate PDF"
+    "Course code is required to generate PDF": "Course code is required to generate PDF",
+    "No courses outside curriculum": "No courses outside curriculum",
+    ":period period": ":period period"
 }

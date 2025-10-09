@@ -507,7 +507,17 @@
                 <tr>
                     <th style="width: 5%">{{ $sem }}º</th>
                     @if(isset($dados->disciplinasPorSemestre[$sem]) && $dados->disciplinasPorSemestre[$sem]->isNotEmpty())
-                        @foreach($dados->disciplinasPorSemestre[$sem] as $disc)
+                        @php
+                            // Ordenar disciplinas por status: A, EQ, D, MA, vazio
+                            $disciplinasOrdenadas = $dados->disciplinasPorSemestre[$sem]->sortBy(function($disc) {
+                                if ($disc['rstfim'] === 'A') return 1;
+                                if (str_starts_with($disc['rstfim'] ?? '', 'EQ')) return 2;
+                                if ($disc['rstfim'] === 'D') return 3;
+                                if (($disc['rstfim'] === null || $disc['rstfim'] === '') && !empty($disc['codtur'])) return 4;
+                                return 5; // pendente
+                            });
+                        @endphp
+                        @foreach($disciplinasOrdenadas as $disc)
                             @php
                                 $statusClass = 'pendente';
                                 $statusLabel = '';
@@ -549,7 +559,7 @@
                             </td>
                         @endforeach
                         {{-- Fill remaining cells --}}
-                        @for($i = $dados->disciplinasPorSemestre[$sem]->count(); $i < 6; $i++)
+                        @for($i = $disciplinasOrdenadas->count(); $i < 6; $i++)
                             <td style="width: 15.83%">&nbsp;</td>
                         @endfor
                     @else
@@ -569,11 +579,71 @@
     <div class="section-title">{{ __('Elective Courses') }}</div>
     <table class="simple-table">
         <tbody>
-            <tr>
-                @for($i = 0; $i < 6; $i++)
-                    <td style="width: 16.66%">&nbsp;</td>
-                @endfor
-            </tr>
+            @if($dados->disciplinasEletivas->isNotEmpty())
+                @php
+                    // Ordenar por status: A, EQ, D, MA, vazio
+                    $disciplinasOrdenadas = $dados->disciplinasEletivas->sortBy(function($disc) {
+                        if ($disc['rstfim'] === 'A') return 1;
+                        if (str_starts_with($disc['rstfim'] ?? '', 'EQ')) return 2;
+                        if ($disc['rstfim'] === 'D') return 3;
+                        if ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) return 4;
+                        return 5; // pendente
+                    });
+                @endphp
+                @foreach($disciplinasOrdenadas->chunk(6) as $chunk)
+                    <tr>
+                        @foreach($chunk as $disc)
+                            @php
+                                $statusClass = 'pendente';
+                                $statusLabel = '';
+
+                                if ($disc['rstfim'] === 'A') {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'A';
+                                } elseif ($disc['rstfim'] === 'D') {
+                                    $statusClass = 'dispensada';
+                                    $statusLabel = 'D';
+                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
+                                    $statusClass = 'cursando';
+                                    $statusLabel = 'MA';
+                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'EQ';
+                                }
+                            @endphp
+                            <td style="width: 16.66%">
+                                <div class="disciplina-item {{ $statusClass }}">
+                                    <div>
+                                        <span class="disciplina-codigo">{{ $disc['coddis'] }}</span>
+                                        <span class="disciplina-creditos">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</span>
+                                    </div>
+                                    @if($statusLabel || !empty($disc['codtur']) || !empty($disc['discrl']))
+                                        <div class="disciplina-turma">
+                                            @if(!empty($disc['codtur']))
+                                                {{ $disc['codtur'] }}
+                                            @endif
+                                            @if(!empty($disc['discrl']))
+                                                [{{ $disc['discrl'] }}]
+                                            @endif
+                                            @if($statusLabel)
+                                                <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                        @endforeach
+                        {{-- Fill remaining cells in this row --}}
+                        @for($i = $chunk->count(); $i < 6; $i++)
+                            <td style="width: 16.66%">&nbsp;</td>
+                        @endfor
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="6" style="text-align: center; font-style: italic; padding: 6px;">{{ __('No elective courses completed') }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
     </div>
@@ -583,11 +653,71 @@
     <div class="section-title">{{ __('Free Elective Courses') }}</div>
     <table class="simple-table">
         <tbody>
-            <tr>
-                @for($i = 0; $i < 6; $i++)
-                    <td style="width: 16.66%">&nbsp;</td>
-                @endfor
-            </tr>
+            @if($dados->disciplinasLivres->isNotEmpty())
+                @php
+                    // Ordenar por status: A, EQ, D, MA, vazio
+                    $disciplinasOrdenadasLivres = $dados->disciplinasLivres->sortBy(function($disc) {
+                        if ($disc['rstfim'] === 'A') return 1;
+                        if (str_starts_with($disc['rstfim'] ?? '', 'EQ')) return 2;
+                        if ($disc['rstfim'] === 'D') return 3;
+                        if ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) return 4;
+                        return 5; // pendente
+                    });
+                @endphp
+                @foreach($disciplinasOrdenadasLivres->chunk(6) as $chunk)
+                    <tr>
+                        @foreach($chunk as $disc)
+                            @php
+                                $statusClass = 'pendente';
+                                $statusLabel = '';
+
+                                if ($disc['rstfim'] === 'A') {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'A';
+                                } elseif ($disc['rstfim'] === 'D') {
+                                    $statusClass = 'dispensada';
+                                    $statusLabel = 'D';
+                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
+                                    $statusClass = 'cursando';
+                                    $statusLabel = 'MA';
+                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'EQ';
+                                }
+                            @endphp
+                            <td style="width: 16.66%">
+                                <div class="disciplina-item {{ $statusClass }}">
+                                    <div>
+                                        <span class="disciplina-codigo">{{ $disc['coddis'] }}</span>
+                                        <span class="disciplina-creditos">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</span>
+                                    </div>
+                                    @if($statusLabel || !empty($disc['codtur']) || !empty($disc['discrl']))
+                                        <div class="disciplina-turma">
+                                            @if(!empty($disc['codtur']))
+                                                {{ $disc['codtur'] }}
+                                            @endif
+                                            @if(!empty($disc['discrl']))
+                                                [{{ $disc['discrl'] }}]
+                                            @endif
+                                            @if($statusLabel)
+                                                <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                        @endforeach
+                        {{-- Fill remaining cells in this row --}}
+                        @for($i = $chunk->count(); $i < 6; $i++)
+                            <td style="width: 16.66%">&nbsp;</td>
+                        @endfor
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="6" style="text-align: center; font-style: italic; padding: 6px;">{{ __('No free elective courses completed') }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
     </div>
@@ -597,11 +727,71 @@
     <div class="section-title">{{ __('Out of Curriculum Courses') }}</div>
     <table class="simple-table">
         <tbody>
-            <tr>
-                @for($i = 0; $i < 6; $i++)
-                    <td style="width: 16.66%">&nbsp;</td>
-                @endfor
-            </tr>
+            @if($dados->disciplinasExtraCurriculares->isNotEmpty())
+                @php
+                    // Ordenar por status: A, EQ, D, MA, vazio
+                    $disciplinasOrdenadasExtra = $dados->disciplinasExtraCurriculares->sortBy(function($disc) {
+                        if ($disc['rstfim'] === 'A') return 1;
+                        if (str_starts_with($disc['rstfim'] ?? '', 'EQ')) return 2;
+                        if ($disc['rstfim'] === 'D') return 3;
+                        if ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) return 4;
+                        return 5; // pendente
+                    });
+                @endphp
+                @foreach($disciplinasOrdenadasExtra->chunk(6) as $chunk)
+                    <tr>
+                        @foreach($chunk as $disc)
+                            @php
+                                $statusClass = 'pendente';
+                                $statusLabel = '';
+
+                                if ($disc['rstfim'] === 'A') {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'A';
+                                } elseif ($disc['rstfim'] === 'D') {
+                                    $statusClass = 'dispensada';
+                                    $statusLabel = 'D';
+                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
+                                    $statusClass = 'cursando';
+                                    $statusLabel = 'MA';
+                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = 'EQ';
+                                }
+                            @endphp
+                            <td style="width: 16.66%">
+                                <div class="disciplina-item {{ $statusClass }}">
+                                    <div>
+                                        <span class="disciplina-codigo">{{ $disc['coddis'] }}</span>
+                                        <span class="disciplina-creditos">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</span>
+                                    </div>
+                                    @if($statusLabel || !empty($disc['codtur']) || !empty($disc['discrl']))
+                                        <div class="disciplina-turma">
+                                            @if(!empty($disc['codtur']))
+                                                {{ $disc['codtur'] }}
+                                            @endif
+                                            @if(!empty($disc['discrl']))
+                                                [{{ $disc['discrl'] }}]
+                                            @endif
+                                            @if($statusLabel)
+                                                <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                        @endforeach
+                        {{-- Fill remaining cells in this row --}}
+                        @for($i = $chunk->count(); $i < 6; $i++)
+                            <td style="width: 16.66%">&nbsp;</td>
+                        @endfor
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="6" style="text-align: center; font-style: italic; padding: 6px;">{{ __('No courses outside curriculum') }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
     </div>
