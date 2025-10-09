@@ -20,7 +20,7 @@ class EvolucaoDTO
      * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasEletivas  Elective courses completed
      * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasLivres  Free choice courses completed
      * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasExtraCurriculares  Extra-curricular courses
-     * @param  array<int, Collection>  $disciplinasPorSemestre  Mandatory courses organized by ideal semester
+     * @param  array<int, Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string|null, notfim: float|null, codtur: string|null, discrl: string|null, stamtr: string|null}>>  $disciplinasPorSemestre  Mandatory courses organized by ideal semester
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosObrigatorios  Mandatory credits (completed and required, separated by type)
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosEletivos  Elective credits (completed and required, separated by type)
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosLivres  Free choice credits (completed and required, separated by type)
