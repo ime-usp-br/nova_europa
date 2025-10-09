@@ -46,11 +46,6 @@ class EvolucaoService
                 throw new \InvalidArgumentException(__('Student must have a valid codpes'));
             }
 
-            Log::info(__('Processing student evolution'), [
-                'codpes' => $aluno->codpes,
-                'codcrl' => $codcrl,
-            ]);
-
             $alunoData = $this->replicadoService->buscarAluno($aluno->codpes);
             $curriculoData = $this->replicadoService->buscarGradeCurricular($codcrl);
 
@@ -59,16 +54,6 @@ class EvolucaoService
             }
 
             $historico = $this->replicadoService->buscarHistorico($aluno->codpes, $alunoData['codpgm']);
-
-            // DEBUG: Check if codtur is present in raw historico data
-            Log::info('Raw historico data from Replicado', [
-                'total_records' => $historico->count(),
-                'cursando_disciplines' => $historico->filter(fn($d) => $d['rstfim'] === null)->map(fn($d) => [
-                    'coddis' => $d['coddis'],
-                    'codtur' => $d['codtur'] ?? 'NULL',
-                    'rstfim' => $d['rstfim'] ?? 'NULL',
-                ])->toArray()
-            ]);
 
             [
                 'obrigatorias' => $disciplinasObrigatorias,
@@ -102,6 +87,7 @@ class EvolucaoService
             );
 
             $semestreEstagio = $this->calcularSemestreEstagio(
+                $alunoData['dtainivin'],
                 $creditosObrigatorios,
                 $creditosEletivos,
                 $creditosLivres,
@@ -117,22 +103,6 @@ class EvolucaoService
             } elseif ($alunoData['codcur'] == 45052) {
                 $trilhas = $this->validarTrilhas($codcrl, $historico);
             }
-
-            Log::info(__('Student evolution processed successfully'), [
-                'codpes' => $aluno->codpes,
-                'codcrl' => $codcrl,
-            ]);
-
-            // DEBUG: Check if codtur is preserved after classification
-            $cursandoObrigatorias = $disciplinasObrigatorias->filter(fn($d) => $d['rstfim'] === null);
-            Log::info('Cursando disciplines after classification', [
-                'count' => $cursandoObrigatorias->count(),
-                'disciplines' => $cursandoObrigatorias->map(fn($d) => [
-                    'coddis' => $d['coddis'],
-                    'codtur' => $d['codtur'] ?? 'NULL',
-                    'rstfim' => $d['rstfim'] ?? 'NULL',
-                ])->toArray()
-            ]);
 
             // Organize mandatory courses by semester for grid display
             $disciplinasPorSemestre = $this->organizarDisciplinasPorSemestre(
@@ -218,11 +188,20 @@ class EvolucaoService
                 continue;
             }
 
+            // Try exact match first (coddis + verdis)
             $disciplinaGrade = $gradeCurricular->first(function ($disc) use ($cursada) {
                 return $disc['coddis'] === $cursada['coddis'] && $disc['verdis'] === $cursada['verdis'];
             });
 
+            // If no exact match, try matching by coddis only (different version of same course)
+            if (! $disciplinaGrade) {
+                $disciplinaGrade = $gradeCurricular->first(function ($disc) use ($cursada) {
+                    return $disc['coddis'] === $cursada['coddis'];
+                });
+            }
+
             if ($disciplinaGrade) {
+                /** @var array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $disciplinaProcessada */
                 $disciplinaProcessada = [
                     'coddis' => (string) $cursada['coddis'],
                     'verdis' => (int) $cursada['verdis'],
@@ -231,9 +210,9 @@ class EvolucaoService
                     'cretrb' => (int) $cursada['cretrb'],
                     'rstfim' => (string) $cursada['rstfim'],
                     'notfim' => $cursada['notfim'] !== null ? (float) $cursada['notfim'] : null,
-                    'codtur' => (string) ($cursada['codtur'] ?? ''),
-                    'discrl' => (string) ($cursada['discrl'] ?? ''),
-                    'stamtr' => (string) ($cursada['stamtr'] ?? ''),
+                    'codtur' => (string) $cursada['codtur'],
+                    'discrl' => (string) $cursada['discrl'],
+                    'stamtr' => (string) $cursada['stamtr'],
                 ];
 
                 switch ($disciplinaGrade['tipobg']) {
@@ -248,7 +227,8 @@ class EvolucaoService
                         break;
                 }
             } else {
-                $disciplinasExtraCurriculares->push([
+                /** @var array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $disciplinaExtra */
+                $disciplinaExtra = [
                     'coddis' => (string) $cursada['coddis'],
                     'verdis' => (int) $cursada['verdis'],
                     'nomdis' => (string) $cursada['nomdis'],
@@ -256,10 +236,12 @@ class EvolucaoService
                     'cretrb' => (int) $cursada['cretrb'],
                     'rstfim' => (string) $cursada['rstfim'],
                     'notfim' => $cursada['notfim'] !== null ? (float) $cursada['notfim'] : null,
-                    'codtur' => (string) ($cursada['codtur'] ?? ''),
-                    'discrl' => (string) ($cursada['discrl'] ?? ''),
-                    'stamtr' => (string) ($cursada['stamtr'] ?? ''),
-                ]);
+                    'codtur' => (string) $cursada['codtur'],
+                    'discrl' => (string) $cursada['discrl'],
+                    'stamtr' => (string) $cursada['stamtr'],
+                ];
+
+                $disciplinasExtraCurriculares->push($disciplinaExtra);
             }
         }
 
@@ -277,12 +259,12 @@ class EvolucaoService
      * Attempts to promote extra-curricular courses to their appropriate
      * categories if they fulfill equivalence requirements.
      *
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasObrigatorias
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasEletivas
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasLivres
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasExtraCurriculares
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasObrigatorias
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasEletivas
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasLivres
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasExtraCurriculares
      * @param  Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>  $gradeCurricular
-     * @return array{obrigatorias: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>, eletivas: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>, livres: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>, extra_curriculares: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>}
+     * @return array{obrigatorias: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>, eletivas: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>, livres: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>, extra_curriculares: Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>}
      */
     private function processarEquivalencias(
         Collection $disciplinasObrigatorias,
@@ -320,6 +302,7 @@ class EvolucaoService
                     });
 
                     if ($todasCumpridas) {
+                        /** @var array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $disciplinaPromovida */
                         $disciplinaPromovida = [
                             'coddis' => $disciplinaGrade['coddis'],
                             'verdis' => $disciplinaGrade['verdis'],
@@ -328,6 +311,9 @@ class EvolucaoService
                             'cretrb' => $disciplinaGrade['cretrb'],
                             'rstfim' => 'EQUIVALENTE',
                             'notfim' => null,
+                            'codtur' => '',
+                            'discrl' => '',
+                            'stamtr' => '',
                         ];
 
                         switch ($disciplinaGrade['tipobg']) {
@@ -388,17 +374,23 @@ class EvolucaoService
      * - Créditos Aula = Carga Horária Aula ÷ 15
      * - Créditos Trabalho = Carga Horária Trabalho ÷ 30
      *
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinas
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinas
      * @param  array{curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>}  $curriculoData
      * @param  string  $tipo  'O', 'C', or 'L'
      * @return array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}
      */
     private function calcularCreditos(Collection $disciplinas, array $curriculoData, string $tipo): array
     {
-        $sumAula = $disciplinas->sum('creaul');
+        // Filter only completed courses (A or D) - exclude currently enrolled (MA/null/'')
+        $disciplinasCompletas = $disciplinas->filter(function ($disc) {
+            return in_array($disc['rstfim'], ['A', 'D'], true)
+                || str_starts_with((string) $disc['rstfim'], 'EQ');
+        });
+
+        $sumAula = $disciplinasCompletas->sum('creaul');
         $creditosAula = is_numeric($sumAula) ? (int) $sumAula : 0;
 
-        $sumTrabalho = $disciplinas->sum('cretrb');
+        $sumTrabalho = $disciplinasCompletas->sum('cretrb');
         $creditosTrabalho = is_numeric($sumTrabalho) ? (int) $sumTrabalho : 0;
 
         $curriculo = $curriculoData['curriculo'];
@@ -471,75 +463,45 @@ class EvolucaoService
     }
 
     /**
-     * Calculate internship semester based on credit completion and enrollment status.
+     * Calculate internship semester based on enrollment time.
      *
-     * Implements the complex business rules for determining eligibility semester
-     * for internship, which may differ from the standard calculated semester.
+     * Calculates the current semester the student is in based on the time elapsed
+     * since their enrollment date (dtainivin), following the legacy system logic.
      *
+     * @param  string|null  $dtainivin  Student enrollment start date
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosObrigatorios
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosEletivos
      * @param  array{aula: int, trabalho: int, exigidos_aula: int, exigidos_trabalho: int}  $creditosLivres
      * @param  array{curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>}  $curriculoData
-     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null}>  $disciplinasObrigatorias
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasObrigatorias
      */
     private function calcularSemestreEstagio(
+        ?string $dtainivin,
         array $creditosObrigatorios,
         array $creditosEletivos,
         array $creditosLivres,
         array $curriculoData,
         Collection $disciplinasObrigatorias
     ): int {
-        $totalConcluidos = ($creditosObrigatorios['aula'] + $creditosObrigatorios['trabalho'])
-            + ($creditosEletivos['aula'] + $creditosEletivos['trabalho'])
-            + ($creditosLivres['aula'] + $creditosLivres['trabalho']);
-
-        $totalExigidos = ($creditosObrigatorios['exigidos_aula'] + $creditosObrigatorios['exigidos_trabalho'])
-            + ($creditosEletivos['exigidos_aula'] + $creditosEletivos['exigidos_trabalho'])
-            + ($creditosLivres['exigidos_aula'] + $creditosLivres['exigidos_trabalho']);
-
-        if ($totalExigidos === 0) {
+        // If no enrollment date available, default to semester 1
+        if (empty($dtainivin)) {
             return 1;
         }
 
-        $curriculo = $curriculoData['curriculo'];
-        $duracaoIdealValue = $curriculo['duridlcur'] ?? 10;
-        $duracaoIdeal = is_numeric($duracaoIdealValue) ? (int) $duracaoIdealValue : 10;
-        $semestreBase = (int) floor((($totalConcluidos / $totalExigidos) * $duracaoIdeal) + 1);
-        $semestreBase = (int) min($semestreBase, $duracaoIdeal);
+        // Calculate semester based on time elapsed since enrollment (legacy system logic)
+        $inicio = \Carbon\Carbon::parse($dtainivin);
+        $hoje = \Carbon\Carbon::now();
 
-        $progresso = $semestreBase / $duracaoIdeal;
+        // Calculate semester based on academic year periods
+        $anoInicio = $inicio->year;
+        $semestreInicio = $inicio->month <= 6 ? 1 : 2;
+        $anoAtual = $hoje->year;
+        $semestreAtual = $hoje->month <= 6 ? 1 : 2;
 
-        if ($progresso >= 0.875) {
-            $semestreAtual = (int) date('n') <= 6 ? 1 : 2;
+        // Calculate total semesters: (year difference * 2) + (semester difference) + 1
+        $semestreCalculado = (($anoAtual - $anoInicio) * 2) + ($semestreAtual - $semestreInicio) + 1;
 
-            $disciplinasObrigatoriasFaltantes = $curriculoData['disciplinas']
-                ->filter(fn ($disc) => $disc['tipobg'] === 'O')
-                ->reject(function ($disc) use ($disciplinasObrigatorias) {
-                    return $disciplinasObrigatorias->contains(function ($cursada) use ($disc) {
-                        return $cursada['coddis'] === $disc['coddis'];
-                    });
-                });
-
-            $temMatriculaApropriada = $disciplinasObrigatoriasFaltantes->isEmpty();
-
-            if ($semestreAtual === 1) {
-                $temObrigatoriaImpar = $disciplinasObrigatoriasFaltantes->contains(fn ($disc) => $disc['numsemidl'] % 2 === 1);
-                if (! $temObrigatoriaImpar || $temMatriculaApropriada) {
-                    $semestreBase--;
-                }
-            } else {
-                $temObrigatoriaPar = $disciplinasObrigatoriasFaltantes->contains(fn ($disc) => $disc['numsemidl'] % 2 === 0);
-                if (! $temObrigatoriaPar || $temMatriculaApropriada) {
-                    $semestreBase--;
-                }
-            }
-
-            if ($semestreBase === $duracaoIdeal && ! $disciplinasObrigatoriasFaltantes->isEmpty()) {
-                $semestreBase--;
-            }
-        }
-
-        return (int) max($semestreBase, 1);
+        return (int) max($semestreCalculado, 1);
     }
 
     /**
@@ -667,9 +629,9 @@ class EvolucaoService
      * contains the courses that should be taken in that semester according to
      * the curriculum structure.
      *
-     * @param  Collection  $disciplinasCursadas  Completed mandatory courses
-     * @param  Collection  $disciplinasGrade  All curriculum courses with semester info
-     * @return array<int, Collection> Array indexed by semester number
+     * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasCursadas  Completed mandatory courses
+     * @param  Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>  $disciplinasGrade  All curriculum courses with semester info
+     * @return array<int, Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string|null, notfim: float|null, codtur: string|null, discrl: string|null, stamtr: string|null}>> Array indexed by semester number
      */
     private function organizarDisciplinasPorSemestre(Collection $disciplinasCursadas, Collection $disciplinasGrade): array
     {
@@ -677,9 +639,13 @@ class EvolucaoService
         $disciplinasObrigatoriasGrade = $disciplinasGrade->where('tipobg', 'O');
 
         // Create a map of completed courses by coddis+verdis for quick lookup
-        $cursadasMap = $disciplinasCursadas->keyBy(fn ($disc) => $disc['coddis'].'_'.$disc['verdis']);
+        $cursadasMap = $disciplinasCursadas->keyBy(
+            /** @param array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $disc */
+            fn (array $disc): string => $disc['coddis'].'_'.$disc['verdis']
+        );
 
         // Initialize array for semesters 1-8 (most common case)
+        /** @var array<int, Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string|null, notfim: float|null, codtur: string|null, discrl: string|null, stamtr: string|null}>> $porSemestre */
         $porSemestre = [];
         for ($i = 1; $i <= 8; $i++) {
             $porSemestre[$i] = collect();
@@ -687,6 +653,7 @@ class EvolucaoService
 
         // Iterate over curriculum (not over completed courses) to include pending courses
         foreach ($disciplinasObrigatoriasGrade as $discGrade) {
+            /** @var array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int} $discGrade */
             $semestre = (int) $discGrade['numsemidl'];
 
             // Extend array if course is in semester > 8
@@ -695,13 +662,35 @@ class EvolucaoService
             }
 
             if ($semestre >= 1) {
-                // Check if course was completed
+                // Check if course was completed - try exact match first
                 $chave = $discGrade['coddis'].'_'.$discGrade['verdis'];
                 $cursada = $cursadasMap->get($chave);
 
+                // If no exact match, try matching by coddis only (different version)
+                if (! $cursada) {
+                    $cursada = $disciplinasCursadas->first(
+                        /** @param array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $disc */
+                        function (array $disc) use ($discGrade): bool {
+                            return $disc['coddis'] === $discGrade['coddis'];
+                        }
+                    );
+                }
+
                 if ($cursada) {
+                    /** @var array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string} $cursada */
                     // Completed course - add with all data
-                    $porSemestre[$semestre]->push($cursada);
+                    $porSemestre[$semestre]->push([
+                        'coddis' => $cursada['coddis'],
+                        'verdis' => $cursada['verdis'],
+                        'nomdis' => $cursada['nomdis'],
+                        'creaul' => $cursada['creaul'],
+                        'cretrb' => $cursada['cretrb'],
+                        'rstfim' => $cursada['rstfim'],
+                        'notfim' => $cursada['notfim'],
+                        'codtur' => $cursada['codtur'] !== '' ? $cursada['codtur'] : null,
+                        'discrl' => $cursada['discrl'] !== '' ? $cursada['discrl'] : null,
+                        'stamtr' => $cursada['stamtr'] !== '' ? $cursada['stamtr'] : null,
+                    ]);
                 } else {
                     // Pending course - add with rstfim = null
                     $porSemestre[$semestre]->push([
@@ -727,7 +716,7 @@ class EvolucaoService
      * Check if a course status is relevant for PDF display.
      *
      * Accepts:
-     * - null: Currently enrolled courses (rstfim not yet assigned)
+     * - null or empty string: Currently enrolled courses (rstfim not yet assigned)
      * - A: Approved
      * - D: Waived (Aproveitamento de Estudos)
      * - MA: Enrolled (if present in database)
@@ -739,8 +728,9 @@ class EvolucaoService
      */
     private function isStatusRelevante(?string $rstfim): bool
     {
-        // Accept null (currently enrolled) along with approved, waived, and equivalences
+        // Accept null or empty string (currently enrolled) along with approved, waived, and equivalences
         return $rstfim === null
+            || $rstfim === ''
             || in_array($rstfim, ['A', 'D', 'MA'], true)
             || str_starts_with((string) $rstfim, 'EQ');
     }

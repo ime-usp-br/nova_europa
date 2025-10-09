@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Exceptions\ReplicadoServiceException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use PDOException;
 use Throwable;
 use Uspdev\Replicado\DB as ReplicadoDB;
@@ -55,27 +54,30 @@ class ReplicadoService
                 ORDER BY H.dtaini DESC
             ";
 
-            /** @var array<string, mixed>|false $alunoData */
-            $alunoData = ReplicadoDB::fetch($query, ['codpes' => $codpes]);
+            /** @var array<string, mixed>|false $rawAlunoData */
+            $rawAlunoData = ReplicadoDB::fetch($query, ['codpes' => $codpes]);
 
-            if (empty($alunoData)) {
+            if (empty($rawAlunoData)) {
                 throw ReplicadoServiceException::notFound(__('Student'), $codpes);
             }
+
+            /** @var array{codpes: int|string|null, nompes: string|null, dtanas: string|null, codcur: int|string|null, nomcur: string|null, codhab: int|string|null, nomhab: string|null, dtainivin: string|null, codpgm: int|string|null, stapgm: string|null} $alunoData */
+            $alunoData = $rawAlunoData;
 
             $email = Pessoa::email($codpes);
 
             return [
                 'codpes' => (int) $alunoData['codpes'],
-                'nompes' => $alunoData['nompes'] ? (string) $alunoData['nompes'] : null,
-                'dtanas' => $alunoData['dtanas'] ? (string) $alunoData['dtanas'] : null,
+                'nompes' => ! empty($alunoData['nompes']) ? (string) $alunoData['nompes'] : null,
+                'dtanas' => ! empty($alunoData['dtanas']) ? (string) $alunoData['dtanas'] : null,
                 'email' => $email ?: null,
-                'codcur' => $alunoData['codcur'] ? (int) $alunoData['codcur'] : null,
-                'nomcur' => $alunoData['nomcur'] ? (string) $alunoData['nomcur'] : null,
-                'codhab' => $alunoData['codhab'] ? (int) $alunoData['codhab'] : null,
-                'nomhab' => $alunoData['nomhab'] ? (string) $alunoData['nomhab'] : null,
-                'dtainivin' => $alunoData['dtainivin'] ? (string) $alunoData['dtainivin'] : null,
-                'codpgm' => $alunoData['codpgm'] ? (int) $alunoData['codpgm'] : null,
-                'stapgm' => $alunoData['stapgm'] ? (string) $alunoData['stapgm'] : null,
+                'codcur' => ! empty($alunoData['codcur']) ? (int) $alunoData['codcur'] : null,
+                'nomcur' => ! empty($alunoData['nomcur']) ? (string) $alunoData['nomcur'] : null,
+                'codhab' => ! empty($alunoData['codhab']) ? (int) $alunoData['codhab'] : null,
+                'nomhab' => ! empty($alunoData['nomhab']) ? (string) $alunoData['nomhab'] : null,
+                'dtainivin' => ! empty($alunoData['dtainivin']) ? (string) $alunoData['dtainivin'] : null,
+                'codpgm' => ! empty($alunoData['codpgm']) ? (int) $alunoData['codpgm'] : null,
+                'stapgm' => ! empty($alunoData['stapgm']) ? (string) $alunoData['stapgm'] : null,
             ];
 
         } catch (PDOException $e) {
@@ -99,7 +101,7 @@ class ReplicadoService
      *
      * @param  int  $codpes  Student USP code (NUSP)
      * @param  int  $codpgm  Program code
-     * @return Collection<int, array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretra: int}> Collection of academic history records
+     * @return Collection<int, array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretrb: int}> Collection of academic history records
      *
      * @throws ReplicadoServiceException When database error occurs
      */
@@ -133,7 +135,7 @@ class ReplicadoService
                 'codpgm' => $codpgm,
             ];
 
-            /** @var array<int, array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretra: int}> $result */
+            /** @var array<int, array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretrb: int}> $result */
             $result = ReplicadoDB::fetchAll($query, $params);
 
             return collect($result);
@@ -153,7 +155,7 @@ class ReplicadoService
      * and all disciplines that compose the curriculum.
      *
      * @param  string  $codcrl  Curriculum code
-     * @return array{curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretra: int}>} Curriculum data
+     * @return array{curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>} Curriculum data
      *
      * @throws ReplicadoServiceException When curriculum not found or database error occurs
      */
@@ -191,7 +193,7 @@ class ReplicadoService
                 ORDER BY G.numsemidl, D.nomdis
             ';
 
-            /** @var array<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretra: int}> $disciplinas */
+            /** @var array<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}> $disciplinas */
             $disciplinas = ReplicadoDB::fetchAll($disciplinasQuery, ['codcrl' => $codcrl]);
 
             return [
