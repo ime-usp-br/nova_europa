@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\ReplicadoServiceException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use PDOException;
 use Throwable;
 use Uspdev\Replicado\DB as ReplicadoDB;
@@ -119,11 +120,11 @@ class ReplicadoService
                     H.dtavalfim, D.nomdis, D.creaul, D.cretrb
                 FROM HISTESCOLARGR H
                 INNER JOIN DISCIPLINAGR D ON H.coddis = D.coddis AND H.verdis = D.verdis
-                INNER JOIN TURMAGR AS T ON H.coddis = T.coddis AND H.verdis = T.verdis AND H.codtur = T.codtur
+                LEFT JOIN TURMAGR AS T ON H.coddis = T.coddis AND H.verdis = T.verdis AND H.codtur = T.codtur
                 WHERE H.codpes = CONVERT(int, :codpes)
                   AND H.codpgm = CONVERT(int, :codpgm)
                   AND H.stamtr = 'M'
-                  AND T.tiptur <> 'Prática Vinculada'
+                  AND (T.tiptur IS NULL OR T.tiptur <> 'Prática Vinculada')
                 ORDER BY H.coddis ASC
             ";
 
