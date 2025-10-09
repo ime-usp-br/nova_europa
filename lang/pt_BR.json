@@ -337,5 +337,11 @@
     "Course code is required to generate PDF": "Código do curso é obrigatório para gerar PDF",
     "No courses outside curriculum": "Nenhuma disciplina fora do currículo",
     ":period period": ":periodº período",
-    "Work Credits": "Créditos Trabalho"
+    "Work Credits": "Créditos Trabalho",
+    "Complementary Information": "Informações Complementares",
+    "Statistics/Probability": "Estatística/Probabilidade",
+    "Sciences": "Ciências",
+    "Tracks": "Trilhas",
+    "Core Track Completed": "Núcleo da Trilha Cumprido",
+    "Track Completed": "Trilha Cumprida"
 }

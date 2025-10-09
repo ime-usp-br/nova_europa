@@ -561,7 +561,7 @@ class EvolucaoService
      * Validate Trilhas requirements for Ciência da Computação (45052).
      *
      * @param  Collection<int, covariant array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretrb: int}>  $historico
-     * @return Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, tipo: string, regra: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>
+     * @return Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>
      */
     private function validarTrilhas(string $codcrl, Collection $historico): Collection
     {
@@ -570,7 +570,7 @@ class EvolucaoService
             ->get();
 
         return $trilhas->map(function ($trilha) use ($historico) {
-            /** @var Collection<int, array{coddis: string, nomdis: string, tipo: string, regra: string}> $disciplinasCursadas */
+            /** @var Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}> $disciplinasCursadas */
             $disciplinasCursadas = collect();
             /** @var Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}> $regrasCumpridas */
             $regrasCumpridas = collect();
@@ -588,6 +588,10 @@ class EvolucaoService
                         $disciplinasCursadas->push([
                             'coddis' => (string) $cursada['coddis'],
                             'nomdis' => (string) $cursada['nomdis'],
+                            'creaul' => (int) $cursada['creaul'],
+                            'cretrb' => (int) $cursada['cretrb'],
+                            'codtur' => (string) $cursada['codtur'],
+                            'rstfim' => (string) $cursada['rstfim'],
                             'tipo' => (string) $trilhaDisciplina->tipo,
                             'regra' => (string) $regra->nome_regra,
                         ]);
