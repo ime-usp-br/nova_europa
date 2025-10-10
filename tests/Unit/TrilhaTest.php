@@ -18,7 +18,7 @@ class TrilhaTest extends TestCase
 
         $expected = [
             'nome',
-            'codcrl',
+            'codcur',
         ];
 
         $this->assertEquals($expected, $trilha->getFillable());
@@ -44,11 +44,11 @@ class TrilhaTest extends TestCase
     {
         $trilha = new Trilha([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $this->assertInstanceOf(Trilha::class, $trilha);
         $this->assertEquals('Ciência de Dados', $trilha->nome);
-        $this->assertEquals('45052', $trilha->codcrl);
+        $this->assertEquals('45052', $trilha->codcur);
     }
 }

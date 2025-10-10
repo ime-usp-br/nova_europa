@@ -27,7 +27,7 @@ class EvolucaoDTO
      * @param  array{obrigatorios: float, eletivos: float, livres: float, total: float}  $porcentagensConsolidacao  Completion percentages
      * @param  int  $semestreEstagio  Calculated internship semester
      * @param  Collection<int, array{bloco_id: int, nome: string, creditos_obtidos: array{aula: int, trabalho: int}, creditos_exigidos: array{aula: int, trabalho: int}, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int}>}>|null  $blocos  Blocos validation (45024 only)
-     * @param  Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>|null  $trilhas  Trilhas validation (45052 only)
+     * @param  Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}>, todas_disciplinas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>|null  $trilhas  Trilhas validation (45052 only)
      */
     public function __construct(
         public array $aluno,

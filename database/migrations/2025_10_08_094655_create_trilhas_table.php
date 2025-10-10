@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('trilhas', function (Blueprint $table) {
             $table->id();
             $table->string('nome');
-            $table->string('codcrl')->index();
+            $table->string('codcur')->index();
             $table->timestamps();
         });
     }

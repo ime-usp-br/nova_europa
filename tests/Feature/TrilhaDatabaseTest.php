@@ -19,12 +19,12 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $this->assertDatabaseHas('trilhas', [
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $this->assertInstanceOf(Trilha::class, $trilha);
@@ -38,7 +38,7 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $regra = TrilhaRegra::create([
@@ -63,7 +63,7 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $regra = TrilhaRegra::create([
@@ -94,7 +94,7 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         TrilhaRegra::create([
@@ -123,7 +123,7 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $regra = TrilhaRegra::create([
@@ -160,7 +160,7 @@ class TrilhaDatabaseTest extends TestCase
     {
         $trilha = Trilha::create([
             'nome' => 'Ciência de Dados',
-            'codcrl' => '45052',
+            'codcur' => '45052',
         ]);
 
         $regra = TrilhaRegra::create([

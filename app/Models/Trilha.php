@@ -17,7 +17,7 @@ class Trilha extends Model implements Auditable
      */
     protected $fillable = [
         'nome',
-        'codcrl',
+        'codcur',
     ];
 
     /**

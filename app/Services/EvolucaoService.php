@@ -100,8 +100,8 @@ class EvolucaoService
 
             if ($alunoData['codcur'] == 45024) {
                 $blocos = $this->validarBlocos($codcrl, $historico);
-            } elseif ($alunoData['codcur'] == 45052) {
-                $trilhas = $this->validarTrilhas($codcrl, $historico);
+            } elseif ($alunoData['codcur'] == 45052 && $alunoData['codcur'] !== null) {
+                $trilhas = $this->validarTrilhas($alunoData['codcur'], $historico);
             }
 
             // Organize mandatory courses by semester for grid display
@@ -561,11 +561,11 @@ class EvolucaoService
      * Validate Trilhas requirements for Ciência da Computação (45052).
      *
      * @param  Collection<int, covariant array{codpes: int|string, codpgm: int|string, coddis: string, verdis: int, codtur: string, notfim: float|null, frqfim: float|null, rstfim: string, discrl: string, stamtr: string, dtavalfim: string|null, nomdis: string, creaul: int, cretrb: int}>  $historico
-     * @return Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>
+     * @return Collection<int, array{trilha_id: int, nome: string, nucleo_cumprido: bool, trilha_completa: bool, disciplinas_cursadas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string, tipo: string, regra: string}>, todas_disciplinas: Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string}>, regras_cumpridas: Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}>}>
      */
-    private function validarTrilhas(string $codcrl, Collection $historico): Collection
+    private function validarTrilhas(int $codcur, Collection $historico): Collection
     {
-        $trilhas = Trilha::where('codcrl', $codcrl)
+        $trilhas = Trilha::where('codcur', (string) $codcur)
             ->with(['regras.disciplinas'])
             ->get();
 
@@ -574,6 +574,9 @@ class EvolucaoService
             $disciplinasCursadas = collect();
             /** @var Collection<int, array{regra_id: int, nome_regra: string, num_exigidas: int, num_cumpridas: int, cumprida: bool}> $regrasCumpridas */
             $regrasCumpridas = collect();
+            /** @var Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string}> $todasDisciplinas */
+            $todasDisciplinas = collect();
+            $disciplinasUnicas = collect();
 
             foreach ($trilha->regras as $regra) {
                 $disciplinasRegraCompletas = 0;
@@ -598,6 +601,31 @@ class EvolucaoService
 
                         $disciplinasRegraCompletas++;
                     }
+
+                    // Add ALL disciplines (completed or not) to todasDisciplinas, avoiding duplicates
+                    if (! $disciplinasUnicas->has($trilhaDisciplina->coddis)) {
+                        $disciplinasUnicas->put($trilhaDisciplina->coddis, true);
+
+                        if ($cursada) {
+                            $todasDisciplinas->push([
+                                'coddis' => (string) $cursada['coddis'],
+                                'nomdis' => (string) $cursada['nomdis'],
+                                'creaul' => (int) $cursada['creaul'],
+                                'cretrb' => (int) $cursada['cretrb'],
+                                'codtur' => (string) $cursada['codtur'],
+                                'rstfim' => (string) $cursada['rstfim'],
+                            ]);
+                        } else {
+                            $todasDisciplinas->push([
+                                'coddis' => (string) $trilhaDisciplina->coddis,
+                                'nomdis' => '',
+                                'creaul' => 0,
+                                'cretrb' => 0,
+                                'codtur' => '',
+                                'rstfim' => '',
+                            ]);
+                        }
+                    }
                 }
 
                 $regraCumprida = $disciplinasRegraCompletas >= $regra->num_disciplinas_exigidas;
@@ -615,12 +643,34 @@ class EvolucaoService
             $nucleoCumprido = $primeiraRegra !== null && $primeiraRegra['cumprida'];
             $trilhaCompleta = $regrasCumpridas->every(fn ($regra) => $regra['cumprida']);
 
+            // Sort: approved -> dispensed -> enrolled -> pending
+            $todasDisciplinas = $todasDisciplinas->sortBy(function ($disc) {
+                $rstfim = $disc['rstfim'];
+                $codtur = $disc['codtur'];
+
+                if ($rstfim === 'A') {
+                    return 1;
+                }
+                if (str_starts_with($rstfim, 'EQ')) {
+                    return 2;
+                }
+                if ($rstfim === 'D') {
+                    return 3;
+                }
+                if ($rstfim === 'MA' || (empty($rstfim) && ! empty($codtur))) {
+                    return 4;
+                }
+
+                return 5; // pending
+            })->values();
+
             return [
                 'trilha_id' => $trilha->id,
                 'nome' => $trilha->nome,
                 'nucleo_cumprido' => $nucleoCumprido,
                 'trilha_completa' => $trilhaCompleta,
                 'disciplinas_cursadas' => $disciplinasCursadas,
+                'todas_disciplinas' => $todasDisciplinas,
                 'regras_cumpridas' => $regrasCumpridas,
             ];
         });

@@ -16,14 +16,14 @@ class TrilhaSeeder extends Seeder
      */
     public function run(): void
     {
-        $codcrl = '45052'; // Computer Science course code
+        $codcur = '45052'; // Computer Science course code
 
         // ===========================
         // Trilha: Ciência de Dados
         // ===========================
         $trilhaId = DB::table('trilhas')->insertGetId([
             'nome' => 'Ciência de Dados',
-            'codcrl' => $codcrl,
+            'codcur' => $codcur,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -60,7 +60,7 @@ class TrilhaSeeder extends Seeder
         // ===========================
         $trilhaId = DB::table('trilhas')->insertGetId([
             'nome' => 'Inteligência Artificial',
-            'codcrl' => $codcrl,
+            'codcur' => $codcur,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -130,7 +130,7 @@ class TrilhaSeeder extends Seeder
         // ===========================
         $trilhaId = DB::table('trilhas')->insertGetId([
             'nome' => 'Sistemas de Software',
-            'codcrl' => $codcrl,
+            'codcur' => $codcur,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -194,7 +194,7 @@ class TrilhaSeeder extends Seeder
         // ===========================
         $trilhaId = DB::table('trilhas')->insertGetId([
             'nome' => 'Teoria da Computação',
-            'codcrl' => $codcrl,
+            'codcur' => $codcur,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
