@@ -21,11 +21,14 @@ new class extends Component
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
             <div class="flex">
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}" wire:navigate>
-                        <img src="{{ Vite::asset('resources/images/ime/logo-horizontal-simplificada-padrao.png') }}" alt="Logo IME-USP" class="w-20 h-auto block dark:hidden" dusk="ime-logo-light">
-                        <img src="{{ Vite::asset('resources/images/ime/logo-horizontal-simplificada-branca.png') }}" alt="Logo IME-USP" class="w-20 h-auto hidden dark:block" dusk="ime-logo-dark">
+                <!-- Logo IME e Nome do Sistema -->
+                <div class="shrink-0 flex items-center space-x-3">
+                    <a href="{{ route('dashboard') }}" wire:navigate class="flex items-center space-x-3">
+                        <img src="{{ Vite::asset('resources/images/ime/logo-horizontal-simplificada-padrao.png') }}" alt="Logo IME-USP" class="h-auto block dark:hidden" style="width: 56px;" dusk="ime-logo-light">
+                        <img src="{{ Vite::asset('resources/images/ime/logo-horizontal-simplificada-branca.png') }}" alt="Logo IME-USP" class="h-auto hidden dark:block" style="width: 56px;" dusk="ime-logo-dark">
+                        <span class="text-lg font-semibold text-[rgb(20,45,105)] dark:text-white">
+                            {{ config('app.name', 'Nova Europa') }}
+                        </span>
                     </a>
                 </div>
 
@@ -33,6 +36,9 @@ new class extends Component
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('evolucao')" :active="request()->routeIs('evolucao')" wire:navigate>
+                        {{ __('Student Evolution') }}
                     </x-nav-link>
                 </div>
             </div>
@@ -90,6 +96,9 @@ new class extends Component
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
                 {{ __('Dashboard') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('evolucao')" :active="request()->routeIs('evolucao')" wire:navigate>
+                {{ __('Student Evolution') }}
             </x-responsive-nav-link>
         </div>
 
