@@ -25,6 +25,43 @@ fi
 
 chmod -R ugo+rw /.composer
 
+# Install Chrome Headless Shell matching the puppeteer-core version
+# This runs on container startup to ensure version compatibility
+if [ ! -f /home/sail/.cache/puppeteer/.chrome-installed ]; then
+    echo "Installing Chrome Headless Shell for Puppeteer..."
+
+    # Ensure cache directory exists and has correct permissions
+    mkdir -p /home/sail/.cache/puppeteer
+    chown -R sail:sail /home/sail/.cache/puppeteer
+
+    # Get the expected Chrome version from puppeteer-core
+    CHROME_VERSION=$(gosu sail node -e "console.log(require('/var/www/html/node_modules/puppeteer-core/lib/cjs/puppeteer/revisions.js').PUPPETEER_REVISIONS['chrome-headless-shell'])" 2>/dev/null)
+
+    if [ -n "$CHROME_VERSION" ]; then
+        echo "Detected Chrome version: $CHROME_VERSION"
+        gosu sail npx puppeteer browsers install chrome-headless-shell@$CHROME_VERSION
+
+        if [ $? -eq 0 ]; then
+            # Create marker file to avoid reinstalling on every restart
+            gosu sail touch /home/sail/.cache/puppeteer/.chrome-installed
+            echo "Chrome Headless Shell installed successfully"
+        else
+            echo "ERROR: Failed to install Chrome Headless Shell"
+        fi
+    else
+        echo "Warning: Could not detect Chrome version from puppeteer-core"
+        echo "Installing latest version..."
+        gosu sail npx puppeteer browsers install chrome-headless-shell
+
+        if [ $? -eq 0 ]; then
+            gosu sail touch /home/sail/.cache/puppeteer/.chrome-installed
+            echo "Chrome Headless Shell installed successfully"
+        else
+            echo "ERROR: Failed to install Chrome Headless Shell"
+        fi
+    fi
+fi
+
 if [ $# -gt 0 ]; then
     if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
         exec "$@"

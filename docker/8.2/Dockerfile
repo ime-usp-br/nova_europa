@@ -60,6 +60,23 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y yarn \
     && apt-get install -y mysql-client \
     && apt-get install -y postgresql-client-$POSTGRES_VERSION \
+    # Browsershot/Puppeteer: Install Chrome/Chromium dependencies
+    && apt-get install -y \
+       libnss3 \
+       libnspr4 \
+       libatk1.0-0 \
+       libatk-bridge2.0-0 \
+       libcups2 \
+       libdrm2 \
+       libxkbcommon0 \
+       libxcomposite1 \
+       libxdamage1 \
+       libxfixes3 \
+       libxrandr2 \
+       libgbm1 \
+       libasound2t64 \
+       libxtst6 \
+       libxshmfence1 \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -74,6 +91,24 @@ RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.2
 RUN userdel -r ubuntu
 RUN groupadd --force -g $WWWGROUP sail
 RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u 1337 sail
+
+# ============================================
+# Browsershot/Puppeteer Configuration
+# ============================================
+
+# Configure Puppeteer cache directory
+ENV PUPPETEER_CACHE_DIR=/home/sail/.cache/puppeteer
+
+# Create cache directory with correct permissions
+RUN mkdir -p /home/sail/.cache/puppeteer && \
+    chown -R sail:sail /home/sail/.cache
+
+# Install Puppeteer globally (will be used by Browsershot)
+RUN npm install -g puppeteer
+
+# Note: Chrome installation will be done during container startup
+# This ensures the Chrome version matches the puppeteer-core version in package.json
+# See start-container script for the installation logic
 
 COPY start-container /usr/local/bin/start-container
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
