@@ -154,6 +154,10 @@ class ReplicadoService
      * Returns complete curriculum information including basic data
      * and all disciplines that compose the curriculum.
      *
+     * For courses with a basic cycle (codhab = 0), this method automatically
+     * merges the basic cycle disciplines with the specific program disciplines
+     * to provide a unified curriculum view.
+     *
      * @param  string  $codcrl  Curriculum code
      * @return array{curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>} Curriculum data
      *
@@ -168,7 +172,7 @@ class ReplicadoService
 
             $curriculoQuery = '
                 SELECT
-                    codcrl, dtainicrl, dtafimcrl, duridlcur,
+                    codcrl, codcur, codhab, dtainicrl, dtafimcrl, duridlcur,
                     cgahorobgaul, cgahorobgtrb,
                     cgaoptcplaul, cgaoptcpltrb,
                     cgaoptlreaul, cgaoptlretrb
@@ -196,6 +200,66 @@ class ReplicadoService
             /** @var array<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}> $disciplinas */
             $disciplinas = ReplicadoDB::fetchAll($disciplinasQuery, ['codcrl' => $codcrl]);
 
+            // Check if this curriculum has a basic cycle (codhab != 0 means specific program)
+            // For BMA/BMAC courses, we need to merge basic cycle (codhab=0) with specific program
+            $codhab = (int) ($curriculoData['codhab'] ?? 0);
+            $codcur = (int) ($curriculoData['codcur'] ?? 0);
+            $dtainicrl = $curriculoData['dtainicrl'] ?? null;
+
+            if ($codhab !== 0 && $codcur > 0 && $dtainicrl !== null) {
+                // This is a specific program (codhab like 104, 504, etc)
+                // Check for corresponding basic cycle (codhab like 001, 004)
+                $codcrlCicloBasico = $this->construirCodcrlCicloBasico($codcrl);
+
+                // Only search for basic cycle if it's different from the current codcrl
+                // (Avoid searching when already on basic cycle like 004)
+                if ($codcrlCicloBasico !== $codcrl) {
+                    /** @var array<string, mixed>|false $curriculoCicloBasico */
+                    $curriculoCicloBasico = ReplicadoDB::fetch($curriculoQuery, [
+                        'codcrl' => $codcrlCicloBasico,
+                    ]);
+
+                    if ($curriculoCicloBasico) {
+                        // Basic cycle exists, merge its disciplines
+                        /** @var array<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}> $disciplinasCicloBasico */
+                        $disciplinasCicloBasico = ReplicadoDB::fetchAll($disciplinasQuery, ['codcrl' => $curriculoCicloBasico['codcrl']]);
+
+                        // Merge basic cycle disciplines with specific program disciplines
+                        $disciplinas = array_merge($disciplinasCicloBasico, $disciplinas);
+
+                        // Sort by semester and name
+                        usort($disciplinas, function ($a, $b) {
+                            $semCompare = $a['numsemidl'] <=> $b['numsemidl'];
+                            if ($semCompare !== 0) {
+                                return $semCompare;
+                            }
+
+                            return strcmp($a['nomdis'], $b['nomdis']);
+                        });
+
+                        // Sum required credits from both curricula
+                        // cgahorobgaul = Mandatory course load hours (aula)
+                        // cgahorobgtrb = Mandatory work hours (trabalho)
+                        // cgaoptcplaul = Elective course load hours (aula)
+                        // cgaoptcpltrb = Elective work hours (trabalho)
+                        // cgaoptlreaul = Free course load hours (aula)
+                        // cgaoptlretrb = Free work hours (trabalho)
+                        $curriculoData['cgahorobgaul'] = ((int) ($curriculoData['cgahorobgaul'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgahorobgaul'] ?? 0));
+                        $curriculoData['cgahorobgtrb'] = ((int) ($curriculoData['cgahorobgtrb'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgahorobgtrb'] ?? 0));
+                        $curriculoData['cgaoptcplaul'] = ((int) ($curriculoData['cgaoptcplaul'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgaoptcplaul'] ?? 0));
+                        $curriculoData['cgaoptcpltrb'] = ((int) ($curriculoData['cgaoptcpltrb'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgaoptcpltrb'] ?? 0));
+                        $curriculoData['cgaoptlreaul'] = ((int) ($curriculoData['cgaoptlreaul'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgaoptlreaul'] ?? 0));
+                        $curriculoData['cgaoptlretrb'] = ((int) ($curriculoData['cgaoptlretrb'] ?? 0))
+                            + ((int) ($curriculoCicloBasico['cgaoptlretrb'] ?? 0));
+                    }
+                }
+            }
+
             return [
                 'curriculo' => $curriculoData,
                 'disciplinas' => collect($disciplinas),
@@ -207,6 +271,49 @@ class ReplicadoService
         } catch (Throwable $e) {
             throw ReplicadoServiceException::queryFailed('buscarGradeCurricular', $e);
         }
+    }
+
+    /**
+     * Construct basic cycle codcrl from a specific program codcrl.
+     *
+     * Basic cycle has codhab ending in 04 (004 for night, 001 for day).
+     * Specific programs have codhab like 104, 204, 504, etc.
+     *
+     * Examples:
+     * - 450700504251 -> 450700004251 (night cycle: 504 -> 004)
+     * - 450700104241 -> 450700001241 (day cycle: 104 -> 001)
+     *
+     * @param  string  $codcrl  Original curriculum code
+     * @return string Basic cycle curriculum code
+     */
+    private function construirCodcrlCicloBasico(string $codcrl): string
+    {
+        // codcrl format: CCCCCHHHDYY
+        // CCCCC = codcur (5 digits)
+        // HHH = codhab (3 digits, last digit is period indicator: 1=day, 4=night)
+        // D = semester (1 or 2)
+        // YY = year (2 digits)
+        //
+        // Basic cycle pattern:
+        // - Night programs (X04): Replace X with 0 -> 004
+        // - Day programs (X01): Replace X with 0 -> 001
+        //
+        // Example: 45070 0504 251
+        //          codcur ^HHH ^DYY
+        // Becomes: 45070 0004 251 (remove hundreds digit from codhab)
+
+        if (strlen($codcrl) !== 12) {
+            return $codcrl; // Invalid format, return as-is
+        }
+
+        $codcur = substr($codcrl, 0, 5); // CCCCC
+        $anoSemestre = substr($codcrl, 8, 4); // DYY
+
+        // Get last digit of codhab (period indicator: 1=day, 4=night)
+        $periodoIndicador = substr($codcrl, 7, 1); // Position 7 (last digit of codhab)
+
+        // Build basic cycle codcrl: CCCCC + 00 + period + DYY
+        return $codcur.'00'.$periodoIndicador.$anoSemestre;
     }
 
     /**
