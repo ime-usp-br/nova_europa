@@ -77,25 +77,28 @@ new #[Layout('layouts.app')] class extends Component
             //
             // Filtros aplicados:
             // - Apenas programa ATIVO do aluno (P.stapgm = 'A')
-            // - Todas as habilitações deste programa (atuais e passadas)
+            // - Apenas habilitações do aluno (JOIN com HABILPROGGR)
             // - Currículos que estavam vigentes no ingresso OU criados depois
-            // - EXCLUIR ciclo básico (codhab 0, 1, 4) pois será incluído automaticamente pelo sistema
+            // - Esconde ciclo básico (codhab 0/1/4) APENAS se o aluno tem habilitação específica (codhab >= 100)
+            //
+            // IMPORTANTE sobre ciclo básico:
+            // - Cursos BMA/BMAC/BCC têm: ciclo básico (codhab 0/1/4) + habilitações específicas (codhab >= 100)
+            // - Licenciaturas têm: apenas habilitações (codhab 1/2/4), SEM ciclo básico
+            // - Regra: Se aluno tem QUALQUER habilitação com codhab >= 100, esconde codhab 0/1/4
+            //   porque nesses casos 0/1/4 são ciclo básico (será incluído automaticamente pelo sistema)
+            // - Se aluno NÃO tem codhab >= 100, mostra TODOS codhab (incluindo 0/1/4)
+            //   porque são habilitações principais (Licenciaturas, por exemplo)
             //
             // Lógica de datas:
             // Mostra currículos que fazem sentido para o período acadêmico do aluno.
             //
             // Condição: (início <= hoje) E (fim IS NULL OU fim >= ingresso)
             //
-            // Isso significa:
-            // - Currículo começou até hoje (não é futuro demais)
-            // - E não encerrou antes do ingresso do aluno
-            //
             // Exemplos (ingresso = 2020-01-31):
             // ✅ Currículo 2020-2020 (vigente no ingresso)
             // ✅ Currículo 2024-null (criado depois, habilitação nova)
             // ✅ Currículo 2025-2025 (futuro próximo)
             // ❌ Currículo 2015-2019 (encerrou antes do ingresso)
-            // ❌ Currículo com codhab 0, 1 ou 4 (ciclo básico, será incluído automaticamente)
             $query = '
                 SELECT DISTINCT
                     C.codcrl,
@@ -106,9 +109,18 @@ new #[Layout('layouts.app')] class extends Component
                 JOIN CURRICULOGR C ON H.codcur = C.codcur AND H.codhab = C.codhab
                 WHERE P.codpes = CONVERT(int, :codpes)
                     AND P.stapgm = :stapgmAtivo
-                    AND C.codhab NOT IN (0, 1, 4)
                     AND C.dtainicrl <= GETDATE()
                     AND (C.dtafimcrl IS NULL OR C.dtafimcrl >= P.dtaini)
+                    -- Esconde ciclo básico (codhab 0/1/4) APENAS se aluno tem habilitação específica (codhab >= 100)
+                    AND NOT (
+                        C.codhab IN (0, 1, 4)
+                        AND EXISTS (
+                            SELECT 1 FROM HABILPROGGR H2
+                            WHERE H2.codpes = P.codpes
+                              AND H2.codpgm = P.codpgm
+                              AND H2.codhab >= 100
+                        )
+                    )
                 ORDER BY C.dtainicrl DESC
             ';
 
