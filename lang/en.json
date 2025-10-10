@@ -332,5 +332,8 @@
     "Credits": "Credits",
     "Course Requirement Blocks": "Course Requirement Blocks",
     "No courses completed in this block": "No courses completed in this block",
+    "No courses completed in this track": "No courses completed in this track",
+    "Courses completed in this track by the student, including core courses and electives.": "Courses completed in this track by the student, including core courses and electives.",
+    "Track Status": "Track Status",
     "Credits Obtained": "Credits Obtained"
 }

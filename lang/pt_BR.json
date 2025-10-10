@@ -391,5 +391,8 @@
     "Local Login": "Login Local",
     "Course Requirement Blocks": "Blocos de Disciplinas",
     "No courses completed in this block": "Nenhuma disciplina cumprida neste bloco",
+    "No courses completed in this track": "Nenhuma disciplina cumprida nesta trilha",
+    "Courses completed in this track by the student, including core courses and electives.": "Disciplinas cursadas pelo aluno nesta trilha, incluindo disciplinas do núcleo e optativas.",
+    "Track Status": "Status da Trilha",
     "Credits Obtained": "Créditos Obtidos"
 }

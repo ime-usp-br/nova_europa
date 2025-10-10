@@ -416,8 +416,8 @@
             page-break-inside: avoid;
         }
 
-        /* Trilhas-specific styles */
-        .trilha-container {
+        /* Complementary Information (Trilhas) - MAP style */
+        .supplementary-container {
             margin-bottom: 10px;
             padding: 6px;
             border: 1px solid var(--gray-300);
@@ -426,36 +426,18 @@
             page-break-inside: avoid;
         }
 
-        .trilha-title {
+        .supplementary-title {
             font-size: 7.5pt;
             font-weight: 600;
             color: var(--primary-blue);
             margin-bottom: 4px;
         }
 
-        .trilha-status {
+        .supplementary-description {
             font-size: 6pt;
-            margin: 3px 0;
-            padding: 2px 0;
-        }
-
-        .trilha-status.completed {
-            color: var(--accent-green);
-        }
-
-        .trilha-status.incomplete {
             color: var(--gray-600);
-        }
-
-        .trilha-disciplinas-list {
-            margin-top: 4px;
-            padding-left: 12px;
-        }
-
-        .trilha-disciplina {
-            font-size: 6pt;
-            margin-bottom: 2px;
-            list-style-type: disc;
+            margin-bottom: 6px;
+            font-style: italic;
         }
 
         .subsection-title {
@@ -464,6 +446,18 @@
             color: var(--gray-800);
             margin-top: 6px;
             margin-bottom: 3px;
+        }
+
+        .trilha-summary {
+            font-size: 6pt;
+            margin: 3px 0;
+            padding: 2px 0;
+            color: var(--gray-700);
+        }
+
+        .trilha-summary strong {
+            font-weight: 600;
+            color: var(--gray-900);
         }
 
         /* Utility Classes */
@@ -814,86 +808,6 @@
     </table>
     </div>
 
-    <!-- Tracks Section (specific to course 45052) -->
-    @if($dados->trilhas && $dados->trilhas->isNotEmpty())
-    @foreach($dados->trilhas as $trilha)
-    <div class="section-with-content">
-        <div class="section-title">{{ __('Track') }}: {{ $trilha['nome'] }}</div>
-
-        <table class="simple-table">
-            <tbody>
-                @if($trilha['todas_disciplinas']->isNotEmpty())
-                    @foreach($trilha['todas_disciplinas']->chunk(6) as $chunk)
-                        <tr>
-                            @foreach($chunk as $disc)
-                                @php
-                                    $statusClass = 'pendente';
-                                    $statusLabel = '';
-
-                                    if (!empty($disc['rstfim'])) {
-                                        if ($disc['rstfim'] === 'A') {
-                                            $statusClass = 'aprovada';
-                                            $statusLabel = 'A';
-                                        } elseif ($disc['rstfim'] === 'D') {
-                                            $statusClass = 'dispensada';
-                                            $statusLabel = 'AE';
-                                        } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
-                                            $statusClass = 'cursando';
-                                            $statusLabel = 'MA';
-                                        } elseif (str_starts_with($disc['rstfim'], 'EQ')) {
-                                            $statusClass = 'aprovada';
-                                            $statusLabel = 'AE';
-                                        }
-                                    }
-                                @endphp
-                                <td style="width: 16.66%">
-                                    <div class="disciplina-item {{ $statusClass }}">
-                                        <div>
-                                            <span class="disciplina-codigo">{{ $disc['coddis'] }}</span>
-                                            <span class="disciplina-creditos">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</span>
-                                        </div>
-                                        @if($statusLabel || !empty($disc['codtur']) || !empty($disc['discrl']))
-                                            <div class="disciplina-turma">
-                                                @if(!empty($disc['codtur']))
-                                                    {{ $disc['codtur'] }}
-                                                @endif
-                                                @if(!empty($disc['discrl']))
-                                                    [{{ $disc['discrl'] }}]
-                                                @endif
-                                                @if($statusLabel)
-                                                    <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
-                                                @endif
-                                            </div>
-                                        @endif
-                                    </div>
-                                </td>
-                            @endforeach
-                            {{-- Fill remaining cells in this row --}}
-                            @for($i = $chunk->count(); $i < 6; $i++)
-                                <td style="width: 16.66%">&nbsp;</td>
-                            @endfor
-                        </tr>
-                    @endforeach
-                @else
-                    <tr>
-                        <td colspan="6" style="text-align: center; font-style: italic; padding: 6px;">{{ __('No track courses') }}</td>
-                    </tr>
-                @endif
-            </tbody>
-        </table>
-
-        <div style="display: flex; gap: 16px; margin-top: 4px; margin-bottom: 8px; font-size: 6.5pt; font-weight: 600;">
-            <span>
-                [{{ $trilha['nucleo_cumprido'] ? ' X ' : '   ' }}] {{ __('Core Track Completed') }}
-            </span>
-            <span>
-                [{{ $trilha['trilha_completa'] ? ' X ' : '   ' }}] {{ __('Track Completed') }}
-            </span>
-        </div>
-    </div>
-    @endforeach
-    @endif
-
     <!-- Credit Consolidation -->
     <div class="page-break-avoid">
     <div class="consolidacao-section">
@@ -957,6 +871,85 @@
         </div>
     </div>
 
+    <!-- NEW PAGE: Complementary Information (Tracks for BCC) -->
+    @if($dados->trilhas && $dados->trilhas->isNotEmpty())
+    <div class="page-break-before">
+        <!-- Header repeated on new page -->
+        <div class="header">
+            <h1>{{ __('Complementary Information') }}</h1>
+            <div class="header-info">
+                <strong>{{ __('Student') }}:</strong> {{ $dados->aluno['codpes'] }} - {{ $dados->aluno['nompes'] }}
+            </div>
+        </div>
+
+        @foreach($dados->trilhas as $trilha)
+        <!-- Supplementary Information Section for each Track -->
+        <div class="supplementary-container">
+            <div class="supplementary-title">{{ __('Track') }}: {{ $trilha['nome'] }}</div>
+            <div class="supplementary-description">
+                {{ __('Courses completed in this track by the student, including core courses and electives.') }}
+            </div>
+
+            <!-- Track Courses Detail -->
+            @if($trilha['disciplinas_cursadas']->isNotEmpty())
+                <table class="simple-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%">{{ __('Course Code') }}</th>
+                            <th style="width: 45%">{{ __('Course Name') }}</th>
+                            <th style="width: 12%">{{ __('Credits') }}</th>
+                            <th style="width: 10%">{{ __('Period') }}</th>
+                            <th style="width: 18%">{{ __('Status') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($trilha['disciplinas_cursadas'] as $disc)
+                            @php
+                                $statusClass = 'pendente';
+                                $statusLabel = __('Pending');
+
+                                if ($disc['rstfim'] === 'A') {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = __('Approved');
+                                } elseif ($disc['rstfim'] === 'D') {
+                                    $statusClass = 'dispensada';
+                                    $statusLabel = __('Dispensed');
+                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
+                                    $statusClass = 'cursando';
+                                    $statusLabel = __('Enrolled');
+                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = __('Equivalent');
+                                }
+                            @endphp
+                            <tr>
+                                <td style="font-weight: 600;">{{ $disc['coddis'] }}</td>
+                                <td>{{ $disc['nomdis'] ?? '-' }}</td>
+                                <td style="text-align: center;">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</td>
+                                <td style="text-align: center;">{{ $disc['codtur'] ?? '-' }}</td>
+                                <td style="text-align: center;">
+                                    <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <div style="font-style: italic; color: var(--gray-600); font-size: 6pt; padding: 6px;">
+                    {{ __('No courses completed in this track') }}
+                </div>
+            @endif
+
+            <!-- Track Status Summary -->
+            <div class="trilha-summary">
+                <strong>{{ __('Track Status') }}:</strong>
+                [{{ $trilha['nucleo_cumprido'] ? ' X ' : '   ' }}] {{ __('Core Track Completed') }} |
+                [{{ $trilha['trilha_completa'] ? ' X ' : '   ' }}] {{ __('Track Completed') }}
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
 
     <!-- Footer -->
     <div class="footer">
