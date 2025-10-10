@@ -310,6 +310,50 @@
             background: white;
         }
 
+        /* Complementary Information (Blocos Details) - MAP style */
+        .supplementary-container {
+            margin-bottom: 10px;
+            padding: 6px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            background: white;
+            page-break-inside: avoid;
+        }
+
+        .supplementary-title {
+            font-size: 7.5pt;
+            font-weight: 600;
+            color: var(--primary-blue);
+            margin-bottom: 4px;
+        }
+
+        .supplementary-description {
+            font-size: 6pt;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+            font-style: italic;
+        }
+
+        .subsection-title {
+            font-size: 7.5pt;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-top: 6px;
+            margin-bottom: 3px;
+        }
+
+        .trilha-summary {
+            font-size: 6pt;
+            margin: 3px 0;
+            padding: 2px 0;
+            color: var(--gray-700);
+        }
+
+        .trilha-summary strong {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
         /* Credit Consolidation - Print-Friendly Design */
         .consolidacao-section {
             background: white;
@@ -918,6 +962,85 @@
         </div>
     </div>
 
+    <!-- NEW PAGE: Complementary Information (Blocos Details) -->
+    @if($dados->blocos && $dados->blocos->isNotEmpty())
+    <div class="page-break-before">
+        <!-- Header repeated on new page -->
+        <div class="header">
+            <h1>{{ __('Complementary Information') }}</h1>
+            <div class="header-info">
+                <strong>{{ __('Student') }}:</strong> {{ $dados->aluno['codpes'] }} - {{ $dados->aluno['nompes'] }}
+            </div>
+        </div>
+
+        @foreach($dados->blocos as $bloco)
+        <!-- Supplementary Information Section for each Bloco -->
+        <div class="supplementary-container">
+            <div class="supplementary-title">{{ __('Block') }}: {{ $bloco['nome'] }}</div>
+            <div class="supplementary-description">
+                {{ __('Courses completed in this block by the student.') }}
+            </div>
+
+            <!-- Bloco Courses Detail -->
+            @if($bloco['disciplinas_cursadas']->isNotEmpty())
+                <table class="simple-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%">{{ __('Course Code') }}</th>
+                            <th style="width: 45%">{{ __('Course Name') }}</th>
+                            <th style="width: 12%">{{ __('Credits') }}</th>
+                            <th style="width: 10%">{{ __('Period') }}</th>
+                            <th style="width: 18%">{{ __('Status') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($bloco['disciplinas_cursadas'] as $disc)
+                            @php
+                                $statusClass = 'pendente';
+                                $statusLabel = __('Pending');
+
+                                if ($disc['rstfim'] === 'A') {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = __('Approved');
+                                } elseif ($disc['rstfim'] === 'D') {
+                                    $statusClass = 'dispensada';
+                                    $statusLabel = __('Dispensed');
+                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
+                                    $statusClass = 'cursando';
+                                    $statusLabel = __('Enrolled');
+                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
+                                    $statusClass = 'aprovada';
+                                    $statusLabel = __('Equivalent');
+                                }
+                            @endphp
+                            <tr>
+                                <td style="font-weight: 600;">{{ $disc['coddis'] }}</td>
+                                <td>{{ $disc['nomdis'] ?? '-' }}</td>
+                                <td style="text-align: center;">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</td>
+                                <td style="text-align: center;">{{ $disc['codtur'] ?? '-' }}</td>
+                                <td style="text-align: center;">
+                                    <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <div style="font-style: italic; color: var(--gray-600); font-size: 6pt; padding: 6px;">
+                    {{ __('No courses completed in this block') }}
+                </div>
+            @endif
+
+            <!-- Bloco Status Summary -->
+            <div class="trilha-summary">
+                <strong>{{ __('Credits Obtained') }}:</strong>
+                {{ __('Class') }} {{ $bloco['creditos_obtidos']['aula'] }}/{{ $bloco['creditos_exigidos']['aula'] }},
+                {{ __('Work') }} {{ $bloco['creditos_obtidos']['trabalho'] }}/{{ $bloco['creditos_exigidos']['trabalho'] }}
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
 
     <!-- Footer -->
     <div class="footer">

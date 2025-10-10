@@ -310,7 +310,6 @@
     "All requirements for course completion were met": "All requirements for course completion were met",
     "Observations": "Observations",
     "Date and Signature": "Date and Signature",
-    "No": "No",
     "Class": "Class",
     "Work": "Work",
     "Failed to generate PDF: :message": "Failed to generate PDF: :message",
@@ -335,5 +334,8 @@
     "No courses completed in this track": "No courses completed in this track",
     "Courses completed in this track by the student, including core courses and electives.": "Courses completed in this track by the student, including core courses and electives.",
     "Track Status": "Track Status",
-    "Credits Obtained": "Credits Obtained"
+    "Credits Obtained": "Credits Obtained",
+    "Block": "Block",
+    "Courses completed in this block by the student.": "Courses completed in this block by the student.",
+    "Course Code": "Course Code"
 }
