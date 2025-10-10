@@ -323,50 +323,13 @@
             color: var(--accent-red);
         }
 
-        /* Progress Bar for Credits */
-        .progress-container {
-            margin-top: 4px;
-        }
-
-        .progress-label {
-            font-size: 6pt;
-            color: var(--gray-700);
-            margin-bottom: 2px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .progress-bar {
-            height: 8px;
-            background: var(--gray-200);
-            border-radius: 4px;
-            overflow: hidden;
-            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--accent-green);
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-
-        .progress-fill.warning {
-            background: var(--accent-orange);
-        }
-
-        .progress-fill.danger {
-            background: var(--accent-red);
-        }
-
         /* Parecer section - Enhanced Card */
         .parecer {
             background: white;
-            border: 1px solid var(--gray-300);
+            border: 2px solid var(--primary-blue);
             border-radius: 6px;
             padding: 8px;
             margin-top: 10px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
             page-break-inside: avoid;
         }
 
@@ -558,7 +521,7 @@
     <div class="section-title">{{ __('Mandatory Courses') }}</div>
     <table class="grid-semestres">
         <tbody>
-            @for($sem = 1; $sem <= 8; $sem++)
+            @for($sem = 1; $sem <= ($dados->curriculo['curriculo']['duracao_ideal'] ?? 8); $sem++)
                 <tr>
                     <th style="width: 5%">{{ $sem }}º</th>
                     @if(isset($dados->disciplinasPorSemestre[$sem]) && $dados->disciplinasPorSemestre[$sem]->isNotEmpty())
@@ -975,42 +938,6 @@
             </tbody>
         </table>
 
-        @php
-            $percObrigatorios = $dados->porcentagensConsolidacao['obrigatorios'] ?? 0;
-            $percEletivos = $dados->porcentagensConsolidacao['eletivos'] ?? 0;
-            $percLivres = $dados->porcentagensConsolidacao['livres'] ?? 0;
-        @endphp
-
-        <!-- Progress Bars -->
-        <div class="progress-container">
-            <div class="progress-label">
-                <span><strong>{{ __('Mandatory') }}:</strong> {{ number_format($percObrigatorios, 1) }}%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill {{ $percObrigatorios >= 75 ? '' : ($percObrigatorios >= 50 ? 'warning' : 'danger') }}"
-                     style="width: {{ min($percObrigatorios, 100) }}%"></div>
-            </div>
-        </div>
-
-        <div class="progress-container">
-            <div class="progress-label">
-                <span><strong>{{ __('Elective') }}:</strong> {{ number_format($percEletivos, 1) }}%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill {{ $percEletivos >= 75 ? '' : ($percEletivos >= 50 ? 'warning' : 'danger') }}"
-                     style="width: {{ min($percEletivos, 100) }}%"></div>
-            </div>
-        </div>
-
-        <div class="progress-container">
-            <div class="progress-label">
-                <span><strong>{{ __('Free Elective') }}:</strong> {{ number_format($percLivres, 1) }}%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill {{ $percLivres >= 75 ? '' : ($percLivres >= 50 ? 'warning' : 'danger') }}"
-                     style="width: {{ min($percLivres, 100) }}%"></div>
-            </div>
-        </div>
     </div>
     </div>
 

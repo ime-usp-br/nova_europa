@@ -172,12 +172,19 @@ class ReplicadoService
 
             $curriculoQuery = '
                 SELECT
-                    codcrl, codcur, codhab, dtainicrl, dtafimcrl, duridlcur,
-                    cgahorobgaul, cgahorobgtrb,
-                    cgaoptcplaul, cgaoptcpltrb,
-                    cgaoptlreaul, cgaoptlretrb
-                FROM CURRICULOGR
-                WHERE codcrl = :codcrl
+                    C.codcrl, C.codcur, C.codhab, C.dtainicrl, C.dtafimcrl,
+                    C.cgahorobgaul, C.cgahorobgtrb,
+                    C.cgaoptcplaul, C.cgaoptcpltrb,
+                    C.cgaoptlreaul, C.cgaoptlretrb,
+                    COALESCE(H.duridlhab, C.duridlcur) as duracao_ideal
+                FROM CURRICULOGR C
+                LEFT JOIN HABILDURACAO H ON (
+                    H.codcur = C.codcur
+                    AND H.codhab = C.codhab
+                    AND H.dtainivaldur <= C.dtainicrl
+                    AND (H.dtafimvaldur IS NULL OR H.dtafimvaldur >= C.dtainicrl)
+                )
+                WHERE C.codcrl = :codcrl
             ';
 
             /** @var array<string, mixed>|false $curriculoData */
@@ -284,6 +291,14 @@ class ReplicadoService
                             + (is_numeric($curriculoCicloBasico['cgaoptlretrb'] ?? null) ? (int) $curriculoCicloBasico['cgaoptlretrb'] : 0);
                     }
                 }
+            }
+
+            // Fallback for duracao_ideal if NULL: calculate from maximum semester of mandatory courses
+            if (empty($curriculoData['duracao_ideal'])) {
+                $maxSemestre = collect($disciplinas)
+                    ->where('tipobg', 'O')
+                    ->max('numsemidl');
+                $curriculoData['duracao_ideal'] = $maxSemestre ?? 8;
             }
 
             return [

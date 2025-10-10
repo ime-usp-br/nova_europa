@@ -10,7 +10,8 @@
       "Bash(./vendor/bin/sail artisan:*)",
       "Bash(./vendor/bin/sail artisan make:migration:*)",
       "Bash(./vendor/bin/sail artisan make:model:*)",
-      "Bash(./vendor/bin/sail artisan tinker:*)"
+      "Bash(./vendor/bin/sail artisan tinker:*)",
+      "Read(//home/ayrton/Downloads/**)"
     ],
     "deny": [],
     "ask": []

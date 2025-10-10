@@ -388,5 +388,8 @@
     "Issues official enrollment attestation documents confirming student registration status for the current academic semester.": "Emite documentos oficiais de atestação de matrícula confirmando o status de registro do aluno para o semestre letivo atual.",
     "Access Dashboard": "Acessar Painel",
     "Log in with USP Single Sign-On": "Entrar com Senha Única USP",
-    "Local Login": "Login Local"
+    "Local Login": "Login Local",
+    "Course Requirement Blocks": "Blocos de Disciplinas",
+    "No courses completed in this block": "Nenhuma disciplina cumprida neste bloco",
+    "Credits Obtained": "Créditos Obtidos"
 }

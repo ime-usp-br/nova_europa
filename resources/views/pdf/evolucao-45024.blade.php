@@ -265,6 +265,51 @@
             background: white;
         }
 
+        /* Blocos-specific styles */
+        .bloco-container {
+            margin-bottom: 10px;
+            padding: 6px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            background: white;
+            page-break-inside: avoid;
+        }
+
+        .bloco-title {
+            font-size: 7.5pt;
+            font-weight: 600;
+            color: var(--primary-blue);
+            margin-bottom: 4px;
+        }
+
+        .bloco-summary {
+            font-size: 6pt;
+            margin: 3px 0;
+            padding: 2px 0;
+            color: var(--gray-700);
+        }
+
+        .bloco-summary strong {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .bloco-disciplinas-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 4px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bloco-disciplinas-table td {
+            border: 1px solid var(--gray-300);
+            padding: 3px;
+            font-size: 6pt;
+            background: white;
+        }
+
         /* Credit Consolidation - Print-Friendly Design */
         .consolidacao-section {
             background: white;
@@ -414,38 +459,6 @@
         /* Keep section title with its content */
         .section-with-content {
             page-break-inside: avoid;
-        }
-
-        /* Supplementary Electives (IB) - MAP specific */
-        .supplementary-container {
-            margin-bottom: 10px;
-            padding: 6px;
-            border: 1px solid var(--gray-300);
-            border-radius: 4px;
-            background: white;
-            page-break-inside: avoid;
-        }
-
-        .supplementary-title {
-            font-size: 7.5pt;
-            font-weight: 600;
-            color: var(--primary-blue);
-            margin-bottom: 4px;
-        }
-
-        .supplementary-description {
-            font-size: 6pt;
-            color: var(--gray-600);
-            margin-bottom: 6px;
-            font-style: italic;
-        }
-
-        .subsection-title {
-            font-size: 7.5pt;
-            font-weight: 600;
-            color: var(--gray-800);
-            margin-top: 6px;
-            margin-bottom: 3px;
         }
 
         /* Utility Classes */
@@ -796,6 +809,52 @@
     </table>
     </div>
 
+    <!-- Blocos Section (specific to course 45024) -->
+    @if($dados->blocos && $dados->blocos->isNotEmpty())
+    <div class="section-with-content">
+        <div class="section-title">{{ __('Course Requirement Blocks') }}</div>
+
+        @foreach($dados->blocos as $bloco)
+        <div class="bloco-container">
+            <div class="bloco-title">{{ $bloco['nome'] }}</div>
+
+            @if($bloco['disciplinas_cursadas']->isNotEmpty())
+                <table class="bloco-disciplinas-table">
+                    <tbody>
+                        @foreach($bloco['disciplinas_cursadas']->chunk(3) as $chunk)
+                            <tr>
+                                @foreach($chunk as $disc)
+                                    <td style="width: 33.33%">
+                                        <div class="disciplina-item aprovada">
+                                            <span class="disciplina-codigo">{{ $disc['coddis'] }}</span>
+                                            <span class="disciplina-creditos">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</span>
+                                        </div>
+                                    </td>
+                                @endforeach
+                                {{-- Fill remaining cells in this row --}}
+                                @for($i = $chunk->count(); $i < 3; $i++)
+                                    <td style="width: 33.33%">&nbsp;</td>
+                                @endfor
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <div class="bloco-summary" style="font-style: italic; color: var(--gray-600);">
+                    {{ __('No courses completed in this block') }}
+                </div>
+            @endif
+
+            <div class="bloco-summary">
+                <strong>{{ __('Credits Obtained') }}:</strong>
+                {{ __('Class') }} {{ $bloco['creditos_obtidos']['aula'] }}/{{ $bloco['creditos_exigidos']['aula'] }},
+                {{ __('Work') }} {{ $bloco['creditos_obtidos']['trabalho'] }}/{{ $bloco['creditos_exigidos']['trabalho'] }}
+            </div>
+        </div>
+        @endforeach
+    </div>
+    @endif
+
     <!-- Credit Consolidation -->
     <div class="page-break-avoid">
     <div class="consolidacao-section">
@@ -859,120 +918,6 @@
         </div>
     </div>
 
-    <!-- NEW PAGE: Complementary Information (Supplementary Electives for IB) -->
-    @if($dados->disciplinasEletivas->isNotEmpty() || $dados->disciplinasLivres->isNotEmpty())
-    <div class="page-break-before">
-        <!-- Header repeated on new page -->
-        <div class="header">
-            <h1>{{ __('Complementary Information') }}</h1>
-            <div class="header-info">
-                <strong>{{ __('Student') }}:</strong> {{ $dados->aluno['codpes'] }} - {{ $dados->aluno['nompes'] }}
-            </div>
-        </div>
-
-        <!-- Supplementary Information Section -->
-        <div class="supplementary-container">
-            <div class="supplementary-title">{{ __('Supplementary Electives') }}</div>
-            <div class="supplementary-description">
-                {{ __('For MAP and similar courses, this section provides additional details about elective courses completed at Instituto de Biociências (IB) and other units.') }}
-            </div>
-
-            <!-- Elective Courses Detail -->
-            @if($dados->disciplinasEletivas->isNotEmpty())
-                <div class="subsection-title">{{ __('Elective Courses') }}</div>
-                <table class="simple-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%">{{ __('Course Code') }}</th>
-                            <th style="width: 45%">{{ __('Course Name') }}</th>
-                            <th style="width: 12%">{{ __('Credits') }}</th>
-                            <th style="width: 10%">{{ __('Period') }}</th>
-                            <th style="width: 18%">{{ __('Status') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($dados->disciplinasEletivas as $disc)
-                            @php
-                                $statusClass = 'pendente';
-                                $statusLabel = __('Pending');
-
-                                if ($disc['rstfim'] === 'A') {
-                                    $statusClass = 'aprovada';
-                                    $statusLabel = __('Approved');
-                                } elseif ($disc['rstfim'] === 'D') {
-                                    $statusClass = 'dispensada';
-                                    $statusLabel = __('Dispensed');
-                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
-                                    $statusClass = 'cursando';
-                                    $statusLabel = __('Enrolled');
-                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
-                                    $statusClass = 'aprovada';
-                                    $statusLabel = __('Equivalent');
-                                }
-                            @endphp
-                            <tr>
-                                <td style="font-weight: 600;">{{ $disc['coddis'] }}</td>
-                                <td>{{ $disc['nomdis'] ?? '-' }}</td>
-                                <td style="text-align: center;">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</td>
-                                <td style="text-align: center;">{{ $disc['codtur'] ?? '-' }}</td>
-                                <td style="text-align: center;">
-                                    <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-
-            <!-- Free Elective Courses Detail -->
-            @if($dados->disciplinasLivres->isNotEmpty())
-                <div class="subsection-title">{{ __('Free Elective Courses') }}</div>
-                <table class="simple-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 15%">{{ __('Course Code') }}</th>
-                            <th style="width: 45%">{{ __('Course Name') }}</th>
-                            <th style="width: 12%">{{ __('Credits') }}</th>
-                            <th style="width: 10%">{{ __('Period') }}</th>
-                            <th style="width: 18%">{{ __('Status') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($dados->disciplinasLivres as $disc)
-                            @php
-                                $statusClass = 'pendente';
-                                $statusLabel = __('Pending');
-
-                                if ($disc['rstfim'] === 'A') {
-                                    $statusClass = 'aprovada';
-                                    $statusLabel = __('Approved');
-                                } elseif ($disc['rstfim'] === 'D') {
-                                    $statusClass = 'dispensada';
-                                    $statusLabel = __('Dispensed');
-                                } elseif ($disc['rstfim'] === 'MA' || (empty($disc['rstfim']) && !empty($disc['codtur']))) {
-                                    $statusClass = 'cursando';
-                                    $statusLabel = __('Enrolled');
-                                } elseif (str_starts_with($disc['rstfim'] ?? '', 'EQ')) {
-                                    $statusClass = 'aprovada';
-                                    $statusLabel = __('Equivalent');
-                                }
-                            @endphp
-                            <tr>
-                                <td style="font-weight: 600;">{{ $disc['coddis'] }}</td>
-                                <td>{{ $disc['nomdis'] ?? '-' }}</td>
-                                <td style="text-align: center;">{!! '{' !!}{{ $disc['creaul'] }},{{ $disc['cretrb'] }}{!! '}' !!}</td>
-                                <td style="text-align: center;">{{ $disc['codtur'] ?? '-' }}</td>
-                                <td style="text-align: center;">
-                                    <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-        </div>
-    </div>
-    @endif
 
     <!-- Footer -->
     <div class="footer">

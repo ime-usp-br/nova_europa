@@ -329,5 +329,8 @@
     "Equivalent": "Equivalent",
     "Pending": "Pending",
     "Period": "Period",
-    "Credits": "Credits"
+    "Credits": "Credits",
+    "Course Requirement Blocks": "Course Requirement Blocks",
+    "No courses completed in this block": "No courses completed in this block",
+    "Credits Obtained": "Credits Obtained"
 }
