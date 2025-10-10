@@ -202,8 +202,8 @@ class ReplicadoService
 
             // Check if this curriculum has a basic cycle (codhab != 0 means specific program)
             // For BMA/BMAC courses, we need to merge basic cycle (codhab=0) with specific program
-            $codhab = (int) ($curriculoData['codhab'] ?? 0);
-            $codcur = (int) ($curriculoData['codcur'] ?? 0);
+            $codhab = is_numeric($curriculoData['codhab'] ?? null) ? (int) $curriculoData['codhab'] : 0;
+            $codcur = is_numeric($curriculoData['codcur'] ?? null) ? (int) $curriculoData['codcur'] : 0;
             $dtainicrl = $curriculoData['dtainicrl'] ?? null;
 
             if ($codhab !== 0 && $codcur > 0 && $dtainicrl !== null) {
@@ -270,18 +270,18 @@ class ReplicadoService
                         // cgaoptcpltrb = Elective work hours (trabalho)
                         // cgaoptlreaul = Free course load hours (aula)
                         // cgaoptlretrb = Free work hours (trabalho)
-                        $curriculoData['cgahorobgaul'] = ((int) ($curriculoData['cgahorobgaul'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgahorobgaul'] ?? 0));
-                        $curriculoData['cgahorobgtrb'] = ((int) ($curriculoData['cgahorobgtrb'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgahorobgtrb'] ?? 0));
-                        $curriculoData['cgaoptcplaul'] = ((int) ($curriculoData['cgaoptcplaul'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgaoptcplaul'] ?? 0));
-                        $curriculoData['cgaoptcpltrb'] = ((int) ($curriculoData['cgaoptcpltrb'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgaoptcpltrb'] ?? 0));
-                        $curriculoData['cgaoptlreaul'] = ((int) ($curriculoData['cgaoptlreaul'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgaoptlreaul'] ?? 0));
-                        $curriculoData['cgaoptlretrb'] = ((int) ($curriculoData['cgaoptlretrb'] ?? 0))
-                            + ((int) ($curriculoCicloBasico['cgaoptlretrb'] ?? 0));
+                        $curriculoData['cgahorobgaul'] = (is_numeric($curriculoData['cgahorobgaul'] ?? null) ? (int) $curriculoData['cgahorobgaul'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgahorobgaul'] ?? null) ? (int) $curriculoCicloBasico['cgahorobgaul'] : 0);
+                        $curriculoData['cgahorobgtrb'] = (is_numeric($curriculoData['cgahorobgtrb'] ?? null) ? (int) $curriculoData['cgahorobgtrb'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgahorobgtrb'] ?? null) ? (int) $curriculoCicloBasico['cgahorobgtrb'] : 0);
+                        $curriculoData['cgaoptcplaul'] = (is_numeric($curriculoData['cgaoptcplaul'] ?? null) ? (int) $curriculoData['cgaoptcplaul'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgaoptcplaul'] ?? null) ? (int) $curriculoCicloBasico['cgaoptcplaul'] : 0);
+                        $curriculoData['cgaoptcpltrb'] = (is_numeric($curriculoData['cgaoptcpltrb'] ?? null) ? (int) $curriculoData['cgaoptcpltrb'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgaoptcpltrb'] ?? null) ? (int) $curriculoCicloBasico['cgaoptcpltrb'] : 0);
+                        $curriculoData['cgaoptlreaul'] = (is_numeric($curriculoData['cgaoptlreaul'] ?? null) ? (int) $curriculoData['cgaoptlreaul'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgaoptlreaul'] ?? null) ? (int) $curriculoCicloBasico['cgaoptlreaul'] : 0);
+                        $curriculoData['cgaoptlretrb'] = (is_numeric($curriculoData['cgaoptlretrb'] ?? null) ? (int) $curriculoData['cgaoptlretrb'] : 0)
+                            + (is_numeric($curriculoCicloBasico['cgaoptlretrb'] ?? null) ? (int) $curriculoCicloBasico['cgaoptlretrb'] : 0);
                     }
                 }
             }
