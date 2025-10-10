@@ -214,10 +214,36 @@ class ReplicadoService
                 // Only search for basic cycle if it's different from the current codcrl
                 // (Avoid searching when already on basic cycle like 004)
                 if ($codcrlCicloBasico !== $codcrl) {
+                    // Try to find exact basic cycle match first
                     /** @var array<string, mixed>|false $curriculoCicloBasico */
                     $curriculoCicloBasico = ReplicadoDB::fetch($curriculoQuery, [
                         'codcrl' => $codcrlCicloBasico,
                     ]);
+
+                    // If exact match not found, find closest basic cycle by date
+                    if (! $curriculoCicloBasico) {
+                        $periodoIndicador = substr($codcrl, 8, 1); // Last digit of codhab (0=integral, 1=day, 4=night)
+                        $cohabCicloBasico = (int) $periodoIndicador; // Convert to int: 0, 1, or 4
+
+                        $cicloMaisProximoQuery = '
+                            SELECT TOP 1 codcrl, codcur, codhab, dtainicrl, dtafimcrl, duridlcur,
+                                cgahorobgaul, cgahorobgtrb,
+                                cgaoptcplaul, cgaoptcpltrb,
+                                cgaoptlreaul, cgaoptlretrb
+                            FROM CURRICULOGR
+                            WHERE codcur = :codcur
+                                AND codhab = :codhab
+                                AND dtainicrl <= :dtainicrl
+                            ORDER BY dtainicrl DESC
+                        ';
+
+                        /** @var array<string, mixed>|false $curriculoCicloBasico */
+                        $curriculoCicloBasico = ReplicadoDB::fetch($cicloMaisProximoQuery, [
+                            'codcur' => $codcur,
+                            'codhab' => $cohabCicloBasico,
+                            'dtainicrl' => $curriculoData['dtainicrl'],
+                        ]);
+                    }
 
                     if ($curriculoCicloBasico) {
                         // Basic cycle exists, merge its disciplines
@@ -288,31 +314,32 @@ class ReplicadoService
      */
     private function construirCodcrlCicloBasico(string $codcrl): string
     {
-        // codcrl format: CCCCCHHHDYY
-        // CCCCC = codcur (5 digits)
-        // HHH = codhab (3 digits, last digit is period indicator: 1=day, 4=night)
-        // D = semester (1 or 2)
+        // codcrl format: CCCCCCHHHDYY
+        // CCCCCC = codcur (6 digits, e.g., 450420, 450700)
+        // HHH = codhab (3 digits, last digit is period indicator: 0=integral, 1=day, 4=night)
+        // D = semester (1 digit: 1 or 2)
         // YY = year (2 digits)
         //
         // Basic cycle pattern:
-        // - Night programs (X04): Replace X with 0 -> 004
-        // - Day programs (X01): Replace X with 0 -> 001
+        // - Integral programs (X00): 000
+        // - Day programs (X01): 001 (legacy)
+        // - Night programs (X04): 004
         //
-        // Example: 45070 0504 251
+        // Example: 450420 101 232
         //          codcur ^HHH ^DYY
-        // Becomes: 45070 0004 251 (remove hundreds digit from codhab)
+        // Becomes: 450420 001 232 (keep only last digit: 1)
 
         if (strlen($codcrl) !== 12) {
             return $codcrl; // Invalid format, return as-is
         }
 
-        $codcur = substr($codcrl, 0, 5); // CCCCC
-        $anoSemestre = substr($codcrl, 8, 4); // DYY
+        $codcur = substr($codcrl, 0, 6); // CCCCCC (6 digits)
+        $anoSemestre = substr($codcrl, 9, 3); // DYY (3 digits)
 
-        // Get last digit of codhab (period indicator: 1=day, 4=night)
-        $periodoIndicador = substr($codcrl, 7, 1); // Position 7 (last digit of codhab)
+        // Get last digit of codhab (period indicator: 0=integral, 1=day, 4=night)
+        $periodoIndicador = substr($codcrl, 8, 1); // Position 8 (last digit of codhab)
 
-        // Build basic cycle codcrl: CCCCC + 00 + period + DYY
+        // Build basic cycle codcrl: CCCCCC + 00 + period + DYY
         return $codcur.'00'.$periodoIndicador.$anoSemestre;
     }
 

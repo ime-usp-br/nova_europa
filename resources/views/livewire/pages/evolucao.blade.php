@@ -79,7 +79,7 @@ new #[Layout('layouts.app')] class extends Component
             // - Apenas programa ATIVO do aluno (P.stapgm = 'A')
             // - Todas as habilitações deste programa (atuais e passadas)
             // - Currículos que estavam vigentes no ingresso OU criados depois
-            // - EXCLUIR ciclo básico (codhab 001, 004) pois será incluído automaticamente pelo sistema
+            // - EXCLUIR ciclo básico (codhab 0, 1, 4) pois será incluído automaticamente pelo sistema
             //
             // Lógica de datas:
             // Mostra currículos que fazem sentido para o período acadêmico do aluno.
@@ -95,7 +95,7 @@ new #[Layout('layouts.app')] class extends Component
             // ✅ Currículo 2024-null (criado depois, habilitação nova)
             // ✅ Currículo 2025-2025 (futuro próximo)
             // ❌ Currículo 2015-2019 (encerrou antes do ingresso)
-            // ❌ Currículo com codhab 001 ou 004 (ciclo básico, será incluído automaticamente)
+            // ❌ Currículo com codhab 0, 1 ou 4 (ciclo básico, será incluído automaticamente)
             $query = '
                 SELECT DISTINCT
                     C.codcrl,
@@ -106,7 +106,7 @@ new #[Layout('layouts.app')] class extends Component
                 JOIN CURRICULOGR C ON H.codcur = C.codcur AND H.codhab = C.codhab
                 WHERE P.codpes = CONVERT(int, :codpes)
                     AND P.stapgm = :stapgmAtivo
-                    AND C.codhab NOT IN (1, 4)
+                    AND C.codhab NOT IN (0, 1, 4)
                     AND C.dtainicrl <= GETDATE()
                     AND (C.dtafimcrl IS NULL OR C.dtafimcrl >= P.dtaini)
                 ORDER BY C.dtainicrl DESC
