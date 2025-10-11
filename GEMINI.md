@@ -83,7 +83,7 @@
 | `php artisan migrate` | `./vendor/bin/sail artisan migrate` |
 | `composer install` | `./vendor/bin/sail composer install` |
 | `./vendor/bin/pint` | `./vendor/bin/sail pint` |
-| `./vendor/bin/phpstan analyse` | `./vendor/bin/sail phpstan analyse` |
+| `./vendor/bin/phpstan analyse` | `./vendor/bin/sail exec laravel.test ./vendor/bin/phpstan analyse` |
 | `php artisan test` | `./vendor/bin/sail artisan test` |
 | `npm install` | `./vendor/bin/sail npm install` |
 
@@ -284,7 +284,7 @@ Before marking an Issue as complete and opening a PR, you **MUST** run the follo
    ./vendor/bin/phpstan analyse
 
    # With Sail
-   ./vendor/bin/sail phpstan analyse
+   ./vendor/bin/sail exec laravel.test ./vendor/bin/phpstan analyse
    ```
    - **CRITICAL:** If Larastan reports errors, you **MUST** fix them before proceeding
    - Do not ignore or skip static analysis errors

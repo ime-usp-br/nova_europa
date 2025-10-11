@@ -278,3 +278,18 @@ Ao escrever documentação, use os termos da [RFC 2119](https://datatracker.ietf
 | MAY, OPTIONAL               | **PODE, PODEM, OPCIONAL**   | Verdadeiramente opcional, sem preferência.      |
 
 Exemplo: _"O Model **DEVE** ter a propriedade `$fillable` definida."_ vs. _"Você **PODERIA** usar um Service para encapsular a lógica de email."_ vs. _"Todo texto visível ao usuário **DEVE** usar a função `__()`."_
+
+## 11. Problemas Conhecidos (Troubleshooting)
+
+### 11.1. Conflito de Versão com `uspdev/senhaunica-socialite`
+
+**Problema:** Ao executar `composer update`, o processo pode falhar com um erro indicando que a versão `^7.3` do pacote `uspdev/senhaunica-socialite` não pode ser encontrada.
+
+**Causa:** O projeto foi inicialmente desenvolvido usando a versão `7.3.19` deste pacote. No entanto, os mantenedores removeram as tags da série `7.x` do repositório público (GitHub/Packagist), e a versão mais recente disponível agora é da série `4.x`. Como o `composer.json` exige `^7.3` e essa versão não existe mais online, o Composer não consegue resolver as dependências e falha.
+
+**Solução de Contorno:**
+Para atualizar as outras dependências do projeto, é preciso instruir o Composer a não atualizar este pacote específico. A forma mais direta é executar o `update` listando explicitamente os outros pacotes que você deseja atualizar.
+
+**Ação Futura:** A solução definitiva é planejar uma tarefa de migração do código que usa `uspdev/senhaunica-socialite` da versão 7 para a 4, o que provavelmente envolverá alterações no código da aplicação. Após a migração, a restrição no `composer.json` deve ser atualizada.
+
+```
