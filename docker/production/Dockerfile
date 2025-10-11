@@ -22,7 +22,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
         zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP 8.2 and required extensions
+# Install PHP 8.2 and required extensions (including sybase for pdo_dblib)
 RUN curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e53946656efbce4c1dd71daeaab4ad4cab6' | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" > /etc/apt/sources.list.d/ppa_ondrej_php.list \
     && apt-get update \
@@ -37,6 +37,7 @@ RUN curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e5394
         php8.2-bcmath \
         php8.2-intl \
         php8.2-gd \
+        php8.2-sybase \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
@@ -211,8 +212,18 @@ RUN sed -i 's/^listen = .*/listen = 9000/' /etc/php/8.2/fpm/pool.d/www.conf \
     && sed -i 's/^group = .*/group = www-data/' /etc/php/8.2/fpm/pool.d/www.conf
 
 # Create www-data user with proper UID/GID
-RUN groupmod -g $WWWGROUP www-data \
-    && usermod -u $WWWUSER -g $WWWGROUP www-data
+# Check if GID/UID already exists and handle accordingly
+RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
+        echo "Group $WWWGROUP already exists"; \
+    else \
+        groupmod -g $WWWGROUP www-data; \
+    fi \
+    && if getent passwd $WWWUSER > /dev/null 2>&1; then \
+        echo "User $WWWUSER already exists"; \
+    else \
+        usermod -u $WWWUSER www-data; \
+    fi \
+    && usermod -g www-data www-data
 
 # Configure Puppeteer cache directory
 ENV PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer
