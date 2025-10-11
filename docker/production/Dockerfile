@@ -239,6 +239,11 @@ RUN npm install -g puppeteer
 # Copy application from builder stage
 COPY --from=builder --chown=www-data:www-data /build /var/www/html
 
+# Install the project-specific Chrome Headless Shell version
+# This MUST come AFTER copying files, to use the project's puppeteer version
+RUN gosu www-data npx puppeteer browsers install chrome-headless-shell
+
+
 # Copy configuration files
 COPY --chown=www-data:www-data docker/production/php.ini /etc/php/8.2/fpm/conf.d/99-production.ini
 COPY --chown=www-data:www-data docker/production/php.ini /etc/php/8.2/cli/conf.d/99-production.ini

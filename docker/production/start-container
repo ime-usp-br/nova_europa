@@ -41,12 +41,12 @@ DOCKER_SUBNET=${DOCKER_NETWORK_SUBNET:-172.27.0.0/16}
 # If subnet is defined, configure allowed clients; otherwise, allow all
 if [ -n "$DOCKER_SUBNET" ]; then
     log_info "PHP-FPM will accept connections from: $DOCKER_SUBNET"
-    # Update php-fpm.conf with the subnet
-    sed -i "s|^; listen.allowed_clients = .*|listen.allowed_clients = $DOCKER_SUBNET|" /etc/php/8.2/fpm/pool.d/www.conf
+    # Uncomment the line and set the correct subnet
+    sed -i "s|^;\?listen.allowed_clients = .*|listen.allowed_clients = $DOCKER_SUBNET|" /etc/php/8.2/fpm/pool.d/www.conf
 else
     log_info "PHP-FPM will accept connections from any IP (no restriction)"
-    # Ensure the line is commented out
-    sed -i "s|^listen.allowed_clients = .*|; listen.allowed_clients = |" /etc/php/8.2/fpm/pool.d/www.conf
+    # Comment out the line to allow all connections
+    sed -i "s|^listen.allowed_clients = .*|;listen.allowed_clients = |" /etc/php/8.2/fpm/pool.d/www.conf
 fi
 
 # =============================================================================
@@ -88,51 +88,7 @@ fi
 chmod -R ugo+rw /.composer
 
 # =============================================================================
-# 6. Install Chrome Headless Shell for Puppeteer
-# =============================================================================
-# This installs Chrome matching the puppeteer-core version
-# We only install if not already installed (marker file check)
-
-if [ ! -f /var/www/.cache/puppeteer/.chrome-installed ]; then
-    log_info "Installing Chrome Headless Shell for Puppeteer..."
-
-    # Ensure cache directory exists with correct permissions
-    mkdir -p /var/www/.cache/puppeteer
-    chown -R www-data:www-data /var/www/.cache/puppeteer
-
-    # Get the expected Chrome version from puppeteer-core
-    CHROME_VERSION=$(gosu www-data node -e "console.log(require('/var/www/html/node_modules/puppeteer-core/lib/cjs/puppeteer/revisions.js').PUPPETEER_REVISIONS['chrome-headless-shell'])" 2>/dev/null || echo "")
-
-    if [ -n "$CHROME_VERSION" ]; then
-        log_info "Detected Chrome version: $CHROME_VERSION"
-        gosu www-data npx puppeteer browsers install chrome-headless-shell@$CHROME_VERSION
-
-        if [ $? -eq 0 ]; then
-            gosu www-data touch /var/www/.cache/puppeteer/.chrome-installed
-            log_info "Chrome Headless Shell installed successfully"
-        else
-            log_error "Failed to install Chrome Headless Shell"
-            exit 1
-        fi
-    else
-        log_warn "Could not detect Chrome version from puppeteer-core"
-        log_info "Installing latest Chrome Headless Shell..."
-        gosu www-data npx puppeteer browsers install chrome-headless-shell
-
-        if [ $? -eq 0 ]; then
-            gosu www-data touch /var/www/.cache/puppeteer/.chrome-installed
-            log_info "Chrome Headless Shell installed successfully"
-        else
-            log_error "Failed to install Chrome Headless Shell"
-            exit 1
-        fi
-    fi
-else
-    log_info "Chrome Headless Shell already installed, skipping..."
-fi
-
-# =============================================================================
-# 7. Fix Permissions for Laravel Storage
+# 6. Fix Permissions for Laravel Storage
 # =============================================================================
 log_info "Adjusting storage and cache permissions..."
 
@@ -142,7 +98,7 @@ chmod -R 775 /var/www/html/storage
 chmod -R 775 /var/www/html/bootstrap/cache
 
 # =============================================================================
-# 8. Execute Command
+# 7. Execute Command
 # =============================================================================
 if [ $# -gt 0 ]; then
     log_info "Executing custom command: $@"

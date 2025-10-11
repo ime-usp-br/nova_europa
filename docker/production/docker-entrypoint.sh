@@ -42,7 +42,7 @@ log_step() {
 wait_for_database() {
     log_step "Waiting for database connection..."
 
-    until php artisan db:show > /dev/null 2>&1; do
+    until php artisan db:show; do
         log_info "Database is unavailable - sleeping 2s"
         sleep 2
     done
@@ -89,25 +89,7 @@ main() {
     fi
 
     # =============================================================================
-    # 3. Optimize Configuration for Production
-    # =============================================================================
-    log_step "Optimizing application configuration..."
-
-    # Clear all caches first
-    php artisan config:clear
-    php artisan route:clear
-    php artisan view:clear
-    php artisan cache:clear
-
-    # Cache configuration and routes
-    php artisan config:cache
-    php artisan route:cache
-    php artisan view:cache
-
-    log_info "Application optimized for production"
-
-    # =============================================================================
-    # 4. Storage Link (if not exists)
+    # 3. Storage Link (if not exists)
     # =============================================================================
     if [ ! -L /var/www/html/public/storage ]; then
         log_step "Creating storage symlink..."
@@ -115,7 +97,7 @@ main() {
     fi
 
     # =============================================================================
-    # 5. Warm Up Cache (Optional)
+    # 4. Warm Up Cache (Optional)
     # =============================================================================
     if [ "${WARM_CACHE:-false}" = "true" ]; then
         log_step "Warming up application cache..."
@@ -125,7 +107,7 @@ main() {
     fi
 
     # =============================================================================
-    # 6. Final Checks
+    # 5. Final Checks
     # =============================================================================
     log_step "Running final health checks..."
 
