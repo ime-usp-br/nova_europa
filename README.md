@@ -3,12 +3,12 @@
 **Versão:** 1.0.0  
 **Data:** 2025-10-10
 
-[![Status da Build](https://github.com/ime-usp-br/nova-europa/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/nova-europa/actions/workflows/laravel.yml)
+[![Status da Build](https://github.com/ime-usp-br/nova_europa/actions/workflows/laravel.yml/badge.svg)](https://github.com/ime-usp-br/nova_europa/actions/workflows/laravel.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 1. Introdução
 
-O **Nova Europa** é a versão moderna e migrada do legado sistema acadêmico "Europa" do Instituto de Matemática e Estatística da Universidade de São Paulo (IME-USP). Desenvolvido em **Laravel 12**, o sistema tem como principal finalidade a geração de documentos acadêmicos em PDF para estudantes, com destaque para o relatório de evolução do aluno.
+O **Nova Europa** é a versão moderna e migrada do legado sistema acadêmico "Europa" do Instituto de Matemática, Estatística e Ciencia da Computação da Universidade de São Paulo (IME-USP). Desenvolvido em **Laravel 12**, o sistema tem como principal finalidade a geração de documentos acadêmicos em PDF para estudantes, com destaque para o relatório de evolução do aluno.
 
 A migração moveu as regras de negócio, antes fixas em código Java, para uma arquitetura flexível e orientada a dados, onde a lógica é gerenciada através de um painel administrativo, garantindo maior manutenibilidade e agilidade para futuras atualizações curriculares.
 
