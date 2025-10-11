@@ -129,16 +129,10 @@ main() {
     # =============================================================================
     log_step "Running final health checks..."
 
-    # Check if .env exists
-    if [ ! -f /var/www/html/.env ]; then
-        log_error ".env file not found!"
-        exit 1
-    fi
-
-    # Check if APP_KEY is set
-    if ! grep -q "APP_KEY=base64:" /var/www/html/.env; then
-        log_error "APP_KEY is not set in .env file!"
-        log_error "Run: php artisan key:generate"
+    # Check if APP_KEY is set (via environment variable)
+    if [ -z "$APP_KEY" ]; then
+        log_error "APP_KEY environment variable is not set!"
+        log_error "Configure it in .env.production file"
         exit 1
     fi
 
