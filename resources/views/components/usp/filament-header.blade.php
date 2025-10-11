@@ -86,8 +86,9 @@
 
         <div style="max-width: 80rem; margin-left: auto; margin-right: auto; padding-left: 1rem; padding-right: 1rem;">
             <div style="display: flex; justify-content: space-between; height: 4rem;">
-                {{-- Logo IME e Nome do Sistema --}}
-                <div style="flex-shrink: 0; display: flex; align-items: center; gap: 0.75rem;">
+                {{-- Logo IME, Nome do Sistema e Navegação Principal --}}
+                <div style="flex-shrink: 0; display: flex; align-items: center; gap: 1.5rem;">
+                    {{-- Logo e Nome do Sistema --}}
                     <a href="{{ route('dashboard') }}" style="display: flex; align-items: center; gap: 0.75rem; text-decoration: none;">
                         <img src="{{ Vite::asset('resources/images/ime/logo-horizontal-simplificada-padrao.png') }}"
                              alt="Logo IME-USP"
@@ -104,11 +105,39 @@
                             {{ config('app.name', 'Nova Europa') }}
                         </span>
                     </a>
+
+                    {{-- Navegação Principal --}}
+                    <div style="display: flex; align-items: center; gap: 2rem; margin-left: 1.5rem;">
+                        <a href="{{ route('dashboard') }}" class="custom-nav-link">
+                            Painel
+                        </a>
+                        <a href="{{ route('evolucao') }}" class="custom-nav-link">
+                            Evolução do Aluno
+                        </a>
+                    </div>
+
                     <style>
                         .dark .dark-hidden { display: none !important; }
                         .dark .dark-block { display: block !important; }
                         .dark .app-name-light { display: none !important; }
                         .dark .app-name-dark { display: block !important; }
+
+                        .custom-nav-link {
+                            font-size: 0.875rem; /* text-sm */
+                            font-weight: 500; /* font-medium */
+                            color: rgb(107 114 128); /* text-gray-500 */
+                            text-decoration: none;
+                            transition: color 0.15s ease-in-out;
+                        }
+                        .custom-nav-link:hover {
+                            color: rgb(55 65 81); /* hover:text-gray-700 */
+                        }
+                        .dark .custom-nav-link {
+                            color: rgb(156 163 175); /* dark:text-gray-400 */
+                        }
+                        .dark .custom-nav-link:hover {
+                            color: rgb(209 213 219); /* dark:hover:text-gray-300 */
+                        }
                     </style>
                 </div>
 
