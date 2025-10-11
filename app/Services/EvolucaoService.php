@@ -488,7 +488,7 @@ class EvolucaoService
     ): int {
         // Cálculo 1: Baseado no tempo de casa (semestres desde o ingresso)
         $semestrePorTempo = 1;
-        if (!empty($dtainivin)) {
+        if (! empty($dtainivin)) {
             $inicio = \Carbon\Carbon::parse($dtainivin);
             $hoje = \Carbon\Carbon::now();
             $anoInicio = $inicio->year;
@@ -512,7 +512,8 @@ class EvolucaoService
         }
 
         $percConcluidos = $totalConcluidos / $totalExigidos;
-        $duracaoIdeal = $curriculoData['curriculo']['duracao_ideal'] ?? 8;
+        $duracaoIdealValue = $curriculoData['curriculo']['duracao_ideal'] ?? 8;
+        $duracaoIdeal = is_numeric($duracaoIdealValue) ? (int) $duracaoIdealValue : 8;
         $semestrePorCreditos = $percConcluidos * $duracaoIdeal;
 
         // Lógica de ajuste para alunos concluintes (>= 87.5% dos créditos)
@@ -523,16 +524,16 @@ class EvolucaoService
 
             if ($pendentes->isNotEmpty()) {
                 $semestresPendentes = $pendentes->pluck('numsemidl')->unique();
-                $temPar = $semestresPendentes->some(fn($s) => $s % 2 == 0);
-                $temImpar = $semestresPendentes->some(fn($s) => $s % 2 != 0);
+                $temPar = $semestresPendentes->some(fn ($s) => is_numeric($s) && (int) $s % 2 == 0);
+                $temImpar = $semestresPendentes->some(fn ($s) => is_numeric($s) && (int) $s % 2 != 0);
                 $semestreAtual = (date('m') <= 6) ? 1 : 2;
 
-                if (($semestreAtual % 2 == 0 && !$temPar && $temImpar) || ($semestreAtual % 2 != 0 && $temPar && !$temImpar)) {
-                    $semestrePorCreditos = $duracaoIdeal - 1;
+                if (($semestreAtual % 2 == 0 && ! $temPar && $temImpar) || ($semestreAtual % 2 != 0 && $temPar && ! $temImpar)) {
+                    $semestrePorCreditos = (int) ($duracaoIdeal - 1);
                 }
             }
         }
-        
+
         // O semestre para estágio é o MENOR entre o cálculo por tempo e por créditos.
         $semestreFinal = min($semestrePorTempo, $semestrePorCreditos);
 

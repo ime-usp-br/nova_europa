@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\DTOs\AtestadoDTO;
 use App\Models\User;
 use App\Services\EvolucaoService;
 use App\Services\PdfGenerationService;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\App;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AtestadoController extends Controller
 {
@@ -17,10 +18,6 @@ class AtestadoController extends Controller
 
     /**
      * Gera o atestado de matrícula para um aluno.
-     *
-     * @param int $nusp
-     * @param string $codcrl
-     * @return StreamedResponse
      */
     public function generate(int $nusp, string $codcrl): StreamedResponse
     {
@@ -33,16 +30,16 @@ class AtestadoController extends Controller
             $evolucaoDTO = $this->evolucaoService->processarEvolucao($alunoModel, $codcrl);
 
             // Prepara os dados para a view do atestado
-            $alunoArray = [
-                'codpes' => $evolucaoDTO->aluno['codpes'],
-                'nompes' => $evolucaoDTO->aluno['nompes'],
-                'tipdocidf' => $evolucaoDTO->aluno['tipdocidf'],
-                'numdocidf' => $evolucaoDTO->aluno['numdocidf'],
-                'sglorgexdidf' => $evolucaoDTO->aluno['sglorgexdidf'],
-                'nomcur' => $evolucaoDTO->aluno['nomcur'],
-                'duridlcur' => $evolucaoDTO->curriculo['curriculo']['duracao_ideal'] ?? 8,
-            ];
-            $alunoParaAtestado = (object) $alunoArray;
+            $duracaoIdealValue = $evolucaoDTO->curriculo['curriculo']['duracao_ideal'] ?? 8;
+            $alunoParaAtestado = new AtestadoDTO(
+                codpes: $evolucaoDTO->aluno['codpes'],
+                nompes: $evolucaoDTO->aluno['nompes'],
+                tipdocidf: $evolucaoDTO->aluno['tipdocidf'],
+                numdocidf: $evolucaoDTO->aluno['numdocidf'],
+                sglorgexdidf: $evolucaoDTO->aluno['sglorgexdidf'],
+                nomcur: $evolucaoDTO->aluno['nomcur'],
+                duridlcur: is_numeric($duracaoIdealValue) ? (int) $duracaoIdealValue : 8,
+            );
 
             $semestreEstagio = $evolucaoDTO->semestreEstagio;
 

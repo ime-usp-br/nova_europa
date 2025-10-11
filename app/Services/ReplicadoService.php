@@ -25,7 +25,7 @@ class ReplicadoService
      * and current enrollment details.
      *
      * @param  int  $codpes  Student USP code (NUSP)
-     * @return array{codpes: int, nompes: string|null, dtanas: string|null, email: string|null, codcur: int|null, nomcur: string|null, codhab: int|null, nomhab: string|null, dtainivin: string|null, codpgm: int|null, stapgm: string|null} Student data
+     * @return array{codpes: int, nompes: string|null, dtanas: string|null, email: string|null, tipdocidf: string|null, numdocidf: string|null, sglorgexdidf: string|null, codcur: int|null, nomcur: string|null, codhab: int|null, nomhab: string|null, dtainivin: string|null, codpgm: int|null, stapgm: string|null} Student data
      *
      * @throws ReplicadoServiceException When student not found or database error occurs
      */
@@ -440,8 +440,9 @@ class ReplicadoService
     /**
      * Fetch student data for the enrollment certificate.
      *
-     * @param int $codpes Student USP code (NUSP)
+     * @param  int  $codpes  Student USP code (NUSP)
      * @return object|null Student data
+     *
      * @throws ReplicadoServiceException
      */
     public function obterDadosAlunoAtestado(int $codpes, string $codcrl): ?object

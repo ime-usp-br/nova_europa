@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\DTOs\AtestadoDTO;
 use App\DTOs\EvolucaoDTO;
 use Illuminate\Support\Facades\View;
 use Spatie\Browsershot\Browsershot;
@@ -135,13 +136,9 @@ class PdfGenerationService
     /**
      * Generate enrollment certificate PDF.
      *
-     * @param object $aluno
-     * @param int $semestreEstagio
-     * @param string $dataPorExtenso
-     * @return StreamedResponse
      * @throws \Exception
      */
-    public function gerarAtestadoMatriculaPdf(object $aluno, int $semestreEstagio, string $dataPorExtenso): StreamedResponse
+    public function gerarAtestadoMatriculaPdf(AtestadoDTO $aluno, int $semestreEstagio, string $dataPorExtenso): StreamedResponse
     {
         try {
             $html = View::make('pdf.atestado-matricula', [
