@@ -38,7 +38,7 @@ class ReplicadoService
 
             $query = "
                 SELECT TOP 1
-                    P.codpes, P.nompes, P.dtanas,
+                    P.codpes, P.nompes, P.dtanas, P.tipdocidf, P.numdocidf, P.sglorgexdidf,
                     H.codcur, C.nomcur, H.codhab, HB.nomhab, V.dtainivin,
                     PR.codpgm, PR.stapgm
                 FROM PESSOA AS P
@@ -61,7 +61,7 @@ class ReplicadoService
                 throw ReplicadoServiceException::notFound(__('Student'), $codpes);
             }
 
-            /** @var array{codpes: int|string|null, nompes: string|null, dtanas: string|null, codcur: int|string|null, nomcur: string|null, codhab: int|string|null, nomhab: string|null, dtainivin: string|null, codpgm: int|string|null, stapgm: string|null} $alunoData */
+            /** @var array{codpes: int|string|null, nompes: string|null, dtanas: string|null, tipdocidf: string|null, numdocidf: string|null, sglorgexdidf: string|null, codcur: int|string|null, nomcur: string|null, codhab: int|string|null, nomhab: string|null, dtainivin: string|null, codpgm: int|string|null, stapgm: string|null} $alunoData */
             $alunoData = $rawAlunoData;
 
             $email = Pessoa::email($codpes);
@@ -71,6 +71,9 @@ class ReplicadoService
                 'nompes' => ! empty($alunoData['nompes']) ? (string) $alunoData['nompes'] : null,
                 'dtanas' => ! empty($alunoData['dtanas']) ? (string) $alunoData['dtanas'] : null,
                 'email' => $email ?: null,
+                'tipdocidf' => ! empty($alunoData['tipdocidf']) ? (string) $alunoData['tipdocidf'] : null,
+                'numdocidf' => ! empty($alunoData['numdocidf']) ? (string) $alunoData['numdocidf'] : null,
+                'sglorgexdidf' => ! empty($alunoData['sglorgexdidf']) ? (string) $alunoData['sglorgexdidf'] : null,
                 'codcur' => ! empty($alunoData['codcur']) ? (int) $alunoData['codcur'] : null,
                 'nomcur' => ! empty($alunoData['nomcur']) ? (string) $alunoData['nomcur'] : null,
                 'codhab' => ! empty($alunoData['codhab']) ? (int) $alunoData['codhab'] : null,
@@ -431,6 +434,70 @@ class ReplicadoService
             throw $e;
         } catch (Throwable $e) {
             throw ReplicadoServiceException::queryFailed('buscarEquivalencias', $e);
+        }
+    }
+
+    /**
+     * Fetch student data for the enrollment certificate.
+     *
+     * @param int $codpes Student USP code (NUSP)
+     * @return object|null Student data
+     * @throws ReplicadoServiceException
+     */
+    public function obterDadosAlunoAtestado(int $codpes, string $codcrl): ?object
+    {
+        try {
+            if ($codpes <= 0) {
+                throw ReplicadoServiceException::invalidParameter('codpes', __('Must be a positive integer'));
+            }
+            if (empty(trim($codcrl))) {
+                throw ReplicadoServiceException::invalidParameter('codcrl', __('Cannot be empty'));
+            }
+
+            $query = "
+                SELECT TOP 1
+                    P.codpes, P.nompes, P.tipdocidf, P.numdocidf, P.sglorgexdidf,
+                    C.nomcur,
+                    COALESCE(HD.duridlhab, CGL.duridlcur) as duridlcur
+                FROM
+                    PESSOA AS P
+                INNER JOIN
+                    VINCULOPESSOAUSP AS V ON (P.codpes = V.codpes)
+                INNER JOIN
+                    PROGRAMAGR AS PR ON (P.codpes = PR.codpes)
+                INNER JOIN
+                    HABILPROGGR AS H ON (PR.codpgm = H.codpgm)
+                INNER JOIN
+                    CURRICULOGR AS CGL ON (H.codcur = CGL.codcur AND H.codhab = CGL.codhab)
+                INNER JOIN
+                    CURSOGR AS C ON (CGL.codcur = C.codcur)
+                LEFT JOIN
+                    HABILDURACAO AS HD ON (CGL.codcur = HD.codcur AND CGL.codhab = HD.codhab AND HD.dtainivaldur <= CGL.dtainicrl AND (HD.dtafimvaldur IS NULL OR HD.dtafimvaldur >= CGL.dtainicrl))
+                WHERE
+                    P.codpes = :codpes
+                    AND CGL.codcrl = :codcrl
+                    AND V.tipvin = 'ALUNOGR'
+                    AND PR.stapgm <> 'E'
+                ORDER BY
+                    H.dtaini DESC
+            ";
+
+            $result = ReplicadoDB::fetch($query, ['codpes' => $codpes, 'codcrl' => $codcrl]);
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return (object) $result;
+
+        } catch (PDOException $e) {
+            throw ReplicadoServiceException::connectionFailed($e);
+        } catch (Throwable $e) {
+            throw new ReplicadoServiceException(
+                __('Error fetching student data for certificate: :message', ['message' => $e->getMessage()]),
+                500,
+                $e
+            );
         }
     }
 }

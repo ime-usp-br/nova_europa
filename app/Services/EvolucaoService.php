@@ -114,6 +114,9 @@ class EvolucaoService
                 aluno: [
                     'codpes' => $alunoData['codpes'],
                     'nompes' => $alunoData['nompes'],
+                    'tipdocidf' => $alunoData['tipdocidf'],
+                    'numdocidf' => $alunoData['numdocidf'],
+                    'sglorgexdidf' => $alunoData['sglorgexdidf'],
                     'codcur' => $alunoData['codcur'],
                     'nomcur' => $alunoData['nomcur'],
                     'codhab' => $alunoData['codhab'],
@@ -483,25 +486,57 @@ class EvolucaoService
         array $curriculoData,
         Collection $disciplinasObrigatorias
     ): int {
-        // If no enrollment date available, default to semester 1
-        if (empty($dtainivin)) {
-            return 1;
+        // Cálculo 1: Baseado no tempo de casa (semestres desde o ingresso)
+        $semestrePorTempo = 1;
+        if (!empty($dtainivin)) {
+            $inicio = \Carbon\Carbon::parse($dtainivin);
+            $hoje = \Carbon\Carbon::now();
+            $anoInicio = $inicio->year;
+            $semestreInicio = $inicio->month <= 6 ? 1 : 2;
+            $anoAtual = $hoje->year;
+            $semestreAtual = $hoje->month <= 6 ? 1 : 2;
+            $semestrePorTempo = (($anoAtual - $anoInicio) * 2) + ($semestreAtual - $semestreInicio) + 1;
         }
 
-        // Calculate semester based on time elapsed since enrollment (legacy system logic)
-        $inicio = \Carbon\Carbon::parse($dtainivin);
-        $hoje = \Carbon\Carbon::now();
+        // Cálculo 2: Baseado na porcentagem de créditos concluídos
+        $totalConcluidos = ($creditosObrigatorios['aula'] + $creditosObrigatorios['trabalho'])
+            + ($creditosEletivos['aula'] + $creditosEletivos['trabalho'])
+            + ($creditosLivres['aula'] + $creditosLivres['trabalho']);
 
-        // Calculate semester based on academic year periods
-        $anoInicio = $inicio->year;
-        $semestreInicio = $inicio->month <= 6 ? 1 : 2;
-        $anoAtual = $hoje->year;
-        $semestreAtual = $hoje->month <= 6 ? 1 : 2;
+        $totalExigidos = ($creditosObrigatorios['exigidos_aula'] + $creditosObrigatorios['exigidos_trabalho'])
+            + ($creditosEletivos['exigidos_aula'] + $creditosEletivos['exigidos_trabalho'])
+            + ($creditosLivres['exigidos_aula'] + $creditosLivres['exigidos_trabalho']);
 
-        // Calculate total semesters: (year difference * 2) + (semester difference) + 1
-        $semestreCalculado = (($anoAtual - $anoInicio) * 2) + ($semestreAtual - $semestreInicio) + 1;
+        if ($totalExigidos == 0) {
+            return (int) max($semestrePorTempo, 1);
+        }
 
-        return (int) max($semestreCalculado, 1);
+        $percConcluidos = $totalConcluidos / $totalExigidos;
+        $duracaoIdeal = $curriculoData['curriculo']['duracao_ideal'] ?? 8;
+        $semestrePorCreditos = $percConcluidos * $duracaoIdeal;
+
+        // Lógica de ajuste para alunos concluintes (>= 87.5% dos créditos)
+        if ($percConcluidos >= 0.875) {
+            $disciplinasObrigatoriasGrade = $curriculoData['disciplinas']->where('tipobg', 'O');
+            $codigosCursados = $disciplinasObrigatorias->pluck('coddis');
+            $pendentes = $disciplinasObrigatoriasGrade->whereNotIn('coddis', $codigosCursados);
+
+            if ($pendentes->isNotEmpty()) {
+                $semestresPendentes = $pendentes->pluck('numsemidl')->unique();
+                $temPar = $semestresPendentes->some(fn($s) => $s % 2 == 0);
+                $temImpar = $semestresPendentes->some(fn($s) => $s % 2 != 0);
+                $semestreAtual = (date('m') <= 6) ? 1 : 2;
+
+                if (($semestreAtual % 2 == 0 && !$temPar && $temImpar) || ($semestreAtual % 2 != 0 && $temPar && !$temImpar)) {
+                    $semestrePorCreditos = $duracaoIdeal - 1;
+                }
+            }
+        }
+        
+        // O semestre para estágio é o MENOR entre o cálculo por tempo e por créditos.
+        $semestreFinal = min($semestrePorTempo, $semestrePorCreditos);
+
+        return (int) ceil(max($semestreFinal, 1));
     }
 
     /**

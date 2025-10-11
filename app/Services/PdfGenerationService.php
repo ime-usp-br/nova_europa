@@ -131,4 +131,47 @@ class PdfGenerationService
             default => 'pdf.evolucao-padrao', // Standard template
         };
     }
+
+    /**
+     * Generate enrollment certificate PDF.
+     *
+     * @param object $aluno
+     * @param int $semestreEstagio
+     * @param string $dataPorExtenso
+     * @return StreamedResponse
+     * @throws \Exception
+     */
+    public function gerarAtestadoMatriculaPdf(object $aluno, int $semestreEstagio, string $dataPorExtenso): StreamedResponse
+    {
+        try {
+            $html = View::make('pdf.atestado-matricula', [
+                'aluno' => $aluno,
+                'semestreEstagio' => $semestreEstagio,
+                'dataPorExtenso' => $dataPorExtenso,
+            ])->render();
+
+            $pdfContent = Browsershot::html($html)
+                ->setNodeBinary('/usr/bin/node')
+                ->setNpmBinary('/usr/bin/npm')
+                ->noSandbox()
+                ->format('A4')
+                ->pdf();
+
+            $filename = "atestado_matricula_{$aluno->codpes}.pdf";
+
+            return new StreamedResponse(
+                function () use ($pdfContent) {
+                    echo $pdfContent;
+                },
+                200,
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+                    'Content-Length' => strlen($pdfContent),
+                ]
+            );
+        } catch (\Exception $e) {
+            throw new \Exception(__('Failed to generate enrollment certificate PDF: :message', ['message' => $e->getMessage()]), 0, $e);
+        }
+    }
 }

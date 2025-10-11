@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AtestadoController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -18,5 +19,9 @@ Route::view('profile', 'profile')
 Volt::route('evolucao', 'pages.evolucao')
     ->middleware(['auth', 'verified'])
     ->name('evolucao');
+
+Route::get('/atestado/{nusp}/{codcrl}', [AtestadoController::class, 'generate'])
+    ->middleware(['auth', 'verified'])
+    ->name('atestado.generate');
 
 require __DIR__.'/auth.php';

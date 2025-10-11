@@ -202,36 +202,6 @@ new #[Layout('layouts.app')] class extends Component
             return null;
         }
     }
-
-    /**
-     * Gera o atestado de matrícula do aluno.
-     */
-    public function gerarAtestado(PdfGenerationService $pdfService): mixed
-    {
-        if ($this->aluno === null) {
-            $this->addError('form.nusp', __('Please search for a student first.'));
-
-            return null;
-        }
-
-        try {
-            // TODO: Implementar geração de atestado de matrícula
-            // Isso será implementado em uma issue futura
-            session()->flash('status', __('Enrollment certificate generation will be implemented soon.'));
-
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error(__('Error generating enrollment certificate'), [
-                'nusp' => $this->form->nusp,
-                'error' => $e->getMessage(),
-            ]);
-
-            session()->flash('error', __('Error generating enrollment certificate: :message', ['message' => $e->getMessage()]));
-
-            return null;
-        }
-    }
 }; ?>
 
 <div class="py-12">
@@ -349,15 +319,16 @@ new #[Layout('layouts.app')] class extends Component
                                 <span wire:loading wire:target="gerarEvolucao">{{ __('Generating...') }}</span>
                             </x-primary-button>
 
-                            <x-secondary-button
-                                wire:click="gerarAtestado"
-                                :disabled="!$selectedCurriculo"
-                                wire:loading.attr="disabled"
-                                wire:target="gerarAtestado"
-                            >
-                                <span wire:loading.remove wire:target="gerarAtestado">{{ __('Generate Enrollment Certificate') }}</span>
-                                <span wire:loading wire:target="gerarAtestado">{{ __('Generating...') }}</span>
-                            </x-secondary-button>
+                            <a href="{{ $selectedCurriculo ? route('atestado.generate', ['nusp' => $aluno['codpes'], 'codcrl' => $selectedCurriculo]) : '#' }}" 
+                               target="_blank" 
+                               @class([
+                                   'inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-25 transition ease-in-out duration-150',
+                                   'opacity-50 cursor-not-allowed' => !$selectedCurriculo,
+                               ])
+                               aria-disabled="{{ !$selectedCurriculo }}"
+                               >
+                                {{ __('Generate Enrollment Certificate') }}
+                            </a>
                         </div>
                     @else
                         <div class="p-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 rounded">

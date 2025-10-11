@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 class EvolucaoDTO
 {
     /**
-     * @param  array{codpes: int, nompes: string|null, codcur: int|null, nomcur: string|null, codhab: int|null, nomhab: string|null, codpgm: int|null, stapgm: string|null, dtainivin: string|null}  $aluno  Student complete information
+     * @param  array{codpes: int, nompes: string|null, tipdocidf: string|null, numdocidf: string|null, sglorgexdidf: string|null, codcur: int|null, nomcur: string|null, codhab: int|null, nomhab: string|null, codpgm: int|null, stapgm: string|null, dtainivin: string|null}  $aluno  Student complete information
      * @param  array{codcrl: string, curriculo: array<string, mixed>, disciplinas: Collection<int, array{coddis: string, verdis: int, tipobg: string, numsemidl: int, nomdis: string, creaul: int, cretrb: int}>}  $curriculo  Curriculum information
      * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasObrigatorias  Mandatory courses completed
      * @param  Collection<int, array{coddis: string, verdis: int, nomdis: string, creaul: int, cretrb: int, rstfim: string, notfim: float|null, codtur: string, discrl: string, stamtr: string}>  $disciplinasEletivas  Elective courses completed
