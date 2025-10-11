@@ -246,6 +246,7 @@ new #[Layout('layouts.app')] class extends Component
 
                         <div class="flex items-end">
                             <x-primary-button type="submit" wire:loading.attr="disabled" wire:target="buscarAluno">
+                                <x-loading-spinner class="h-5 w-5 mr-2" wire:loading wire:target="buscarAluno" />
                                 <span wire:loading.remove wire:target="buscarAluno">{{ __('Search Student') }}</span>
                                 <span wire:loading wire:target="buscarAluno">{{ __('Searching...') }}</span>
                             </x-primary-button>
@@ -315,6 +316,7 @@ new #[Layout('layouts.app')] class extends Component
                                 wire:loading.attr="disabled"
                                 wire:target="gerarEvolucao"
                             >
+                                <x-loading-spinner class="h-5 w-5 mr-2" wire:loading wire:target="gerarEvolucao" />
                                 <span wire:loading.remove wire:target="gerarEvolucao">{{ __('Generate Evolution Report') }}</span>
                                 <span wire:loading wire:target="gerarEvolucao">{{ __('Generating...') }}</span>
                             </x-primary-button>
