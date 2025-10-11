@@ -332,6 +332,7 @@
     "Date and Signature": "Data e Assinatura",
     "No": "Não",
     "Class": "Aula",
+    "Class Code": "Turma",
     "Work": "Trabalho",
     "Failed to generate PDF: :message": "Falha ao gerar PDF: :message",
     "Course code is required to generate PDF": "Código do curso é obrigatório para gerar PDF",

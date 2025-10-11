@@ -311,6 +311,7 @@
     "Observations": "Observations",
     "Date and Signature": "Date and Signature",
     "Class": "Class",
+    "Class Code": "Class Code",
     "Work": "Work",
     "Failed to generate PDF: :message": "Failed to generate PDF: :message",
     "Course code is required to generate PDF": "Course code is required to generate PDF",

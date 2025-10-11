@@ -989,7 +989,7 @@
                             <th style="width: 15%">{{ __('Course Code') }}</th>
                             <th style="width: 45%">{{ __('Course Name') }}</th>
                             <th style="width: 12%">{{ __('Credits') }}</th>
-                            <th style="width: 10%">{{ __('Period') }}</th>
+                            <th style="width: 10%">{{ __('Class Code') }}</th>
                             <th style="width: 18%">{{ __('Status') }}</th>
                         </tr>
                     </thead>

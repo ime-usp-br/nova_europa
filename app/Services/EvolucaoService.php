@@ -577,6 +577,7 @@ class EvolucaoService
             /** @var Collection<int, array{coddis: string, nomdis: string, creaul: int, cretrb: int, codtur: string, rstfim: string}> $todasDisciplinas */
             $todasDisciplinas = collect();
             $disciplinasUnicas = collect();
+            $disciplinasCursadasUnicas = collect();
 
             foreach ($trilha->regras as $regra) {
                 $disciplinasRegraCompletas = 0;
@@ -588,16 +589,21 @@ class EvolucaoService
                     });
 
                     if ($cursada) {
-                        $disciplinasCursadas->push([
-                            'coddis' => (string) $cursada['coddis'],
-                            'nomdis' => (string) $cursada['nomdis'],
-                            'creaul' => (int) $cursada['creaul'],
-                            'cretrb' => (int) $cursada['cretrb'],
-                            'codtur' => (string) $cursada['codtur'],
-                            'rstfim' => (string) $cursada['rstfim'],
-                            'tipo' => (string) $trilhaDisciplina->tipo,
-                            'regra' => (string) $regra->nome_regra,
-                        ]);
+                        // Avoid adding duplicate completed disciplines (same discipline may be in multiple rules)
+                        if (! $disciplinasCursadasUnicas->has($cursada['coddis'])) {
+                            $disciplinasCursadasUnicas->put($cursada['coddis'], true);
+
+                            $disciplinasCursadas->push([
+                                'coddis' => (string) $cursada['coddis'],
+                                'nomdis' => (string) $cursada['nomdis'],
+                                'creaul' => (int) $cursada['creaul'],
+                                'cretrb' => (int) $cursada['cretrb'],
+                                'codtur' => (string) $cursada['codtur'],
+                                'rstfim' => (string) $cursada['rstfim'],
+                                'tipo' => (string) $trilhaDisciplina->tipo,
+                                'regra' => (string) $regra->nome_regra,
+                            ]);
+                        }
 
                         $disciplinasRegraCompletas++;
                     }
