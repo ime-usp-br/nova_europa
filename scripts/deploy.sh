@@ -73,6 +73,30 @@ check_prerequisites() {
         exit 1
     fi
 
+    # Check if APP_KEY is set, generate if empty
+    if ! grep -q "APP_KEY=base64:" "$ENV_FILE"; then
+        log_warn "APP_KEY not found or empty in .env.production"
+        log_info "Generating APP_KEY..."
+
+        # Generate key using Docker (requires image to be built first)
+        if docker images | grep -q "nova-europa"; then
+            NEW_KEY=$(docker run --rm nova-europa:latest php artisan key:generate --show)
+
+            if [ -n "$NEW_KEY" ]; then
+                # Update .env.production with new key
+                sed -i "s|^APP_KEY=.*|APP_KEY=$NEW_KEY|" "$ENV_FILE"
+                log_info "APP_KEY generated and saved to .env.production"
+            else
+                log_error "Failed to generate APP_KEY"
+                exit 1
+            fi
+        else
+            log_warn "Docker image not built yet, will generate key after build"
+        fi
+    else
+        log_info "APP_KEY already set in .env.production"
+    fi
+
     log_info "All prerequisites met"
 }
 
@@ -113,6 +137,20 @@ build_images() {
 
     if [ $? -eq 0 ]; then
         log_info "Image built successfully: ${IMAGE_NAME}:${VERSION}"
+
+        # Generate APP_KEY if not set (after build)
+        if ! grep -q "APP_KEY=base64:" "$ENV_FILE"; then
+            log_warn "APP_KEY still not set, generating now..."
+            NEW_KEY=$(docker run --rm "${IMAGE_NAME}:${VERSION}" php artisan key:generate --show)
+
+            if [ -n "$NEW_KEY" ]; then
+                sed -i "s|^APP_KEY=.*|APP_KEY=$NEW_KEY|" "$ENV_FILE"
+                log_info "APP_KEY generated and saved: $NEW_KEY"
+            else
+                log_error "Failed to generate APP_KEY after build"
+                exit 1
+            fi
+        fi
     else
         log_error "Image build failed!"
         exit 1
