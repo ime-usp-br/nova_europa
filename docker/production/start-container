@@ -31,7 +31,26 @@ log_error() {
 }
 
 # =============================================================================
-# 1. Configure FreeTDS
+# 1. Configure PHP-FPM allowed clients based on Docker network
+# =============================================================================
+log_info "Configuring PHP-FPM network access..."
+
+# Extract network subnet from environment (e.g., 172.27.0.0/16)
+DOCKER_SUBNET=${DOCKER_NETWORK_SUBNET:-172.27.0.0/16}
+
+# If subnet is defined, configure allowed clients; otherwise, allow all
+if [ -n "$DOCKER_SUBNET" ]; then
+    log_info "PHP-FPM will accept connections from: $DOCKER_SUBNET"
+    # Update php-fpm.conf with the subnet
+    sed -i "s|^; listen.allowed_clients = .*|listen.allowed_clients = $DOCKER_SUBNET|" /etc/php/8.2/fpm/pool.d/www.conf
+else
+    log_info "PHP-FPM will accept connections from any IP (no restriction)"
+    # Ensure the line is commented out
+    sed -i "s|^listen.allowed_clients = .*|; listen.allowed_clients = |" /etc/php/8.2/fpm/pool.d/www.conf
+fi
+
+# =============================================================================
+# 2. Configure FreeTDS
 # =============================================================================
 log_info "Configuring FreeTDS for Replicado connection..."
 
@@ -45,7 +64,7 @@ sed -e "s/__REPLICADO_HOST__/$REPLICADO_HOST_VAL/g" \
 log_info "FreeTDS configured: $REPLICADO_HOST_VAL:$REPLICADO_PORT_VAL"
 
 # =============================================================================
-# 2. Validate Supervisor User
+# 3. Validate Supervisor User
 # =============================================================================
 if [ "$SUPERVISOR_PHP_USER" != "root" ] && [ "$SUPERVISOR_PHP_USER" != "www-data" ]; then
     log_error "SUPERVISOR_PHP_USER must be 'www-data' or 'root'"
@@ -53,7 +72,7 @@ if [ "$SUPERVISOR_PHP_USER" != "root" ] && [ "$SUPERVISOR_PHP_USER" != "www-data
 fi
 
 # =============================================================================
-# 3. Adjust User ID if needed
+# 4. Adjust User ID if needed
 # =============================================================================
 if [ ! -z "$WWWUSER" ] && [ "$WWWUSER" != "1000" ]; then
     log_info "Adjusting www-data UID to $WWWUSER"
@@ -61,7 +80,7 @@ if [ ! -z "$WWWUSER" ] && [ "$WWWUSER" != "1000" ]; then
 fi
 
 # =============================================================================
-# 4. Setup Composer Cache Directory
+# 5. Setup Composer Cache Directory
 # =============================================================================
 if [ ! -d /.composer ]; then
     mkdir -p /.composer
@@ -69,7 +88,7 @@ fi
 chmod -R ugo+rw /.composer
 
 # =============================================================================
-# 5. Install Chrome Headless Shell for Puppeteer
+# 6. Install Chrome Headless Shell for Puppeteer
 # =============================================================================
 # This installs Chrome matching the puppeteer-core version
 # We only install if not already installed (marker file check)
@@ -113,7 +132,7 @@ else
 fi
 
 # =============================================================================
-# 6. Fix Permissions for Laravel Storage
+# 7. Fix Permissions for Laravel Storage
 # =============================================================================
 log_info "Adjusting storage and cache permissions..."
 
@@ -123,7 +142,7 @@ chmod -R 775 /var/www/html/storage
 chmod -R 775 /var/www/html/bootstrap/cache
 
 # =============================================================================
-# 7. Execute Command
+# 8. Execute Command
 # =============================================================================
 if [ $# -gt 0 ]; then
     log_info "Executing custom command: $@"

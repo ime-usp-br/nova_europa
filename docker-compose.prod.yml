@@ -303,8 +303,8 @@ networks:
     name: nova-europa-network
     ipam:
       config:
-        - subnet: 172.27.0.0/16
-          gateway: 172.27.0.1
+        - subnet: ${DOCKER_NETWORK_SUBNET:-172.27.0.0/16}
+          gateway: ${DOCKER_NETWORK_GATEWAY:-172.27.0.1}
 
 
 # =============================================================================
