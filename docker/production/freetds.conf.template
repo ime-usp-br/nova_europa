@@ -1,0 +1,32 @@
+# =============================================================================
+# FreeTDS Configuration for USP Replicado (Production)
+# =============================================================================
+# This configuration enables connection to legacy SQL Server databases
+# using older TLS versions required by the USP replicado server
+
+[global]
+    # Use TDS protocol version 7.0 (SQL Server 2000+)
+    tds version = 7.0
+
+    # Client charset
+    client charset = UTF-8
+
+    # Text size
+    text size = 64512
+
+    # Enable legacy encryption protocols for old servers
+    encryption = off
+
+    # Use NTLM authentication
+    use ntlmv2 = yes
+
+    # Disable debug in production
+    # dump file = /tmp/freetds.log
+    # debug flags = 0xffff
+
+# Configuration for USP Replicado server
+[replicado]
+    host = __REPLICADO_HOST__
+    port = __REPLICADO_PORT__
+    tds version = 7.0
+    encryption = off

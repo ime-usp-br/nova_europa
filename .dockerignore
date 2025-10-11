@@ -1,0 +1,114 @@
+# =============================================================================
+# Nova Europa - Docker Build Context Ignore
+# =============================================================================
+# This file excludes files/directories from the Docker build context
+# Reduces build time and image size by excluding unnecessary files
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+.github
+
+# Docker files (don't include in build)
+docker-compose.yml
+docker-compose.prod.yml
+docker-compose.*.yml
+.dockerignore
+Dockerfile
+.docker
+
+# Environment files (should be mounted or provided at runtime)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Node modules (will be installed during build)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Vendor (will be installed during build)
+vendor/
+
+# Storage and cache (mounted as volumes in production)
+storage/app/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+!storage/app/.gitkeep
+!storage/framework/.gitkeep
+!storage/logs/.gitkeep
+
+# Bootstrap cache
+bootstrap/cache/*
+!bootstrap/cache/.gitkeep
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Testing
+.phpunit.result.cache
+phpunit.xml
+.phpunit.cache
+coverage/
+tests/_output/*
+
+# Documentation (not needed in production image)
+docs/
+*.md
+!README.md
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+.github/
+
+# Build artifacts
+public/build/
+public/hot
+public/storage
+mix-manifest.json
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Database
+*.sqlite
+*.sqlite-journal
+database/*.sqlite
+
+# Backups
+*.sql
+*.backup
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Development tools
+.editorconfig
+.php_cs
+.php_cs.cache
+.styleci.yml
+phpstan.neon
+pint.json
