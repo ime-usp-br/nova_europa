@@ -61,7 +61,7 @@ check_prerequisites() {
     fi
 
     # Check if containers are running
-    if ! docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps | grep -q "Up"; then
+    if ! docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps | grep -q "Up"; then
         log_error "Docker containers are not running"
         exit 1
     fi
@@ -86,7 +86,7 @@ backup_database() {
     MYSQL_BACKUP_FILE="${BACKUP_DIR}/mysql-database.sql"
 
     # Dump database
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T mysql \
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T mysql \
         mysqldump -u root -p"${DB_ROOT_PASSWORD}" \
         --all-databases \
         --single-transaction \

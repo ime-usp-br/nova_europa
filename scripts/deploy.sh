@@ -59,9 +59,10 @@ check_prerequisites() {
         exit 1
     fi
 
-    # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
+    # Check Docker Compose (v2 plugin)
+    if ! docker compose version &> /dev/null; then
         log_error "Docker Compose is not installed"
+        log_error "Install with: sudo apt install docker-compose-plugin"
         exit 1
     fi
 
@@ -81,7 +82,7 @@ backup_database() {
     mkdir -p "$BACKUP_DIR"
     BACKUP_FILE="${BACKUP_DIR}/mysql-backup-$(date +%Y%m%d-%H%M%S).sql"
 
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T mysql \
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" exec -T mysql \
         mysqldump -u root -p"${DB_ROOT_PASSWORD}" --all-databases > "$BACKUP_FILE"
 
     if [ $? -eq 0 ]; then
@@ -124,15 +125,15 @@ deploy_application() {
     cd "$PROJECT_ROOT"
 
     # Pull latest images (if using registry)
-    # docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+    # docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
 
     # Stop old containers gracefully
     log_info "Stopping old containers..."
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
 
     # Start new containers
     log_info "Starting new containers..."
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
     if [ $? -eq 0 ]; then
         log_info "Containers started successfully"
@@ -174,7 +175,7 @@ verify_deployment() {
 
     # Check running containers
     log_info "Checking container status..."
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
     # Test application endpoint
     log_info "Testing application endpoint..."
@@ -188,7 +189,7 @@ verify_deployment() {
 
     # Check logs for errors
     log_info "Checking recent logs for errors..."
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=50 app | grep -i error || true
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=50 app | grep -i error || true
 }
 
 cleanup_old_images() {
@@ -208,7 +209,7 @@ cleanup_old_images() {
 
 show_logs() {
     log_step "Showing application logs (last 50 lines)..."
-    docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=50 app
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=50 app
 }
 
 main() {
@@ -219,7 +220,7 @@ main() {
     check_prerequisites
 
     # Create backup before deployment
-    if docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps | grep -q "Up"; then
+    if docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps | grep -q "Up"; then
         log_info "Existing deployment detected, creating backup..."
         backup_database
     else
@@ -244,14 +245,14 @@ main() {
         log_info "Access it at: ${APP_URL:-http://localhost}"
         log_info ""
         log_info "Useful commands:"
-        log_info "  - View logs: docker-compose -f $COMPOSE_FILE logs -f"
-        log_info "  - Stop application: docker-compose -f $COMPOSE_FILE down"
-        log_info "  - Restart application: docker-compose -f $COMPOSE_FILE restart"
+        log_info "  - View logs: docker compose -f $COMPOSE_FILE logs -f"
+        log_info "  - Stop application: docker compose -f $COMPOSE_FILE down"
+        log_info "  - Restart application: docker compose -f $COMPOSE_FILE restart"
     else
         log_error "Deployment failed during health checks"
         log_error "Rolling back..."
 
-        docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
         log_error "Deployment rolled back. Check logs for details."
         exit 1
     fi
