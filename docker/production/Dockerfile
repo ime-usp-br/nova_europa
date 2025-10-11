@@ -209,7 +209,9 @@ RUN mkdir -p /etc/gnutls \
 RUN sed -i 's/^listen = .*/listen = 9000/' /etc/php/8.2/fpm/pool.d/www.conf \
     && sed -i 's/^;listen.allowed_clients/listen.allowed_clients/' /etc/php/8.2/fpm/pool.d/www.conf \
     && sed -i 's/^user = .*/user = www-data/' /etc/php/8.2/fpm/pool.d/www.conf \
-    && sed -i 's/^group = .*/group = www-data/' /etc/php/8.2/fpm/pool.d/www.conf
+    && sed -i 's/^group = .*/group = www-data/' /etc/php/8.2/fpm/pool.d/www.conf \
+    # Fix PHP-FPM global error_log path
+    && sed -i 's|^error_log = .*|error_log = /var/www/html/storage/logs/php8.2-fpm.log|' /etc/php/8.2/fpm/php-fpm.conf
 
 # Create www-data user with proper UID/GID
 # Check if GID/UID already exists and handle accordingly
