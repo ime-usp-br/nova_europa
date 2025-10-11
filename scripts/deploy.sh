@@ -23,7 +23,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.prod.yml"
-ENV_FILE="${PROJECT_ROOT}/.env.production"
+ENV_FILE="${PROJECT_ROOT}/.env"
 IMAGE_NAME="nova-europa"
 BACKUP_DIR="/backups/pre-deploy"
 
@@ -66,16 +66,16 @@ check_prerequisites() {
         exit 1
     fi
 
-    # Check .env.production file
+    # Check .env file
     if [ ! -f "$ENV_FILE" ]; then
-        log_error ".env.production file not found at $ENV_FILE"
-        log_error "Copy .env.production.example and configure it first"
+        log_error ".env file not found at $ENV_FILE"
+        log_error "Copy .env.example and configure it first"
         exit 1
     fi
 
     # Check if APP_KEY is set, generate if empty
     if ! grep -q "APP_KEY=base64:" "$ENV_FILE"; then
-        log_warn "APP_KEY not found or empty in .env.production"
+        log_warn "APP_KEY not found or empty in .env"
         log_info "Generating APP_KEY..."
 
         # Generate key using Docker (requires image to be built first)
@@ -83,9 +83,9 @@ check_prerequisites() {
             NEW_KEY=$(docker run --rm nova-europa:latest php artisan key:generate --show)
 
             if [ -n "$NEW_KEY" ]; then
-                # Update .env.production with new key
+                # Update .env with new key
                 sed -i "s|^APP_KEY=.*|APP_KEY=$NEW_KEY|" "$ENV_FILE"
-                log_info "APP_KEY generated and saved to .env.production"
+                log_info "APP_KEY generated and saved to .env"
             else
                 log_error "Failed to generate APP_KEY"
                 exit 1
@@ -94,7 +94,7 @@ check_prerequisites() {
             log_warn "Docker image not built yet, will generate key after build"
         fi
     else
-        log_info "APP_KEY already set in .env.production"
+        log_info "APP_KEY already set in .env"
     fi
 
     log_info "All prerequisites met"

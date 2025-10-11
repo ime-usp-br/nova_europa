@@ -34,7 +34,7 @@ services:
     container_name: nova-europa-app
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env
     environment:
       # Laravel environment
       APP_ENV: production
@@ -97,7 +97,7 @@ services:
     container_name: nova-europa-nginx
     restart: unless-stopped
     ports:
-      - '${APP_PORT:-80}:80'
+      - '${APP_PORT:-8016}:80'
       # Uncomment for HTTPS
       # - '${APP_SSL_PORT:-443}:443'
     volumes:
@@ -220,7 +220,7 @@ services:
     container_name: nova-europa-queue
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: 'false'
@@ -262,7 +262,7 @@ services:
     container_name: nova-europa-scheduler
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: 'false'
@@ -301,6 +301,11 @@ networks:
   nova-europa-network:
     driver: bridge
     name: nova-europa-network
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16
+          gateway: 172.27.0.1
+
 
 # =============================================================================
 # Volumes (Persistent Data)

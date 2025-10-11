@@ -167,10 +167,10 @@ cd nova-europa
 
 ```bash
 # Copiar template
-sudo cp .env.production.example .env.production
+sudo cp .env.example .env
 
 # Editar configurações
-sudo nano .env.production
+sudo nano .env
 ```
 
 **Configurações obrigatórias:**
@@ -213,7 +213,7 @@ sudo docker build -f docker/production/Dockerfile -t nova-europa:latest .
 # Gerar chave
 sudo docker run --rm -v $(pwd):/app nova-europa:latest php artisan key:generate --show
 
-# Copiar a chave gerada e adicionar no .env.production
+# Copiar a chave gerada e adicionar no .env
 ```
 
 ### 4. Ajustar Permissões
@@ -365,7 +365,7 @@ sudo ./scripts/backup.sh
 **O que é copiado:**
 - ✅ Dump completo do MySQL
 - ✅ Volume de storage do Laravel
-- ✅ Arquivo `.env.production`
+- ✅ Arquivo `.env`
 - ✅ Manifest com instruções de restore
 
 **Localização:** `/backups/backup-YYYYMMDD-HHMMSS/`
@@ -399,7 +399,7 @@ sudo docker run --rm \
   tar xzf /backup/storage-volume.tar.gz -C /target
 
 # 4. Restore do .env (se necessário)
-sudo cp /backups/backup-YYYYMMDD-HHMMSS/.env.production.backup .env.production
+sudo cp /backups/backup-YYYYMMDD-HHMMSS/.env.backup .env
 
 # 5. Reiniciar containers
 sudo docker-compose -f docker-compose.prod.yml up -d
@@ -436,7 +436,7 @@ sudo docker inspect nova-europa-app
 
 3. **Banco de dados não conecta**
    - Verificar `DB_HOST=mysql` (nome do serviço Docker)
-   - Verificar credenciais no `.env.production`
+   - Verificar credenciais no `.env`
    - Testar conectividade: `docker-compose exec app php artisan db:show`
 
 ### Erro de Conexão com Replicado
@@ -525,8 +525,8 @@ sudo docker-compose -f docker-compose.prod.yml exec mysql mysql -u root -p
 ALTER USER 'europa_user'@'%' IDENTIFIED BY 'nova_senha_forte';
 FLUSH PRIVILEGES;
 
-# Atualizar .env.production
-sudo nano .env.production
+# Atualizar .env
+sudo nano .env
 
 # Reiniciar containers
 sudo docker-compose -f docker-compose.prod.yml restart

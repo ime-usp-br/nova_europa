@@ -20,7 +20,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.prod.yml"
-ENV_FILE="${PROJECT_ROOT}/.env.production"
+ENV_FILE="${PROJECT_ROOT}/.env"
 BACKUP_BASE_DIR="${BACKUP_PATH:-/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 
@@ -132,7 +132,7 @@ backup_storage() {
 backup_env_file() {
     log_step "Backing up environment configuration..."
 
-    cp "$ENV_FILE" "${BACKUP_DIR}/.env.production.backup"
+    cp "$ENV_FILE" "${BACKUP_DIR}/.env.backup"
 
     if [ $? -eq 0 ]; then
         log_info "Environment file backed up"
@@ -157,7 +157,7 @@ Contents:
 ---------
 - mysql-database.sql.gz: Full MySQL database dump
 - storage-volume.tar.gz: Laravel storage volume
-- .env.production.backup: Environment configuration
+- .env.backup: Environment configuration
 
 Docker Images:
 --------------
@@ -179,7 +179,7 @@ Restore Instructions:
    docker run --rm -v nova-europa-storage:/target -v $BACKUP_DIR:/backup ubuntu:24.04 tar xzf /backup/storage-volume.tar.gz -C /target
 
 4. Restore environment:
-   cp .env.production.backup /path/to/nova_europa/.env.production
+   cp .env.backup /path/to/nova_europa/.env
 
 5. Restart containers:
    docker-compose -f docker-compose.prod.yml up -d
@@ -215,8 +215,8 @@ verify_backup() {
         all_files_exist=false
     fi
 
-    if [ ! -f "${BACKUP_DIR}/.env.production.backup" ]; then
-        log_warn "Missing: .env.production.backup"
+    if [ ! -f "${BACKUP_DIR}/.env.backup" ]; then
+        log_warn "Missing: .env.backup"
     fi
 
     if [ "$all_files_exist" = true ]; then
