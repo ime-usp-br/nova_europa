@@ -22,13 +22,12 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
         zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP 8.2 and required extensions (including sybase for pdo_dblib)
+# Install PHP 8.2 and required extensions
 RUN curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e53946656efbce4c1dd71daeaab4ad4cab6' | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null \
     && echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" > /etc/apt/sources.list.d/ppa_ondrej_php.list \
     && apt-get update \
     && apt-get install -y \
         php8.2-cli \
-        php8.2-fpm \
         php8.2-mysql \
         php8.2-xml \
         php8.2-mbstring \
@@ -55,7 +54,7 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg -
 COPY composer.json composer.lock ./
 COPY package.json package-lock.json ./
 
-# Install PHP dependencies (production only, optimized)
+# Install PHP dependencies
 RUN composer install \
     --no-dev \
     --no-interaction \
@@ -77,17 +76,16 @@ RUN npm run build
 RUN composer dump-autoload --optimize --no-dev
 
 # =============================================================================
-# STAGE 2: Production Runtime
+# STAGE 2: Production Runtime (Nginx + PHP-FPM in same container)
 # =============================================================================
 FROM ubuntu:24.04
 
 LABEL maintainer="IME-USP Development Team"
-LABEL description="Nova Europa - Production Docker Image"
+LABEL description="Nova Europa - Simplified Production Image (Nginx + PHP-FPM)"
 
 ARG WWWGROUP=1000
 ARG WWWUSER=1000
 ARG NODE_VERSION=22
-ARG POSTGRES_VERSION=17
 
 WORKDIR /var/www/html
 
@@ -95,16 +93,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=America/Sao_Paulo
 ENV ACCEPT_EULA=Y
 
-# Set PHP-FPM as the supervisor command
-ENV SUPERVISOR_PHP_COMMAND="/usr/sbin/php-fpm8.2 -F -R"
-ENV SUPERVISOR_PHP_USER="www-data"
-
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-# Configure APT for better reliability
-RUN echo "Acquire::http::Pipeline-Depth 0;" > /etc/apt/apt.conf.d/99custom && \
-    echo "Acquire::http::No-Cache true;" >> /etc/apt/apt.conf.d/99custom && \
-    echo "Acquire::BrokenProxy    true;" >> /etc/apt/apt.conf.d/99custom
 
 # Install runtime dependencies
 RUN apt-get update && apt-get upgrade -y \
@@ -118,13 +107,11 @@ RUN apt-get update && apt-get upgrade -y \
         unzip \
         git \
         supervisor \
+        nginx \
         sqlite3 \
-        libcap2-bin \
         libpng-dev \
-        dnsutils \
-        librsvg2-bin \
         nano \
-        # FreeTDS and ODBC dependencies for SQL Server
+        # FreeTDS for SQL Server
         unixodbc-dev \
         freetds-bin \
         freetds-common \
@@ -144,19 +131,14 @@ RUN apt-get update && apt-get upgrade -y \
         php8.2-cli \
         php8.2-dev \
         php8.2-mysql \
-        php8.2-pgsql \
         php8.2-sqlite3 \
         php8.2-gd \
         php8.2-curl \
-        php8.2-imap \
         php8.2-mbstring \
         php8.2-xml \
         php8.2-zip \
         php8.2-bcmath \
-        php8.2-soap \
         php8.2-intl \
-        php8.2-readline \
-        php8.2-ldap \
         php8.2-redis \
         php8.2-sybase \
         php8.2-opcache \
@@ -164,9 +146,7 @@ RUN apt-get update && apt-get upgrade -y \
     && pecl install pdo_sqlsrv \
     && echo "extension=pdo_sqlsrv.so" > /etc/php/8.2/fpm/conf.d/20-pdo_sqlsrv.ini \
     && echo "extension=pdo_sqlsrv.so" > /etc/php/8.2/cli/conf.d/20-pdo_sqlsrv.ini \
-    # Install Composer
-    && curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer \
-    # Install Node.js
+    # Install Node.js (for Puppeteer)
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_VERSION.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
@@ -174,11 +154,7 @@ RUN apt-get update && apt-get upgrade -y \
     && npm install -g npm \
     # Install database clients
     && apt-get install -y mysql-client \
-    && curl -sS https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | tee /etc/apt/keyrings/pgdg.gpg >/dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update \
-    && apt-get install -y postgresql-client-$POSTGRES_VERSION \
-    # Install Browsershot/Puppeteer dependencies (Chrome Headless)
+    # Install Browsershot/Puppeteer dependencies
     && apt-get install -y \
         libnss3 \
         libnspr4 \
@@ -204,17 +180,7 @@ RUN apt-get update && apt-get upgrade -y \
 RUN mkdir -p /etc/gnutls \
     && echo 'LEGACY' > /etc/gnutls/config.tds
 
-# Set PHP-FPM to bind to port 9000 (no special capabilities needed)
-# Configure PHP-FPM
-RUN sed -i 's/^listen = .*/listen = 9000/' /etc/php/8.2/fpm/pool.d/www.conf \
-    && sed -i 's/^;listen.allowed_clients/listen.allowed_clients/' /etc/php/8.2/fpm/pool.d/www.conf \
-    && sed -i 's/^user = .*/user = www-data/' /etc/php/8.2/fpm/pool.d/www.conf \
-    && sed -i 's/^group = .*/group = www-data/' /etc/php/8.2/fpm/pool.d/www.conf \
-    # Fix PHP-FPM global error_log path
-    && sed -i 's|^error_log = .*|error_log = /var/www/html/storage/logs/php8.2-fpm.log|' /etc/php/8.2/fpm/php-fpm.conf
-
-# Create www-data user with proper UID/GID
-# Check if GID/UID already exists and handle accordingly
+# Configure www-data user
 RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
         echo "Group $WWWGROUP already exists"; \
     else \
@@ -227,50 +193,41 @@ RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
     fi \
     && usermod -g www-data www-data
 
-# Configure Puppeteer cache directory
+# Configure Puppeteer
 ENV PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer
-
 RUN mkdir -p /var/www/.cache/puppeteer \
-    && chown -R www-data:www-data /var/www/.cache
+    && chown -R www-data:www-data /var/www/.cache \
+    && npm install -g puppeteer
 
-# Install Puppeteer globally
-RUN npm install -g puppeteer
-
-# Copy application from builder stage
+# Copy application from builder
 COPY --from=builder --chown=www-data:www-data /build /var/www/html
 
-# Install the project-specific Chrome Headless Shell version
-# This MUST come AFTER copying files, to use the project's puppeteer version
+# Install Chrome for Puppeteer
 RUN gosu www-data npx puppeteer browsers install chrome-headless-shell
 
-
 # Copy configuration files
-COPY --chown=www-data:www-data docker/production/php.ini /etc/php/8.2/fpm/conf.d/99-production.ini
-COPY --chown=www-data:www-data docker/production/php.ini /etc/php/8.2/cli/conf.d/99-production.ini
-COPY --chown=www-data:www-data docker/production/php-fpm.conf /etc/php/8.2/fpm/pool.d/www.conf
+COPY docker/production/nginx.conf /etc/nginx/nginx.conf
 COPY docker/production/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/production/php-fpm.conf /etc/php/8.2/fpm/pool.d/www.conf
+COPY docker/production/php.ini /etc/php/8.2/fpm/conf.d/99-production.ini
+COPY docker/production/php.ini /etc/php/8.2/cli/conf.d/99-production.ini
 COPY docker/production/freetds.conf.template /etc/freetds/freetds.conf.template
-COPY docker/production/start-container /usr/local/bin/start-container
-COPY docker/production/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY docker/production/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN chmod +x /usr/local/bin/start-container \
-    && chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Create required directories with proper permissions
+# Create required directories
 RUN mkdir -p \
         storage/framework/cache \
         storage/framework/sessions \
         storage/framework/views \
         storage/logs \
         bootstrap/cache \
+        /var/log/supervisor \
+        /var/log/nginx \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD php artisan inspire > /dev/null 2>&1 || exit 1
+EXPOSE 80
 
-EXPOSE 9000
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["start-container"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
