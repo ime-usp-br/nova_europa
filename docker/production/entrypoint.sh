@@ -3,6 +3,17 @@ set -e
 
 echo "🚀 Starting Nova Europa container..."
 
+# Configure FreeTDS from template and environment variables
+echo "🔧 Configuring FreeTDS for Replicado..."
+REPLICADO_HOST_VAL=${REPLICADO_HOST:-localhost}
+REPLICADO_PORT_VAL=${REPLICADO_PORT:-1433}
+
+sed -e "s/__REPLICADO_HOST__/$REPLICADO_HOST_VAL/g" \
+    -e "s/__REPLICADO_PORT__/$REPLICADO_PORT_VAL/g" \
+    /etc/freetds/freetds.conf.template > /etc/freetds/freetds.conf
+
+echo "✅ FreeTDS configured: $REPLICADO_HOST_VAL:$REPLICADO_PORT_VAL"
+
 # Wait for database
 echo "⏳ Waiting for database..."
 until php artisan db:show > /dev/null 2>&1; do
@@ -24,9 +35,10 @@ chmod -R 775 storage bootstrap/cache
 echo "🔧 Running migrations..."
 php artisan migrate --force --no-interaction || echo "⚠️  Migrations failed or not needed"
 
-# Clear and cache configuration (production optimization)
+# Cache routes and views (production optimization)
+# NOTE: config:cache is NOT used because uspdev/replicado reads env() directly
+# and env() returns null when config is cached
 echo "⚡ Optimizing application..."
-php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
