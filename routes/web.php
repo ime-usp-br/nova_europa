@@ -17,11 +17,11 @@ Route::view('profile', 'profile')
     ->name('profile');
 
 Volt::route('evolucao', 'pages.evolucao')
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'role:Admin|Operador'])
     ->name('evolucao');
 
 Route::get('/atestado/{nusp}/{codcrl}', [AtestadoController::class, 'generate'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'role:Admin|Operador'])
     ->name('atestado.generate');
 
 require __DIR__.'/auth.php';
