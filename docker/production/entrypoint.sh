@@ -44,5 +44,11 @@ php artisan view:cache
 
 echo "✨ Container ready! Starting services..."
 
-# Start supervisor (Nginx + PHP-FPM)
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+# Start supervisor based on container role
+if [ "$CONTAINER_ROLE" = "worker" ]; then
+  echo "Starting worker supervisor..."
+  exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.worker.conf
+else
+  echo "Starting app supervisor..."
+  exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+fi

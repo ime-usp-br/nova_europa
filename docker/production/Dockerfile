@@ -208,6 +208,7 @@ RUN gosu www-data npx puppeteer browsers install chrome-headless-shell
 # Copy configuration files
 COPY docker/production/nginx.conf /etc/nginx/nginx.conf
 COPY docker/production/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/production/supervisord.worker.conf /etc/supervisor/conf.d/supervisord.worker.conf
 COPY docker/production/php-fpm.conf /etc/php/8.2/fpm/pool.d/www.conf
 COPY docker/production/php.ini /etc/php/8.2/fpm/conf.d/99-production.ini
 COPY docker/production/php.ini /etc/php/8.2/cli/conf.d/99-production.ini

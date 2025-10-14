@@ -29,25 +29,46 @@ services:
       APP_DEBUG: 'false'
       DB_HOST: mysql
       DB_PORT: 3306
-      CACHE_STORE: redis
-      SESSION_DRIVER: redis
-      QUEUE_CONNECTION: redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
       REPLICADO_HOST: ${REPLICADO_HOST}
       REPLICADO_PORT: ${REPLICADO_PORT}
+      CONTAINER_ROLE: app
     ports:
       - '${APP_PORT:-8016}:80'
     volumes:
       # Persistent storage
       - ./storage:/var/www/html/storage
-      - puppeteer-cache:/var/www/.cache/puppeteer
     networks:
       - nova-europa-network
     depends_on:
       mysql:
         condition: service_healthy
-      redis:
+
+  # ===========================================================================
+  # Worker Service
+  # ===========================================================================
+  worker:
+    image: 'nova-europa:${APP_VERSION:-latest}'
+    container_name: nova-europa-worker
+    restart: unless-stopped
+    command: supervisord -c /etc/supervisor/conf.d/supervisord.worker.conf
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      DB_HOST: mysql
+      DB_PORT: 3306
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
+      REPLICADO_HOST: ${REPLICADO_HOST}
+      REPLICADO_PORT: ${REPLICADO_PORT}
+      CONTAINER_ROLE: worker
+    volumes:
+      - ./storage:/var/www/html/storage
+    networks:
+      - nova-europa-network
+    depends_on:
+      mysql:
         condition: service_healthy
 
   # ===========================================================================
@@ -80,26 +101,13 @@ services:
       - '--character-set-server=utf8mb4'
       - '--collation-server=utf8mb4_unicode_ci'
 
-  # ===========================================================================
-  # Redis Cache
-  # ===========================================================================
-  redis:
-    image: redis:7-alpine
-    container_name: nova-europa-redis
-    restart: unless-stopped
-    ports:
-      - '${FORWARD_REDIS_PORT:-6379}:6379'
-    volumes:
-      - redis-data:/data
-    networks:
-      - nova-europa-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    command: redis-server --appendonly yes --maxmemory 200mb --maxmemory-policy allkeys-lru
+volumes:
+  mysql-data:
+    driver: local
+    name: nova-europa-mysql-data
+  puppeteer-cache:
+    driver: local
+    name: nova-europa-puppeteer
 
 # =============================================================================
 # Networks
@@ -112,17 +120,3 @@ networks:
       config:
         - subnet: ${DOCKER_NETWORK_SUBNET:-172.27.0.0/16}
           gateway: ${DOCKER_NETWORK_GATEWAY:-172.27.0.1}
-
-# =============================================================================
-# Volumes
-# =============================================================================
-volumes:
-  mysql-data:
-    driver: local
-    name: nova-europa-mysql-data
-  redis-data:
-    driver: local
-    name: nova-europa-redis-data
-  puppeteer-cache:
-    driver: local
-    name: nova-europa-puppeteer
