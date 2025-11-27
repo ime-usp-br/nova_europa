@@ -193,17 +193,18 @@ RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
     fi \
     && usermod -g www-data www-data
 
+# Copy application from builder
+COPY --from=builder --chown=www-data:www-data /build /var/www/html
+
 # Configure Puppeteer
 ENV PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer
 RUN mkdir -p /var/www/.cache/puppeteer \
     && chown -R www-data:www-data /var/www/.cache \
     && npm install -g puppeteer
 
-# Copy application from builder
-COPY --from=builder --chown=www-data:www-data /build /var/www/html
-
-# Install Chrome for Puppeteer
-RUN gosu www-data npx puppeteer browsers install chrome-headless-shell
+# Install Chrome for Puppeteer (as root, but cache dir is owned by www-data)
+RUN npx puppeteer browsers install chrome-headless-shell \
+    && chown -R www-data:www-data /var/www/.cache
 
 # Copy configuration files
 COPY docker/production/nginx.conf /etc/nginx/nginx.conf

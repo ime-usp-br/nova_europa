@@ -15,6 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Trust all proxies (for reverse proxy/load balancer)
+        // In production, you should specify exact proxy IPs instead of '*'
+        $middleware->trustProxies(at: '*', headers: Request::HEADER_X_FORWARDED_FOR |
+            Request::HEADER_X_FORWARDED_HOST |
+            Request::HEADER_X_FORWARDED_PORT |
+            Request::HEADER_X_FORWARDED_PROTO |
+            Request::HEADER_X_FORWARDED_AWS_ELB);
+
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->expectsJson()) {
                 return null;
