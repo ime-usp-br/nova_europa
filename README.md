@@ -68,36 +68,74 @@ A instalação é gerenciada via Docker e Laravel Sail.
         ```bash
         cp .env.example .env
         ```
-    -   **Edite o arquivo `.env`** e configure as variáveis do banco de dados e da aplicação. As credenciais para o `ReplicadoService` também devem ser preenchidas.
+    -   **Edite o arquivo `.env`** e configure as variáveis.
+    -   **Atenção:** Se você já possui um serviço MySQL rodando na porta 3306, altere a porta do banco no `.env`:
+        ```env
+        FORWARD_DB_PORT=3307
+        ```
 
-3.  **Subir os Containers:**
+3.  **Instalar Dependências (Ovo e Galinha):**
+    Para rodar o Sail, precisamos instalar as dependências do Composer primeiro.
+
+    **Opção A: Se você tem PHP e Composer instalados localmente:**
+    ```bash
+    composer install --ignore-platform-reqs
+    ```
+
+    **Opção B: Se você NÃO tem PHP instalado (via Docker):**
+    ```bash
+    docker run --rm \
+        -u "$(id -u):$(id -g)" \
+        -v "$(pwd):/var/www/html" \
+        -w /var/www/html \
+        laravelsail/php83-composer:latest \
+        composer install --ignore-platform-reqs
+    ```
+
+4.  **Subir os Containers:**
+    Agora que o `vendor/` existe, podemos iniciar o Sail:
     ```bash
     ./vendor/bin/sail up -d
-    ```
-    *(A primeira execução pode demorar alguns minutos para construir as imagens Docker).*
-
-4.  **Instalar Dependências:**
-    ```bash
-    ./vendor/bin/sail composer install
-    ./vendor/bin/sail npm install
     ```
 
 5.  **Gerar Chave e Executar Migrações:**
     ```bash
     ./vendor/bin/sail artisan key:generate
-    ./vendor/bin/sail artisan migrate --seed
+    ./vendor/bin/sail artisan migrate:fresh --seed
     ```
 
-6.  **Compilar Assets:**
+6.  **Instalar Dependências de Frontend:**
+    ```bash
+    ./vendor/bin/sail npm install
+    ```
+
+7.  **Compilar Assets:**
     ```bash
     ./vendor/bin/sail npm run dev
     ```
-    *(Mantenha este comando executando em um terminal separado durante o desenvolvimento).*
+    *(Mantenha este comando executando em um terminal separado).*
 
-7.  **Acessar a Aplicação:**
+8.  **Acessar a Aplicação:**
     -   **URL:** `http://localhost` (ou a porta definida em `APP_PORT`).
     -   **Usuário Admin:** `admin@usp.br`
     -   **Senha:** `password`
+
+### Troubleshooting (Problemas Comuns)
+
+#### Erro: "Address already in use" (Porta 3306)
+Se ao rodar `./vendor/bin/sail up -d` você ver um erro como:
+`driver failed programming external connectivity ... failed to bind host port ... 0.0.0.0:3306 ... address already in use`
+
+Isso significa que você já tem um MySQL rodando na sua máquina (fora do Docker).
+**Solução:** Edite o arquivo `.env` e mude a porta externa do banco:
+```env
+FORWARD_DB_PORT=3313
+```
+Depois, reinicie o Sail:
+```bash
+./vendor/bin/sail down
+./vendor/bin/sail up -d
+```
 
 ## 5. Ferramentas de Qualidade e Testes
 
