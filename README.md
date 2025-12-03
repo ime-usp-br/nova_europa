@@ -98,6 +98,7 @@ A instalação é gerenciada via Docker e Laravel Sail.
     ./vendor/bin/sail up -d
     ```
 
+
 5.  **Gerar Chave e Executar Migrações:**
     ```bash
     ./vendor/bin/sail artisan key:generate
@@ -133,6 +134,18 @@ FORWARD_DB_PORT=3313
 ```
 Depois, reinicie o Sail:
 ```bash
+./vendor/bin/sail down
+./vendor/bin/sail up -d
+```
+
+#### Erro: "Falha ao gerar PDF" (libnspr4.so missing)
+Se ao gerar um PDF você encontrar um erro como:
+`error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory`
+
+Isso indica que sua imagem do Sail está desatualizada (stale) e não possui as dependências do Puppeteer instaladas.
+**Solução:** Reconstrua a imagem do Sail sem cache:
+```bash
+./vendor/bin/sail build --no-cache
 ./vendor/bin/sail down
 ./vendor/bin/sail up -d
 ```
