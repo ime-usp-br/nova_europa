@@ -76,7 +76,7 @@ new #[Layout('layouts.app')] class extends Component
             // - Disciplinas da habilitação antiga contam na nova
             //
             // Filtros aplicados:
-            // - Apenas programa ATIVO do aluno (P.stapgm = 'A')
+            // - Apenas programas NÃO encerrados (P.stapgm <> 'E')
             // - Apenas habilitações do aluno (JOIN com HABILPROGGR)
             // - Currículos que estavam vigentes no ingresso OU criados depois
             // - Esconde ciclo básico (codhab 0/1/4) APENAS se o aluno tem habilitação específica (codhab >= 100)
@@ -108,7 +108,7 @@ new #[Layout('layouts.app')] class extends Component
                 JOIN HABILPROGGR H ON P.codpes = H.codpes AND P.codpgm = H.codpgm
                 JOIN CURRICULOGR C ON H.codcur = C.codcur AND H.codhab = C.codhab
                 WHERE P.codpes = CONVERT(int, :codpes)
-                    AND P.stapgm = :stapgmAtivo
+                    AND P.stapgm <> \'E\'
                     AND C.dtainicrl <= GETDATE()
                     AND (C.dtafimcrl IS NULL OR C.dtafimcrl >= P.dtaini)
                     -- Esconde ciclo básico (codhab 0/1/4) APENAS se aluno tem habilitação específica (codhab >= 100)
@@ -126,7 +126,6 @@ new #[Layout('layouts.app')] class extends Component
 
             $params = [
                 'codpes' => $aluno['codpes'],
-                'stapgmAtivo' => 'A', // Programa Ativo
             ];
 
             /** @var array<int, array{codcrl: string, dtainicrl: string, dtafimcrl: string|null}> */
