@@ -1,0 +1,14 @@
+# =============================================================================
+# Aplicado automaticamente pelo "docker compose" em desenvolvimento local.
+# NÃO é usado pelo Portainer (que lê apenas o docker-compose.yml).
+# Monta o código-fonte com bind-mount para hot-reload do PHP.
+# Em produção use: docker compose -f docker-compose.yml up -d
+# =============================================================================
+
+services:
+  app:
+    volumes:
+      - ./:/var/www/html
+  worker:
+    volumes:
+      - ./:/var/www/html

@@ -31,16 +31,26 @@ mkdir -p bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 
+# Install dependencies if missing (development bind-mount)
+if [ ! -d vendor ]; then
+    echo "📦 Installing Composer dependencies..."
+    composer install --no-interaction --no-progress --prefer-dist
+fi
+
 # Run migrations if needed
 echo "🔧 Running migrations..."
 php artisan migrate --force --no-interaction || echo "⚠️  Migrations failed or not needed"
 
-# Cache routes and views (production optimization)
+# Cache routes and views (production optimization only)
 # NOTE: config:cache is NOT used because uspdev/replicado reads env() directly
 # and env() returns null when config is cached
-echo "⚡ Optimizing application..."
-php artisan route:cache
-php artisan view:cache
+if [ "$APP_ENV" = "production" ]; then
+    echo "⚡ Optimizing application..."
+    php artisan route:cache
+    php artisan view:cache
+else
+    echo "⚡ Skipping route/view cache (APP_ENV=$APP_ENV)"
+fi
 
 echo "✨ Container ready! Starting services..."
 
