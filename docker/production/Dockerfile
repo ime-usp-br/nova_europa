@@ -1,108 +1,118 @@
 # =============================================================================
-# STAGE 1: Build Assets and Dependencies
+# Nova Europa - Imagem de produção (Nginx + PHP-FPM no mesmo container)
 # =============================================================================
-FROM ubuntu:24.04 AS builder
+# Base pronta: php:8.2-fpm oficial + mlocati/docker-php-extension-installer
+# (elimina os steps frágeis de PPA/ODBC/pecl manuais).
+# Mantidos por necessidade da aplicação:
+#   - pdo_sqlsrv + pdo_dblib (SQL Server "Replicado" USP via FreeTDS/ODBC)
+#   - Node.js + Puppeteer/Chrome (geração de PDFs via Browsershot)
+# =============================================================================
+
+# =============================================================================
+# STAGE 1: Build de assets e dependências
+# =============================================================================
+FROM php:8.2-cli AS builder
 
 ARG NODE_VERSION=22
 
 WORKDIR /build
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=UTC
 
-# Install build dependencies
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
-    && apt-get update \
-    && apt-get install -y \
-        curl \
+# Node.js para compilar os assets do Vite, Composer e extensões PHP
+# (as mesmas do runtime, para o composer validar a plataforma corretamente)
+RUN mkdir -p /etc/apt/apt.conf.d /etc/apt/keyrings \
+    && echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries \
+    && apt-get update -o Acquire::Retries=10 \
+    && apt-get install -y --no-install-recommends \
         ca-certificates \
         gnupg \
+        curl \
         git \
-        unzip \
         zip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install PHP 8.2 and required extensions
-RUN curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e53946656efbce4c1dd71daeaab4ad4cab6' | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" > /etc/apt/sources.list.d/ppa_ondrej_php.list \
-    && apt-get update \
-    && apt-get install -y \
-        php8.2-cli \
-        php8.2-mysql \
-        php8.2-xml \
-        php8.2-mbstring \
-        php8.2-curl \
-        php8.2-zip \
-        php8.2-bcmath \
-        php8.2-intl \
-        php8.2-gd \
-        php8.2-sybase \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Composer
-RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer
-
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+        unzip \
+        libicu-dev \
+        libzip-dev \
+        libpng-dev \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        unixodbc-dev \
+        freetds-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && for i in 1 2 3; do \
+        curl -fsSL -o /usr/local/bin/install-php-extensions \
+            https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions \
+        && break; \
+        sleep 15; \
+    done \
+    && chmod +x /usr/local/bin/install-php-extensions \
+    && install-php-extensions \
+        pdo_mysql \
+        intl \
+        gd \
+        zip \
+        bcmath \
+        redis \
+        opcache \
+        sqlsrv \
+        pdo_sqlsrv \
+    && docker-php-ext-install pdo_dblib \
+    && php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');" \
+    && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer --quiet \
+    && rm -f /tmp/composer-setup.php \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_VERSION.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
-    && npm install -g npm \
+    && apt-get update -o Acquire::Retries=10 \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy application files
+# Instala dependências PHP (sem scripts, código ainda não copiado)
 COPY composer.json composer.lock ./
 COPY package.json package-lock.json ./
 
-# Install PHP dependencies
 RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --no-progress \
-    --no-scripts \
-    --prefer-dist \
-    --optimize-autoloader
+        --no-dev \
+        --no-interaction \
+        --no-progress \
+        --no-scripts \
+        --prefer-dist \
+        --optimize-autoloader
 
-# Install Node dependencies
-RUN npm ci --production=false
-
-# Copy application source
+# Copia o código e compila os assets
 COPY . .
 
-# Build frontend assets
-RUN npm run build
-
-# Generate optimized autoloader
-RUN composer dump-autoload --optimize --no-dev
+RUN npm ci --production=false \
+    && npm run build \
+    && composer dump-autoload --optimize --no-dev
 
 # =============================================================================
-# STAGE 2: Production Runtime (Nginx + PHP-FPM in same container)
+# STAGE 2: Runtime (Nginx + PHP-FPM no mesmo container)
 # =============================================================================
-FROM ubuntu:24.04
+FROM php:8.2-fpm
 
 LABEL maintainer="IME-USP Development Team"
-LABEL description="Nova Europa - Simplified Production Image (Nginx + PHP-FPM)"
+LABEL description="Nova Europa - Production Image (Nginx + PHP-FPM)"
 
+ARG NODE_VERSION=22
 ARG WWWGROUP=1000
 ARG WWWUSER=1000
-ARG NODE_VERSION=22
 
 WORKDIR /var/www/html
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=America/Sao_Paulo
 ENV ACCEPT_EULA=Y
+ENV PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer
 
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries
 
-# Install runtime dependencies
-RUN apt-get update && apt-get upgrade -y \
-    && mkdir -p /etc/apt/keyrings \
-    && apt-get install -y \
-        gnupg \
-        gosu \
+# Dependências de sistema
+RUN apt-get update -o Acquire::Retries=10 && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
+        gnupg \
         zip \
         unzip \
         git \
@@ -111,51 +121,16 @@ RUN apt-get update && apt-get upgrade -y \
         sqlite3 \
         libpng-dev \
         nano \
-        # FreeTDS for SQL Server
+        libicu-dev \
+        libzip-dev \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        # FreeTDS para o SQL Server (Replicado USP)
         unixodbc-dev \
         freetds-bin \
         freetds-common \
         freetds-dev \
-    # Add PHP repository
-    && curl -sS 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xb8dc7e53946656efbce4c1dd71daeaab4ad4cab6' | gpg --dearmor | tee /etc/apt/keyrings/ppa_ondrej_php.gpg > /dev/null \
-    && echo "deb [signed-by=/etc/apt/keyrings/ppa_ondrej_php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble main" > /etc/apt/sources.list.d/ppa_ondrej_php.list \
-    # Add Microsoft ODBC repository
-    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    # Install Microsoft ODBC Driver
-    && apt-get install -y msodbcsql18 \
-    # Install PHP 8.2 FPM and extensions
-    && apt-get install -y \
-        php8.2-fpm \
-        php8.2-cli \
-        php8.2-dev \
-        php8.2-mysql \
-        php8.2-sqlite3 \
-        php8.2-gd \
-        php8.2-curl \
-        php8.2-mbstring \
-        php8.2-xml \
-        php8.2-zip \
-        php8.2-bcmath \
-        php8.2-intl \
-        php8.2-redis \
-        php8.2-sybase \
-        php8.2-opcache \
-    # Install SQL Server PDO extension
-    && pecl install pdo_sqlsrv \
-    && echo "extension=pdo_sqlsrv.so" > /etc/php/8.2/fpm/conf.d/20-pdo_sqlsrv.ini \
-    && echo "extension=pdo_sqlsrv.so" > /etc/php/8.2/cli/conf.d/20-pdo_sqlsrv.ini \
-    # Install Node.js (for Puppeteer)
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_VERSION.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
-    && npm install -g npm \
-    # Install database clients
-    && apt-get install -y mysql-client \
-    # Install Browsershot/Puppeteer dependencies
-    && apt-get install -y \
+        # Dependências do Chrome (Browsershot/Puppeteer - PDFs)
         libnss3 \
         libnspr4 \
         libatk1.0-0 \
@@ -168,19 +143,54 @@ RUN apt-get update && apt-get upgrade -y \
         libxfixes3 \
         libxrandr2 \
         libgbm1 \
-        libasound2t64 \
+        libasound2 \
         libxtst6 \
         libxshmfence1 \
-    # Clean up
-    && apt-get -y autoremove \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Configure FreeTDS for legacy TLS support
+# FreeTDS com TLS legado (Replicado)
 RUN mkdir -p /etc/gnutls \
     && echo 'LEGACY' > /etc/gnutls/config.tds
 
-# Configure www-data user
+# Extensões PHP via docker-php-extension-installer
+# (inclusive pdo_sqlsrv, que resolve o driver ODBC da Microsoft sozinho)
+RUN for i in 1 2 3; do \
+        curl -fsSL -o /usr/local/bin/install-php-extensions \
+            https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions \
+        && break; \
+        sleep 15; \
+    done \
+    && chmod +x /usr/local/bin/install-php-extensions \
+    && install-php-extensions \
+        pdo_mysql \
+        intl \
+        gd \
+        zip \
+        bcmath \
+        redis \
+        opcache \
+        sqlsrv \
+        pdo_sqlsrv \
+    && docker-php-ext-install pdo_dblib
+
+# Node.js (Puppeteer)
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_VERSION.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update -o Acquire::Retries=10 \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Composer (usado pelo entrypoint quando vendor está ausente - dev)
+RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Puppeteer + Chrome (headless shell)
+RUN mkdir -p /var/www/.cache/puppeteer \
+    && npm install -g puppeteer \
+    && npx puppeteer browsers install chrome-headless-shell \
+    && chown -R www-data:www-data /var/www/.cache
+
+# Ajusta UID/GID do www-data
 RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
         echo "Group $WWWGROUP already exists"; \
     else \
@@ -193,40 +203,27 @@ RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
     fi \
     && usermod -g www-data www-data
 
-# Copy application from builder
+# Copia a aplicação compilada
 COPY --from=builder --chown=www-data:www-data /build /var/www/html
 
-# Configure Puppeteer
-ENV PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer
-RUN mkdir -p /var/www/.cache/puppeteer \
-    && chown -R www-data:www-data /var/www/.cache \
-    && npm install -g puppeteer
-
-# Install Chrome for Puppeteer (as root, but cache dir is owned by www-data)
-RUN npx puppeteer browsers install chrome-headless-shell \
-    && chown -R www-data:www-data /var/www/.cache
-
-# Copy configuration files
+# Configuração dos serviços
 COPY docker/production/nginx.conf /etc/nginx/nginx.conf
 COPY docker/production/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/production/supervisord.worker.conf /etc/supervisor/conf.d/supervisord.worker.conf
-COPY docker/production/php-fpm.conf /etc/php/8.2/fpm/pool.d/www.conf
-COPY docker/production/php.ini /etc/php/8.2/fpm/conf.d/99-production.ini
-COPY docker/production/php.ini /etc/php/8.2/cli/conf.d/99-production.ini
+COPY docker/production/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/production/php.ini /usr/local/etc/php/conf.d/99-production.ini
 COPY docker/production/freetds.conf.template /etc/freetds/freetds.conf.template
 COPY docker/production/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Create required directories
+# Diretórios do Laravel
 RUN mkdir -p \
         storage/framework/cache \
         storage/framework/sessions \
         storage/framework/views \
         storage/logs \
         bootstrap/cache \
-        /var/log/supervisor \
-        /var/log/nginx \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
