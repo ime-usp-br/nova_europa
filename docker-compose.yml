@@ -76,6 +76,10 @@ x-app-environment: &app-environment
     REPLICADO_PASSWORD: "${REPLICADO_PASSWORD:-}"
     REPLICADO_CODUNDCLG: "${REPLICADO_CODUNDCLG:-45}"
     REPLICADO_SYBASE: "${REPLICADO_SYBASE:-true}"
+    REPLICADO_PATHLOG: "${REPLICADO_PATHLOG:-/var/log/replicado.log}"
+    REPLICADO_USAR_CACHE: "${REPLICADO_USAR_CACHE:-false}"
+    REPLICADO_DEBUG: "${REPLICADO_DEBUG:-false}"
+    REPLICADO_DEBUG_LEVEL: "${REPLICADO_DEBUG_LEVEL:-0}"
     # Browsershot/Puppeteer (PDF)
     PUPPETEER_CACHE_DIR: "${PUPPETEER_CACHE_DIR:-/var/www/.cache/puppeteer}"
     NODE_BINARY_PATH: "${NODE_BINARY_PATH:-/usr/bin/node}"
