@@ -14,15 +14,9 @@ sed -e "s/__REPLICADO_HOST__/$REPLICADO_HOST_VAL/g" \
 
 echo "✅ FreeTDS configured: $REPLICADO_HOST_VAL:$REPLICADO_PORT_VAL"
 
-# Wait for database
-echo "⏳ Waiting for database..."
-until php artisan db:show > /dev/null 2>&1; do
-    sleep 2
-done
-
-echo "✅ Database is ready!"
-
 # Ensure storage directories exist with correct permissions
+# (precisa ser ANTES de qualquer artisan: o bind-mount de ./storage pode
+# sombrear os diretórios da imagem e o Laravel aborta sem eles)
 echo "📁 Setting up storage directories..."
 mkdir -p storage/framework/{cache,sessions,views}
 mkdir -p storage/logs
@@ -30,6 +24,14 @@ mkdir -p bootstrap/cache
 
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
+
+# Wait for database
+echo "⏳ Waiting for database..."
+until php artisan db:show > /dev/null 2>&1; do
+    sleep 2
+done
+
+echo "✅ Database is ready!"
 
 # Install dependencies if missing (development bind-mount)
 if [ ! -d vendor ]; then
