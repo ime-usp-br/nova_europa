@@ -18,6 +18,7 @@ ARG NODE_VERSION=22
 WORKDIR /build
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # Node.js para compilar os assets do Vite, Composer e extensões PHP
 # (as mesmas do runtime, para o composer validar a plataforma corretamente)
@@ -184,12 +185,6 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg -
 # Composer (usado pelo entrypoint quando vendor está ausente - dev)
 RUN curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Puppeteer + Chrome (headless shell)
-RUN mkdir -p /var/www/.cache/puppeteer \
-    && npm install -g puppeteer \
-    && npx puppeteer browsers install chrome-headless-shell \
-    && chown -R www-data:www-data /var/www/.cache
-
 # Ajusta UID/GID do www-data
 RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
         echo "Group $WWWGROUP already exists"; \
@@ -205,6 +200,13 @@ RUN if getent group $WWWGROUP > /dev/null 2>&1; then \
 
 # Copia a aplicação compilada
 COPY --from=builder --chown=www-data:www-data /build /var/www/html
+
+# Chrome (geração de PDFs) - instalado com o @puppeteer/browsers da aplicação,
+# na versão exata que o puppeteer-core espera (Chrome 141.x), no cache
+# PUPPETEER_CACHE_DIR=/var/www/.cache/puppeteer.
+RUN mkdir -p /var/www/.cache/puppeteer \
+    && node -e "const {install}=require('@puppeteer/browsers'); const cacheDir=process.env.PUPPETEER_CACHE_DIR||'/var/www/.cache/puppeteer'; const v='141.0.7390.76'; Promise.all([install({browser:'chrome',buildId:v,cacheDir}),install({browser:'chrome-headless-shell',buildId:v,cacheDir})]).catch(e=>{console.error(e);process.exit(1)})" \
+    && chown -R www-data:www-data /var/www/.cache
 
 # Configuração dos serviços
 COPY docker/production/nginx.conf /etc/nginx/nginx.conf
