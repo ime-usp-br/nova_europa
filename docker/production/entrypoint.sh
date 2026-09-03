@@ -20,6 +20,8 @@ echo "✅ FreeTDS configured: $REPLICADO_HOST_VAL:$REPLICADO_PORT_VAL"
 echo "📁 Setting up storage directories..."
 mkdir -p storage/framework/{cache,sessions,views}
 mkdir -p storage/logs
+mkdir -p storage/app/private
+mkdir -p storage/app/public
 mkdir -p bootstrap/cache
 
 chown -R www-data:www-data storage bootstrap/cache
@@ -42,7 +44,7 @@ if [ -z "$APP_KEY" ] || ! printf '%s' "$APP_KEY" | grep -q '^base64:'; then
         APP_KEY=$(php artisan key:generate --show --force)
         mkdir -p storage/app
         echo "$APP_KEY" > "$KEY_FILE"
-        chown www-data:www-data "$KEY_FILE"
+        chown -R www-data:www-data storage/app
         chmod 600 "$KEY_FILE"
     fi
     export APP_KEY
