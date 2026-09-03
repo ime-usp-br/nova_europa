@@ -65,9 +65,15 @@ if [ ! -d vendor ]; then
     composer install --no-interaction --no-progress --prefer-dist
 fi
 
-# Run migrations if needed
+# Run migrations if needed (idempotente)
 echo "🔧 Running migrations..."
 php artisan migrate --force --no-interaction || echo "⚠️  Migrations failed or not needed"
+
+# Run seeders (idempotentes), somente no container app para evitar corrida
+if [ "$CONTAINER_ROLE" = "app" ]; then
+    echo "🌱 Running seeders..."
+    php artisan db:seed --force --no-interaction || echo "⚠️  Seeding failed"
+fi
 
 # Cache routes and views (production optimization only)
 # NOTE: config:cache is NOT used because uspdev/replicado reads env() directly

@@ -2,8 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Trilha;
+use App\Models\TrilhaDisciplina;
+use App\Models\TrilhaRegra;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class TrilhaSeeder extends Seeder
 {
@@ -21,246 +23,134 @@ class TrilhaSeeder extends Seeder
         // ===========================
         // Trilha: Ciência de Dados
         // ===========================
-        $trilhaId = DB::table('trilhas')->insertGetId([
-            'nome' => 'Ciência de Dados',
-            'codcur' => $codcur,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $trilha = Trilha::firstOrCreate(['nome' => 'Ciência de Dados', 'codcur' => $codcur]);
 
         // Núcleo: 5 obrigatórias + 2 eletivas = 7 disciplinas total
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Núcleo',
-            'num_disciplinas_exigidas' => 7,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Núcleo'],
+            ['num_disciplinas_exigidas' => 7]
+        );
 
-        $obrigatorias = ['MAC0317', 'MAC0426', 'MAC0431', 'MAC0460', 'MAE0221'];
-        foreach ($obrigatorias as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'obrigatoria',
-            ]);
+        foreach (['MAC0317', 'MAC0426', 'MAC0431', 'MAC0460', 'MAE0221'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'obrigatoria']);
         }
 
-        $eletivas = ['MAC0315', 'MAC0325', 'MAC0427', 'MAE0312', 'MAE0228'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0315', 'MAC0325', 'MAC0427', 'MAE0312', 'MAE0228'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // ===========================
         // Trilha: Inteligência Artificial
         // ===========================
-        $trilhaId = DB::table('trilhas')->insertGetId([
-            'nome' => 'Inteligência Artificial',
-            'codcur' => $codcur,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $trilha = Trilha::firstOrCreate(['nome' => 'Inteligência Artificial', 'codcur' => $codcur]);
 
         // Regra 1: IA Intro (1 obrigatória + 2 eletivas = 3 disciplinas)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'IA Intro',
-            'num_disciplinas_exigidas' => 3,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'IA Intro'],
+            ['num_disciplinas_exigidas' => 3]
+        );
 
-        DB::table('trilha_disciplinas')->insert([
-            'regra_id' => $regraId,
-            'coddis' => 'MAC0425',
-            'tipo' => 'obrigatoria',
-        ]);
+        TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => 'MAC0425', 'tipo' => 'obrigatoria']);
 
-        $eletivas = ['MAC0444', 'MAC0459', 'MAC0460'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0444', 'MAC0459', 'MAC0460'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // Regra 2: IA Sistemas (2 eletivas)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'IA Sistemas',
-            'num_disciplinas_exigidas' => 2,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'IA Sistemas'],
+            ['num_disciplinas_exigidas' => 2]
+        );
 
-        $eletivas = ['MAC0218', 'MAC0332', 'MAC0413', 'MAC0472'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0218', 'MAC0332', 'MAC0413', 'MAC0472'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // Regra 3: IA Teoria (1 eletiva)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'IA Teoria',
-            'num_disciplinas_exigidas' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'IA Teoria'],
+            ['num_disciplinas_exigidas' => 1]
+        );
 
-        $eletivas = ['MAC0414', 'MAE0320', 'MAE0399', 'MAE0515', 'MAT0359'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0414', 'MAE0320', 'MAE0399', 'MAE0515', 'MAT0359'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // ===========================
         // Trilha: Sistemas de Software
         // ===========================
-        $trilhaId = DB::table('trilhas')->insertGetId([
-            'nome' => 'Sistemas de Software',
-            'codcur' => $codcur,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $trilha = Trilha::firstOrCreate(['nome' => 'Sistemas de Software', 'codcur' => $codcur]);
 
         // Regra 1: Desenvolvimento de Software (4 obrigatórias)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Desenvolvimento de Software',
-            'num_disciplinas_exigidas' => 4,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Desenvolvimento de Software'],
+            ['num_disciplinas_exigidas' => 4]
+        );
 
-        $obrigatorias = ['MAC0218', 'MAC0332', 'MAC0413', 'MAC0472'];
-        foreach ($obrigatorias as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'obrigatoria',
-            ]);
+        foreach (['MAC0218', 'MAC0332', 'MAC0413', 'MAC0472'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'obrigatoria']);
         }
 
         // Regra 2: Banco de Dados (2 eletivas)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Banco de Dados',
-            'num_disciplinas_exigidas' => 2,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Banco de Dados'],
+            ['num_disciplinas_exigidas' => 2]
+        );
 
-        $eletivas = ['MAC0426', 'MAC0439', 'MAC0459'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0426', 'MAC0439', 'MAC0459'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // Regra 3: Sistemas Paralelos e Distribuídos (3 eletivas)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Sistemas Paralelos e Distribuídos',
-            'num_disciplinas_exigidas' => 3,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Sistemas Paralelos e Distribuídos'],
+            ['num_disciplinas_exigidas' => 3]
+        );
 
-        $eletivas = ['MAC0219', 'MAC0344', 'MAC0352', 'MAC0463', 'MAC0469', 'MAC0471'];
-        foreach ($eletivas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+        foreach (['MAC0219', 'MAC0344', 'MAC0352', 'MAC0463', 'MAC0469', 'MAC0471'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
 
         // ===========================
         // Trilha: Teoria da Computação
         // ===========================
-        $trilhaId = DB::table('trilhas')->insertGetId([
-            'nome' => 'Teoria da Computação',
-            'codcur' => $codcur,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $trilha = Trilha::firstOrCreate(['nome' => 'Teoria da Computação', 'codcur' => $codcur]);
 
         // Regra 1: Obrigatórias de Algoritmos (2 obrigatórias)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Obrigatórias de Algoritmos',
-            'num_disciplinas_exigidas' => 2,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Obrigatórias de Algoritmos'],
+            ['num_disciplinas_exigidas' => 2]
+        );
 
-        $obrigatorias = ['MAC0328', 'MAC0414'];
-        foreach ($obrigatorias as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'obrigatoria',
-            ]);
+        foreach (['MAC0328', 'MAC0414'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'obrigatoria']);
         }
 
         // Regra 2: Obrigatórias de Matemática (3 obrigatórias)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Obrigatórias de Matemática',
-            'num_disciplinas_exigidas' => 3,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Obrigatórias de Matemática'],
+            ['num_disciplinas_exigidas' => 3]
+        );
 
-        $obrigatorias = ['MAC0320', 'MAT0206', 'MAT0264'];
-        foreach ($obrigatorias as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'obrigatoria',
-            ]);
+        foreach (['MAC0320', 'MAT0206', 'MAT0264'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'obrigatoria']);
         }
 
         // Regra 3: Obrigatórias de Otimização (2 obrigatórias)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Obrigatórias de Otimização',
-            'num_disciplinas_exigidas' => 2,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Obrigatórias de Otimização'],
+            ['num_disciplinas_exigidas' => 2]
+        );
 
-        $obrigatorias = ['MAC0315', 'MAC0325'];
-        foreach ($obrigatorias as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'obrigatoria',
-            ]);
+        foreach (['MAC0315', 'MAC0325'] as $coddis) {
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'obrigatoria']);
         }
 
         // Regra 4: Total de 7 Disciplinas (todas as da trilha como eletivas)
-        $regraId = DB::table('trilha_regras')->insertGetId([
-            'trilha_id' => $trilhaId,
-            'nome_regra' => 'Total de 7 Disciplinas',
-            'num_disciplinas_exigidas' => 7,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $regra = TrilhaRegra::firstOrCreate(
+            ['trilha_id' => $trilha->id, 'nome_regra' => 'Total de 7 Disciplinas'],
+            ['num_disciplinas_exigidas' => 7]
+        );
 
         $todasDisciplinas = [
             'MAC0328', 'MAC0414', 'MAC0325', 'MAC0327', 'MAC0331', 'MAC0336', 'MAC0450', 'MAC0465',
@@ -270,11 +160,7 @@ class TrilhaSeeder extends Seeder
             'MAC0473',
         ];
         foreach ($todasDisciplinas as $coddis) {
-            DB::table('trilha_disciplinas')->insert([
-                'regra_id' => $regraId,
-                'coddis' => $coddis,
-                'tipo' => 'eletiva',
-            ]);
+            TrilhaDisciplina::firstOrCreate(['regra_id' => $regra->id, 'coddis' => $coddis, 'tipo' => 'eletiva']);
         }
     }
 }
