@@ -132,6 +132,7 @@ RUN apt-get update -o Acquire::Retries=10 && apt-get upgrade -y \
         freetds-common \
         freetds-dev \
         # Dependências do Chrome (Browsershot/Puppeteer - PDFs)
+        fonts-dejavu-core \
         libnss3 \
         libnspr4 \
         libatk1.0-0 \
