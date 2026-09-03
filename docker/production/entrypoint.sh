@@ -25,6 +25,30 @@ mkdir -p bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 
+# Generate APP_KEY automatically if missing/invalid (persisted in storage/app)
+KEY_FILE=/var/www/html/storage/app/app_key
+if [ -z "$APP_KEY" ] || ! printf '%s' "$APP_KEY" | grep -q '^base64:'; then
+    echo "🔑 APP_KEY ausente, gerando..."
+    if [ "$CONTAINER_ROLE" = "worker" ]; then
+        # o container app gera e persiste; aguarda a mesma chave aparecer
+        for i in $(seq 1 30); do
+            [ -f "$KEY_FILE" ] && break
+            sleep 2
+        done
+    fi
+    if [ -f "$KEY_FILE" ]; then
+        APP_KEY=$(cat "$KEY_FILE")
+    else
+        APP_KEY=$(php artisan key:generate --show --force)
+        mkdir -p storage/app
+        echo "$APP_KEY" > "$KEY_FILE"
+        chown www-data:www-data "$KEY_FILE"
+        chmod 600 "$KEY_FILE"
+    fi
+    export APP_KEY
+    echo "✅ APP_KEY definida e persistida em $KEY_FILE"
+fi
+
 # Wait for database
 echo "⏳ Waiting for database..."
 until php artisan db:show > /dev/null 2>&1; do
